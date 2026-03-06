@@ -1,6 +1,6 @@
 from datetime import timedelta
 
-from django.test import TestCase, override_settings, skipUnlessDBFeature
+from django.test import TestCase, override_settings
 from django.utils import timezone
 
 from apps.exams.models import AttemptQuestion, ExamAttempt, Option
@@ -18,7 +18,6 @@ def _create_aq(attempt, question, order=1, **kwargs):
     )
 
 
-@skipUnlessDBFeature("has_select_for_update_skip_locked")
 @override_settings(CELERY_TASK_ALWAYS_EAGER=True, CELERY_TASK_EAGER_PROPAGATES=True)
 class AutoSubmitTimedOutExamsTests(TestCase):
     def setUp(self):
@@ -28,13 +27,17 @@ class AutoSubmitTimedOutExamsTests(TestCase):
         self.exam = self.data["exam"]
 
     def _create_in_progress_attempt(self, started_minutes_ago=120):
-        return ExamAttempt.objects.create(
+        attempt = ExamAttempt.objects.create(
             student=self.profile,
             exam=self.exam,
             status=ExamAttempt.Status.IN_PROGRESS,
-            started_at=timezone.now() - timedelta(minutes=started_minutes_ago),
             total_marks=self.exam.total_marks,
         )
+        # auto_now_add ignores passed values, so update directly
+        started_at = timezone.now() - timedelta(minutes=started_minutes_ago)
+        ExamAttempt.objects.filter(pk=attempt.pk).update(started_at=started_at)
+        attempt.refresh_from_db()
+        return attempt
 
     def test_auto_submits_timed_out_attempt(self):
         attempt = self._create_in_progress_attempt(started_minutes_ago=120)
@@ -50,13 +53,15 @@ class AutoSubmitTimedOutExamsTests(TestCase):
         self.assertEqual(count, 0)
 
     def test_does_not_resubmit_already_submitted(self):
-        ExamAttempt.objects.create(
+        attempt = ExamAttempt.objects.create(
             student=self.profile,
             exam=self.exam,
             status=ExamAttempt.Status.SUBMITTED,
-            started_at=timezone.now() - timedelta(minutes=120),
             submitted_at=timezone.now() - timedelta(minutes=60),
             total_marks=self.exam.total_marks,
+        )
+        ExamAttempt.objects.filter(pk=attempt.pk).update(
+            started_at=timezone.now() - timedelta(minutes=120),
         )
         count = auto_submit_timed_out_exams()
         self.assertEqual(count, 0)
@@ -94,12 +99,14 @@ class AutoSubmitTimedOutExamsTests(TestCase):
     def test_multiple_timed_out_attempts(self):
         _, profile2 = self.factory.create_student(email="s2@test.com")
         self._create_in_progress_attempt(started_minutes_ago=120)
-        ExamAttempt.objects.create(
+        attempt2 = ExamAttempt.objects.create(
             student=profile2,
             exam=self.exam,
             status=ExamAttempt.Status.IN_PROGRESS,
-            started_at=timezone.now() - timedelta(minutes=120),
             total_marks=self.exam.total_marks,
+        )
+        ExamAttempt.objects.filter(pk=attempt2.pk).update(
+            started_at=timezone.now() - timedelta(minutes=120),
         )
         count = auto_submit_timed_out_exams()
         self.assertEqual(count, 2)
@@ -118,9 +125,9 @@ class AutoSubmitTimedOutExamsTests(TestCase):
             student=self.profile,
             exam=self.exam,
             status=ExamAttempt.Status.IN_PROGRESS,
-            started_at=started_at,
             total_marks=self.exam.total_marks,
         )
+        ExamAttempt.objects.filter(pk=attempt.pk).update(started_at=started_at)
         auto_submit_timed_out_exams()
         attempt.refresh_from_db()
         expected_deadline = started_at + timedelta(minutes=self.exam.duration_minutes)

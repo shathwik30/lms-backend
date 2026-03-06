@@ -78,32 +78,32 @@ def auto_submit_timed_out_exams(self):
             if now <= deadline:
                 continue
 
+            # Re-check status to prevent race with manual submission
+            try:
+                attempt = ExamAttempt.objects.select_related("exam").get(
+                    pk=attempt.pk,
+                    status=ExamAttempt.Status.IN_PROGRESS,
+                )
+            except ExamAttempt.DoesNotExist:
+                continue
+
             with transaction.atomic():
-                # Re-fetch with lock to prevent race with manual submission
-                try:
-                    locked = ExamAttempt.objects.select_for_update().get(
-                        pk=attempt.pk,
-                        status=ExamAttempt.Status.IN_PROGRESS,
-                    )
-                except ExamAttempt.DoesNotExist:
-                    continue
-
                 # Score any answers that were saved before timeout
-                total_score = _score_attempt(locked)
+                total_score = _score_attempt(attempt)
 
-                locked.status = ExamAttempt.Status.TIMED_OUT
-                locked.submitted_at = deadline  # Use actual deadline, not current time
-                locked.score = total_score
-                pass_score = (locked.exam.passing_percentage / ExamConstants.PERCENTAGE_DIVISOR) * locked.total_marks
-                locked.is_passed = total_score >= pass_score
-                locked.save()
+                attempt.status = ExamAttempt.Status.TIMED_OUT
+                attempt.submitted_at = deadline  # Use actual deadline, not current time
+                attempt.score = total_score
+                pass_score = (attempt.exam.passing_percentage / ExamConstants.PERCENTAGE_DIVISOR) * attempt.total_marks
+                attempt.is_passed = total_score >= pass_score
+                attempt.save()
 
                 logger.info(
                     "Auto-submitted attempt %d for student %d (score=%d/%d)",
-                    locked.pk,
-                    locked.student_id,
+                    attempt.pk,
+                    attempt.student_id,
                     total_score,
-                    locked.total_marks,
+                    attempt.total_marks,
                 )
                 count += 1
 
