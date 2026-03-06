@@ -81,7 +81,7 @@ def auto_submit_timed_out_exams(self):
             with transaction.atomic():
                 # Re-fetch with lock to prevent race with manual submission
                 try:
-                    locked = ExamAttempt.objects.select_for_update(skip_locked=True).get(
+                    locked = ExamAttempt.objects.select_for_update().get(
                         pk=attempt.pk,
                         status=ExamAttempt.Status.IN_PROGRESS,
                     )

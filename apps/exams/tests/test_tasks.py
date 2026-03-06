@@ -1,6 +1,6 @@
 from datetime import timedelta
 
-from django.test import TestCase, TransactionTestCase, override_settings, skipUnlessDBFeature
+from django.test import TestCase, override_settings, skipUnlessDBFeature
 from django.utils import timezone
 
 from apps.exams.models import AttemptQuestion, ExamAttempt, Option
@@ -20,7 +20,7 @@ def _create_aq(attempt, question, order=1, **kwargs):
 
 @skipUnlessDBFeature("has_select_for_update_skip_locked")
 @override_settings(CELERY_TASK_ALWAYS_EAGER=True, CELERY_TASK_EAGER_PROPAGATES=True)
-class AutoSubmitTimedOutExamsTests(TransactionTestCase):
+class AutoSubmitTimedOutExamsTests(TestCase):
     def setUp(self):
         self.factory = TestFactory()
         self.user, self.profile = self.factory.create_student()
