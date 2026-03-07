@@ -2,6 +2,7 @@ venv/
 __pycache__/
 *.pyc
 *.pyo
+*.pyd
 .env
 .env.docker
 db.sqlite3
@@ -12,3 +13,17 @@ staticfiles/
 *.log
 .idea/
 .vscode/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+htmlcov/
+.coverage
+coverage.xml
+dist/
+build/
+*.egg-info/
+docker-compose*.yml
+Dockerfile
+.dockerignore
+README.md
+docs/
