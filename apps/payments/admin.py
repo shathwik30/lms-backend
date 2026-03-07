@@ -10,7 +10,7 @@ from .models import PaymentTransaction, Purchase
 class PurchaseAdmin(admin.ModelAdmin, ExportCsvMixin):
     list_display = (
         "student",
-        "course",
+        "level",
         "amount_paid",
         "status_badge",
         "validity_badge",
@@ -18,10 +18,10 @@ class PurchaseAdmin(admin.ModelAdmin, ExportCsvMixin):
         "expires_at",
         "extended_by_days",
     )
-    list_filter = ("status", "course__level", "course")
+    list_filter = ("status", "level")
     search_fields = (
         "student__user__email",
-        "course__title",
+        "level__name",
     )
     readonly_fields = ("purchased_at",)
     date_hierarchy = "purchased_at"
@@ -61,7 +61,7 @@ class PaymentTransactionAdmin(
     list_display = (
         "gateway_order_id",
         "student",
-        "course",
+        "level",
         "amount",
         "status_badge",
         "created_at",

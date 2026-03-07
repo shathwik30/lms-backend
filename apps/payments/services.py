@@ -8,9 +8,10 @@ from django.db import transaction
 from django.utils import timezone
 
 from apps.courses.models import Course
+from apps.levels.models import Level
 from apps.notifications.models import Notification
 from apps.notifications.services import NotificationService
-from apps.progress.models import LevelProgress
+from apps.progress.models import CourseProgress, LevelProgress
 from apps.users.models import User as UserModel
 from core.constants import ErrorMessage, PaymentConstants
 from core.exceptions import LevelLocked
@@ -23,41 +24,38 @@ logger = logging.getLogger(__name__)
 
 class PaymentService:
     @staticmethod
-    def initiate_payment(user: UserModel, course_id: int) -> tuple[dict | None, str | None]:
+    def initiate_payment(user: UserModel, level_id: int) -> tuple[dict | None, str | None]:
         try:
-            course = Course.objects.select_related("level").get(
-                pk=course_id,
-                is_active=True,
-            )
-        except Course.DoesNotExist:
-            return None, ErrorMessage.COURSE_NOT_FOUND
+            level = Level.objects.get(pk=level_id, is_active=True)
+        except Level.DoesNotExist:
+            return None, ErrorMessage.LEVEL_NOT_FOUND
 
         profile = user.student_profile
 
-        if not EligibilityService.can_purchase_course(profile, course):
+        if not EligibilityService.can_purchase_level(profile, level):
             raise LevelLocked()
 
         existing = Purchase.objects.filter(
             student=profile,
-            course=course,
+            level=level,
             status=Purchase.Status.ACTIVE,
         ).first()
         if existing and existing.is_valid:
-            return None, ErrorMessage.ACTIVE_PURCHASE_EXISTS
+            return None, ErrorMessage.ACTIVE_LEVEL_PURCHASE_EXISTS
 
-        receipt = f"course_{course.id}_student_{profile.id}"
+        receipt = f"level_{level.id}_student_{profile.id}"
 
         if settings.RAZORPAY_KEY_ID:
             from core.services.razorpay import RazorpayService
 
             try:
                 order_data = RazorpayService.create_order(
-                    amount=float(course.price),
+                    amount=float(level.price),
                     receipt=receipt,
                     notes={
-                        "course_id": str(course.id),
+                        "level_id": str(level.id),
                         "student_id": str(profile.id),
-                        "course_title": course.title,
+                        "level_name": level.name,
                     },
                 )
                 gateway_order_id = order_data["order_id"]
@@ -69,18 +67,18 @@ class PaymentService:
 
         txn = PaymentTransaction.objects.create(
             student=profile,
-            course=course,
+            level=level,
             gateway_order_id=gateway_order_id,
-            amount=course.price,
+            amount=level.price,
         )
 
         return {
             "transaction_id": txn.id,
             "gateway_order_id": gateway_order_id,
-            "amount": str(course.price),
+            "amount": str(level.price),
             "currency": PaymentConstants.DEFAULT_CURRENCY,
-            "course_id": course.id,
-            "course_title": course.title,
+            "level_id": level.id,
+            "level_name": level.name,
             "razorpay_key": settings.RAZORPAY_KEY_ID or None,
         }, None
 
@@ -89,7 +87,7 @@ class PaymentService:
         profile = user.student_profile
 
         try:
-            txn = PaymentTransaction.objects.get(
+            txn = PaymentTransaction.objects.select_related("level").get(
                 gateway_order_id=data["gateway_order_id"],
                 student=profile,
                 status=PaymentTransaction.Status.PENDING,
@@ -110,13 +108,13 @@ class PaymentService:
                 txn.save(update_fields=["status"])
                 return None, ErrorMessage.PAYMENT_VERIFICATION_FAILED
 
-        course = txn.course
-        if not course:
-            logger.error("No course linked to txn %s", txn.id)
-            return None, ErrorMessage.COURSE_NOT_LINKED
+        level = txn.level
+        if not level:
+            logger.error("No level linked to txn %s", txn.id)
+            return None, ErrorMessage.LEVEL_NOT_LINKED
 
-        if txn.amount != course.price:
-            logger.warning("Amount mismatch for txn %s: txn=%s, course=%s", txn.id, txn.amount, course.price)
+        if txn.amount != level.price:
+            logger.warning("Amount mismatch for txn %s: txn=%s, level=%s", txn.id, txn.amount, level.price)
             txn.status = PaymentTransaction.Status.FAILED
             txn.save(update_fields=["status"])
             return None, ErrorMessage.AMOUNT_MISMATCH
@@ -124,18 +122,19 @@ class PaymentService:
         with transaction.atomic():
             purchase = Purchase.objects.create(
                 student=profile,
-                course=course,
+                level=level,
                 amount_paid=txn.amount,
-                expires_at=timezone.now() + timedelta(days=course.validity_days),
+                expires_at=timezone.now() + timedelta(days=level.validity_days),
             )
             txn.gateway_payment_id = data["gateway_payment_id"]
             txn.status = PaymentTransaction.Status.SUCCESS
             txn.purchase = purchase
             txn.save(update_fields=["gateway_payment_id", "status", "purchase"])
 
+            # Create/update LevelProgress
             existing_progress = LevelProgress.objects.filter(
                 student=profile,
-                level=course.level,
+                level=level,
             ).first()
             if existing_progress:
                 existing_progress.purchase = purchase
@@ -145,26 +144,35 @@ class PaymentService:
                 ):
                     existing_progress.status = LevelProgress.Status.IN_PROGRESS
                     existing_progress.started_at = timezone.now()
-                existing_progress.save()
+                existing_progress.save(update_fields=["purchase", "status", "started_at"])
             else:
                 LevelProgress.objects.create(
                     student=profile,
-                    level=course.level,
+                    level=level,
                     status=LevelProgress.Status.IN_PROGRESS,
                     purchase=purchase,
                     started_at=timezone.now(),
                 )
 
-            if not profile.current_level or course.level.order >= profile.current_level.order:
-                profile.current_level = course.level
+            # Create CourseProgress for all active courses in the level
+            courses = Course.objects.filter(level=level, is_active=True)
+            for course in courses:
+                CourseProgress.objects.get_or_create(
+                    student=profile,
+                    course=course,
+                    defaults={"status": CourseProgress.Status.NOT_STARTED},
+                )
+
+            if not profile.current_level or level.order >= profile.current_level.order:
+                profile.current_level = level
                 profile.save(update_fields=["current_level"])
 
         NotificationService.create(
             user=user,
-            title=f"Purchase Confirmed: {course.title}",
-            message=f"Your purchase of {course.title} is confirmed. Valid until {purchase.expires_at.strftime('%d %b %Y')}.",
+            title=f"Purchase Confirmed: {level.name}",
+            message=f"Your purchase of {level.name} is confirmed. Valid until {purchase.expires_at.strftime('%d %b %Y')}.",
             notification_type=Notification.NotificationType.PURCHASE,
-            data={"purchase_id": purchase.id, "course_id": course.id},
+            data={"purchase_id": purchase.id, "level_id": level.id},
         )
 
         from core.tasks import send_purchase_confirmation_task
@@ -172,7 +180,7 @@ class PaymentService:
         send_purchase_confirmation_task.delay(
             email=user.email,
             full_name=user.full_name,
-            course_title=course.title,
+            level_name=level.name,
             amount=str(purchase.amount_paid),
             expires_at_iso=purchase.expires_at.isoformat(),
         )
@@ -191,6 +199,6 @@ class PaymentService:
         purchase.extended_by = admin_user
         if purchase.status == Purchase.Status.EXPIRED:
             purchase.status = Purchase.Status.ACTIVE
-        purchase.save()
+        purchase.save(update_fields=["expires_at", "extended_by_days", "extended_by", "status"])
 
         return purchase, None

@@ -6,28 +6,23 @@ from core.admin import ExportCsvMixin, make_active, make_inactive
 from .models import Level, Week
 
 
-class WeekInline(admin.TabularInline):
-    model = Week
-    extra = 1
-    ordering = ("order",)
-    show_change_link = True
-
-
 @admin.register(Level)
 class LevelAdmin(admin.ModelAdmin, ExportCsvMixin):
     list_display = (
         "name",
         "order",
+        "price",
+        "validity_days",
+        "max_final_exam_attempts",
         "passing_percentage",
-        "week_count",
+        "course_count",
         "question_count",
         "is_active",
     )
     list_filter = ("is_active",)
-    list_editable = ("passing_percentage", "is_active")
+    list_editable = ("price", "validity_days", "max_final_exam_attempts", "passing_percentage", "is_active")
     search_fields = ("name",)
     ordering = ("order",)
-    inlines = [WeekInline]
     list_per_page = 20
     actions = [make_active, make_inactive, "export_as_csv"]
 
@@ -36,14 +31,14 @@ class LevelAdmin(admin.ModelAdmin, ExportCsvMixin):
             super()
             .get_queryset(request)
             .annotate(
-                _week_count=Count("weeks", distinct=True),
+                _course_count=Count("courses", distinct=True),
                 _question_count=Count("questions", distinct=True),
             )
         )
 
-    @admin.display(description="Weeks")
-    def week_count(self, obj):
-        return getattr(obj, "_week_count", obj.weeks.count())
+    @admin.display(description="Courses")
+    def course_count(self, obj):
+        return getattr(obj, "_course_count", obj.courses.count())
 
     @admin.display(description="Questions")
     def question_count(self, obj):
@@ -51,18 +46,18 @@ class LevelAdmin(admin.ModelAdmin, ExportCsvMixin):
 
 
 @admin.register(Week)
-class WeekAdmin(admin.ModelAdmin):
+class WeekAdmin(admin.ModelAdmin, ExportCsvMixin):
     list_display = (
         "name",
-        "level",
+        "course",
         "order",
         "session_count",
         "is_active",
     )
-    list_filter = ("level", "is_active")
+    list_filter = ("course__level", "is_active")
     list_editable = ("is_active",)
-    list_select_related = ("level",)
-    ordering = ("level__order", "order")
+    list_select_related = ("course",)
+    ordering = ("course__level__order", "course__title", "order")
     actions = [make_active, make_inactive]
 
     def get_queryset(self, request):

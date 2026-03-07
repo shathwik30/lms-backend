@@ -26,6 +26,13 @@ class Question(TimeStampedModel):
         on_delete=models.SET_NULL,
         related_name="questions",
     )
+    course = models.ForeignKey(
+        "courses.Course",
+        null=True,
+        blank=True,
+        on_delete=models.SET_NULL,
+        related_name="questions",
+    )
     text = models.TextField()
     image_url = models.URLField(max_length=500, blank=True)
     difficulty = models.CharField(max_length=10, choices=Difficulty.choices, db_index=True)
@@ -58,7 +65,7 @@ class Question(TimeStampedModel):
         return f"Q#{self.pk} ({self.difficulty})"
 
 
-class Option(models.Model):
+class Option(TimeStampedModel):
     question = models.ForeignKey(Question, on_delete=models.CASCADE, related_name="options")
     text = models.TextField()
     image_url = models.URLField(max_length=500, blank=True)
@@ -76,6 +83,7 @@ class Exam(TimeStampedModel):
     class ExamType(models.TextChoices):
         WEEKLY = "weekly", "Weekly"
         LEVEL_FINAL = "level_final", "Level Final"
+        ONBOARDING = "onboarding", "Onboarding"
 
     level = models.ForeignKey(
         "levels.Level",
@@ -84,6 +92,13 @@ class Exam(TimeStampedModel):
     )
     week = models.ForeignKey(
         "levels.Week",
+        null=True,
+        blank=True,
+        on_delete=models.SET_NULL,
+        related_name="exams",
+    )
+    course = models.ForeignKey(
+        "courses.Course",
         null=True,
         blank=True,
         on_delete=models.SET_NULL,
@@ -149,7 +164,7 @@ class ExamAttempt(TimeStampedModel):
         return f"{self.student} → {self.exam.title}"
 
 
-class AttemptQuestion(models.Model):
+class AttemptQuestion(TimeStampedModel):
     attempt = models.ForeignKey(
         ExamAttempt,
         on_delete=models.CASCADE,
@@ -183,6 +198,9 @@ class AttemptQuestion(models.Model):
         constraints = [
             models.UniqueConstraint(fields=["attempt", "question"], name="unique_question_per_attempt"),
         ]
+
+    def __str__(self):
+        return f"Q#{self.question_id} in Attempt #{self.attempt_id}"
 
 
 class ProctoringViolation(TimeStampedModel):

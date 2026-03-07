@@ -42,8 +42,8 @@ class InitiatePaymentView(APIView):
                     "gateway_order_id": drf_serializers.CharField(),
                     "amount": drf_serializers.CharField(),
                     "currency": drf_serializers.CharField(),
-                    "course_id": drf_serializers.IntegerField(),
-                    "course_title": drf_serializers.CharField(),
+                    "level_id": drf_serializers.IntegerField(),
+                    "level_name": drf_serializers.CharField(),
                     "razorpay_key": drf_serializers.CharField(allow_null=True),
                 },
             )
@@ -55,9 +55,9 @@ class InitiatePaymentView(APIView):
 
         result, error = PaymentService.initiate_payment(
             request.user,
-            serializer.validated_data["course_id"],
+            serializer.validated_data["level_id"],
         )
-        if error == ErrorMessage.COURSE_NOT_FOUND:
+        if error == ErrorMessage.LEVEL_NOT_FOUND:
             return Response({"detail": error}, status=status.HTTP_404_NOT_FOUND)
         if error == ErrorMessage.PAYMENT_GATEWAY_ERROR:
             return Response({"detail": error}, status=status.HTTP_502_BAD_GATEWAY)
@@ -99,7 +99,7 @@ class PurchaseHistoryView(generics.ListAPIView):
             return Purchase.objects.none()
         return Purchase.objects.filter(
             student=self.request.user.student_profile,  # type: ignore[union-attr]
-        ).select_related("course__level")
+        ).select_related("level")
 
 
 @extend_schema_view(
@@ -145,6 +145,6 @@ class AdminExtendValidityView(APIView):
 class AdminPurchaseListView(generics.ListAPIView):
     permission_classes = [IsAdmin]
     serializer_class = PurchaseSerializer
-    queryset = Purchase.objects.select_related("course__level", "student__user")
+    queryset = Purchase.objects.select_related("level", "student__user")
     pagination_class = LargePagination
-    filterset_fields = ["status", "course__level"]
+    filterset_fields = ["status", "level"]

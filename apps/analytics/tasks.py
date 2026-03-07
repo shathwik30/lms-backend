@@ -67,12 +67,12 @@ def aggregate_daily_analytics(self):
         }
 
         purchase_stats = {
-            row["course__level_id"]: row
+            row["level_id"]: row
             for row in Purchase.objects.filter(
-                course__level_id__in=active_level_ids,
+                level_id__in=active_level_ids,
                 purchased_at__date=yesterday,
             )
-            .values("course__level_id")
+            .values("level_id")
             .annotate(
                 total_purchases=Count("id"),
                 revenue=Sum("amount_paid"),

@@ -61,14 +61,24 @@ class AuthService:
         if not email or not idinfo.get("email_verified"):
             return None, None, ErrorMessage.GOOGLE_EMAIL_NOT_VERIFIED
 
+        google_id = idinfo["sub"]
         full_name = idinfo.get("name", email.split("@")[0])
 
         created = False
+
+        # 1. Returning Google user — look up by stable google_id
         try:
-            user = User.objects.get(email=email)
+            user = User.objects.get(google_id=google_id)
         except User.DoesNotExist:
-            user = User.objects.create_user(email=email, full_name=full_name)
-            created = True
+            # 2. Existing email/password account — link google_id to it
+            try:
+                user = User.objects.get(email=email)
+                user.google_id = google_id
+                user.save(update_fields=["google_id"])
+            except User.DoesNotExist:
+                # 3. Brand new user — create via Google
+                user = User.objects.create_user(email=email, full_name=full_name, google_id=google_id)
+                created = True
 
         if not user.is_active:
             return None, None, ErrorMessage.ACCOUNT_DEACTIVATED

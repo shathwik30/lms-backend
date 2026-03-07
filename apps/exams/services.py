@@ -14,7 +14,7 @@ from apps.progress.models import LevelProgress
 from apps.users.models import StudentProfile
 from apps.users.models import User as UserModel
 from core.constants import ErrorMessage, ExamConstants
-from core.exceptions import LevelLocked
+from core.exceptions import FinalExamAttemptsExhausted, LevelLocked, OnboardingAlreadyAttempted
 from core.services.eligibility import EligibilityService
 
 from .models import AttemptQuestion, Exam, ExamAttempt, ProctoringViolation, Question
@@ -26,7 +26,7 @@ class ExamService:
     @staticmethod
     def get_exam_with_eligibility(student_profile: StudentProfile, exam_pk: int) -> tuple[Exam | None, bool]:
         try:
-            exam = Exam.objects.select_related("level", "week").get(pk=exam_pk, is_active=True)
+            exam = Exam.objects.select_related("level", "week", "course").get(pk=exam_pk, is_active=True)
         except Exam.DoesNotExist:
             return None, False
         eligible = EligibilityService.can_attempt_exam(student_profile, exam)
@@ -34,7 +34,14 @@ class ExamService:
 
     @staticmethod
     def start_exam(student_profile: StudentProfile, exam: Exam) -> tuple[ExamAttempt | None, bool | None]:
-        if not EligibilityService.can_attempt_exam(student_profile, exam):
+        if exam.exam_type == Exam.ExamType.ONBOARDING:
+            if student_profile.onboarding_exam_attempted:
+                raise OnboardingAlreadyAttempted()
+        elif not EligibilityService.can_attempt_exam(student_profile, exam):
+            if exam.exam_type == Exam.ExamType.LEVEL_FINAL:
+                progress = LevelProgress.objects.filter(student=student_profile, level=exam.level).first()
+                if progress and progress.final_exam_attempts_used >= exam.level.max_final_exam_attempts:
+                    raise FinalExamAttemptsExhausted()
             raise LevelLocked()
 
         with transaction.atomic():
@@ -50,9 +57,15 @@ class ExamService:
             if active_attempt:
                 return active_attempt, False
 
-            pool = Question.objects.filter(level=exam.level, is_active=True)
-            if exam.week:
-                pool = pool.filter(week=exam.week)
+            if exam.exam_type == Exam.ExamType.ONBOARDING:
+                # Pull questions from ALL levels
+                pool = Question.objects.filter(is_active=True)
+            else:
+                pool = Question.objects.filter(level=exam.level, is_active=True)
+                if exam.week:
+                    pool = pool.filter(week=exam.week)
+                if exam.course:
+                    pool = pool.filter(course=exam.course)
 
             pool_ids_marks = list(pool.values_list("id", "marks"))
             if not pool_ids_marks:
@@ -101,7 +114,7 @@ class ExamService:
             attempt.submitted_at = deadline
             attempt.score = timed_score
             attempt.is_passed = timed_score >= pass_score
-            attempt.save()
+            attempt.save(update_fields=["status", "submitted_at", "score", "is_passed"])
             return None, ErrorMessage.SUBMISSION_DEADLINE_PASSED
 
         answers_map = {a["question_id"]: a for a in answers_data}
@@ -144,9 +157,11 @@ class ExamService:
 
         pass_score = (attempt.exam.passing_percentage / ExamConstants.PERCENTAGE_DIVISOR) * attempt.total_marks
         attempt.is_passed = total_score >= pass_score
-        attempt.save()
+        attempt.save(update_fields=["score", "submitted_at", "status", "is_passed"])
 
-        if attempt.exam.exam_type == Exam.ExamType.LEVEL_FINAL:
+        if attempt.exam.exam_type == Exam.ExamType.ONBOARDING:
+            cls._process_onboarding_result(user, attempt)
+        elif attempt.exam.exam_type == Exam.ExamType.LEVEL_FINAL:
             cls._update_level_progress(user, attempt)
 
         from core.tasks import send_exam_result_task
@@ -161,6 +176,77 @@ class ExamService:
         )
 
         return attempt, None
+
+    @staticmethod
+    def _process_onboarding_result(user: UserModel, attempt: ExamAttempt) -> None:
+        from apps.levels.models import Level
+
+        profile = user.student_profile
+        profile.onboarding_exam_attempted = True
+
+        # Group questions by level, score per-level
+        attempt_questions = list(attempt.attempt_questions.select_related("question__level"))
+
+        level_scores: dict[int, dict] = {}
+        for aq in attempt_questions:
+            level_id = aq.question.level_id
+            if level_id not in level_scores:
+                level_scores[level_id] = {"scored": Decimal(0), "total": Decimal(0)}
+            level_scores[level_id]["total"] += aq.question.marks
+            if aq.marks_awarded > 0:
+                level_scores[level_id]["scored"] += aq.marks_awarded
+
+        levels = Level.objects.filter(id__in=level_scores.keys(), is_active=True).order_by("order")
+
+        highest_cleared = None
+        for level in levels:
+            data = level_scores.get(level.id)
+            if not data or data["total"] == 0:
+                continue
+            percentage = (data["scored"] / data["total"]) * 100
+            if percentage >= level.passing_percentage:
+                LevelProgress.objects.update_or_create(
+                    student=profile,
+                    level=level,
+                    defaults={
+                        "status": LevelProgress.Status.EXAM_PASSED,
+                        "completed_at": timezone.now(),
+                    },
+                )
+                highest_cleared = level
+            else:
+                # Failed this level — stop clearing subsequent levels
+                break
+
+        if highest_cleared:
+            profile.highest_cleared_level = highest_cleared
+            # Set current level to the next one after highest cleared
+            next_level = Level.objects.filter(order=highest_cleared.order + 1, is_active=True).first()
+            if next_level:
+                profile.current_level = next_level
+            else:
+                profile.current_level = highest_cleared
+        else:
+            # Failed level 1 — start at level 1
+            first_level = Level.objects.filter(is_active=True).order_by("order").first()
+            if first_level:
+                profile.current_level = first_level
+
+        profile.save(update_fields=["onboarding_exam_attempted", "highest_cleared_level", "current_level"])
+
+        NotificationService.create(
+            user=user,
+            title="Placement Test Complete",
+            message=f"Your placement test is complete. Score: {attempt.score}/{attempt.total_marks}.",
+            notification_type=Notification.NotificationType.EXAM_RESULT,
+            data={"attempt_id": attempt.id},
+        )
+
+    @staticmethod
+    def _reset_level_progress(student: StudentProfile, level) -> None:
+        from apps.progress.services import ProgressService
+
+        ProgressService.reset_level_progress(student, level)
 
     @staticmethod
     def _score_timed_out_attempt(attempt: ExamAttempt) -> Decimal:
@@ -209,30 +295,31 @@ class ExamService:
         if attempt.is_disqualified:
             return None, ErrorMessage.ATTEMPT_ALREADY_DISQUALIFIED
 
-        warning_count = attempt.violations.count() + 1
+        with transaction.atomic():
+            warning_count = attempt.violations.count() + 1
 
-        violation = ProctoringViolation.objects.create(
-            attempt=attempt,
-            violation_type=violation_type,
-            warning_number=warning_count,
-            details=details,
-        )
-
-        if warning_count >= attempt.exam.max_warnings:
-            attempt.is_disqualified = True
-            attempt.status = ExamAttempt.Status.SUBMITTED
-            attempt.submitted_at = timezone.now()
-            attempt.score = 0
-            attempt.is_passed = False
-            attempt.save()
-
-            NotificationService.create(
-                user=attempt.student.user,
-                title="Exam Disqualified",
-                message=f"You were disqualified from {attempt.exam.title} due to repeated proctoring violations.",
-                notification_type=Notification.NotificationType.EXAM_RESULT,
-                data={"attempt_id": attempt.id},
+            violation = ProctoringViolation.objects.create(
+                attempt=attempt,
+                violation_type=violation_type,
+                warning_number=warning_count,
+                details=details,
             )
+
+            if warning_count >= attempt.exam.max_warnings:
+                attempt.is_disqualified = True
+                attempt.status = ExamAttempt.Status.SUBMITTED
+                attempt.submitted_at = timezone.now()
+                attempt.score = 0
+                attempt.is_passed = False
+                attempt.save(update_fields=["is_disqualified", "status", "submitted_at", "score", "is_passed"])
+
+                NotificationService.create(
+                    user=attempt.student.user,
+                    title="Exam Disqualified",
+                    message=f"You were disqualified from {attempt.exam.title} due to repeated proctoring violations.",
+                    notification_type=Notification.NotificationType.EXAM_RESULT,
+                    data={"attempt_id": attempt.id},
+                )
 
         return {
             "violation": violation,
@@ -306,7 +393,7 @@ class ExamService:
         if attempt.is_passed:
             progress.status = LevelProgress.Status.EXAM_PASSED
             progress.completed_at = timezone.now()
-            progress.save()
+            progress.save(update_fields=["status", "completed_at"])
 
             profile.highest_cleared_level = level
             profile.save(update_fields=["highest_cleared_level"])
@@ -330,14 +417,39 @@ class ExamService:
                 data={"level_id": level.id, "attempt_id": attempt.id},
             )
         else:
-            if progress.status != LevelProgress.Status.EXAM_PASSED:
-                progress.status = LevelProgress.Status.EXAM_FAILED
-                progress.save()
+            from django.db.models import F
 
-            NotificationService.create(
-                user=user,
-                title=f"Exam Result: {attempt.exam.title}",
-                message=f"You scored {attempt.score}/{attempt.total_marks}. Review the material and try again.",
-                notification_type=Notification.NotificationType.EXAM_RESULT,
-                data={"level_id": level.id, "attempt_id": attempt.id},
+            # Atomically increment attempts_used to avoid race conditions
+            LevelProgress.objects.filter(pk=progress.pk).update(
+                final_exam_attempts_used=F("final_exam_attempts_used") + 1,
             )
+            progress.refresh_from_db()
+
+            if progress.final_exam_attempts_used >= level.max_final_exam_attempts:
+                # Reset level progress (zeroes attempts_used, sets status=IN_PROGRESS)
+                ExamService._reset_level_progress(profile, level)
+                # Re-read after reset to avoid stale in-memory state
+                LevelProgress.objects.filter(pk=progress.pk).update(
+                    status=LevelProgress.Status.EXAM_FAILED,
+                )
+
+                NotificationService.create(
+                    user=user,
+                    title=f"Level {level.name} — Attempts Exhausted",
+                    message=f"All {level.max_final_exam_attempts} attempts used. Level progress has been reset.",
+                    notification_type=Notification.NotificationType.EXAM_RESULT,
+                    data={"level_id": level.id, "attempt_id": attempt.id},
+                )
+            else:
+                LevelProgress.objects.filter(pk=progress.pk).exclude(
+                    status=LevelProgress.Status.EXAM_PASSED,
+                ).update(status=LevelProgress.Status.EXAM_FAILED)
+
+                remaining = level.max_final_exam_attempts - progress.final_exam_attempts_used
+                NotificationService.create(
+                    user=user,
+                    title=f"Exam Result: {attempt.exam.title}",
+                    message=f"You scored {attempt.score}/{attempt.total_marks}. {remaining} attempt(s) remaining.",
+                    notification_type=Notification.NotificationType.EXAM_RESULT,
+                    data={"level_id": level.id, "attempt_id": attempt.id},
+                )

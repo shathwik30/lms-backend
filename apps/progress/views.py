@@ -9,8 +9,9 @@ from core.constants import ErrorMessage, ProgressConstants
 from core.permissions import IsStudent
 from core.throttling import SafeScopedRateThrottle
 
-from .models import LevelProgress, SessionProgress
+from .models import CourseProgress, LevelProgress, SessionProgress
 from .serializers import (
+    CourseProgressSerializer,
     LeaderboardEntrySerializer,
     LevelProgressSerializer,
     SessionProgressSerializer,
@@ -53,7 +54,7 @@ class SessionProgressListView(generics.ListAPIView):
         level_pk = self.kwargs.get("level_pk")
         return SessionProgress.objects.filter(
             student=self.request.user.student_profile,  # type: ignore[union-attr]
-            session__week__level_id=level_pk,
+            session__week__course__level_id=level_pk,
         ).select_related("session")
 
 
@@ -73,6 +74,33 @@ class LevelProgressListView(generics.ListAPIView):
         ).select_related("level")
 
 
+class CourseProgressView(APIView):
+    permission_classes = [IsStudent]
+
+    @extend_schema(responses={200: CourseProgressSerializer})
+    def get(self, request, course_pk):
+        try:
+            cp = CourseProgress.objects.select_related("course__level").get(
+                course_id=course_pk,
+                student=request.user.student_profile,
+            )
+        except CourseProgress.DoesNotExist:
+            return Response({"detail": ErrorMessage.NOT_FOUND}, status=status.HTTP_404_NOT_FOUND)
+        return Response(CourseProgressSerializer(cp).data)
+
+
+class LevelCourseProgressView(APIView):
+    permission_classes = [IsStudent]
+
+    @extend_schema(responses={200: CourseProgressSerializer(many=True)})
+    def get(self, request, level_pk):
+        progress = CourseProgress.objects.filter(
+            student=request.user.student_profile,
+            course__level_id=level_pk,
+        ).select_related("course__level")
+        return Response(CourseProgressSerializer(progress, many=True).data)
+
+
 class DashboardView(APIView):
     permission_classes = [IsStudent]
 
@@ -83,8 +111,10 @@ class DashboardView(APIView):
                 fields={
                     "current_level": drf_serializers.DictField(),
                     "level_progress": LevelProgressSerializer(many=True),
+                    "course_progress": CourseProgressSerializer(many=True),
                     "next_action": drf_serializers.CharField(),
                     "message": drf_serializers.CharField(),
+                    "onboarding_exam_attempted": drf_serializers.BooleanField(),
                 },
             )
         }
@@ -95,8 +125,10 @@ class DashboardView(APIView):
             {
                 "current_level": data["current_level"],
                 "level_progress": LevelProgressSerializer(data["level_progress"], many=True).data,
+                "course_progress": CourseProgressSerializer(data["course_progress"], many=True).data,
                 "next_action": data["next_action"],
                 "message": data["message"],
+                "onboarding_exam_attempted": data["onboarding_exam_attempted"],
             }
         )
 

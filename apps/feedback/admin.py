@@ -23,7 +23,7 @@ class SessionFeedbackAdmin(
         "rating",
         "difficulty_rating",
         "clarity_rating",
-        "session__week__level",
+        "session__week__course__level",
     )
     search_fields = (
         "student__user__email",

@@ -20,7 +20,7 @@ from .serializers import LevelDetailSerializer, LevelListSerializer, WeekSeriali
 class LevelListView(generics.ListAPIView):
     permission_classes = [AllowAny]
     serializer_class = LevelListSerializer
-    queryset = Level.objects.filter(is_active=True).prefetch_related("weeks")
+    queryset = Level.objects.filter(is_active=True).prefetch_related("courses")
     pagination_class = None
 
 
@@ -31,7 +31,7 @@ class LevelListView(generics.ListAPIView):
 class LevelDetailView(generics.RetrieveAPIView):
     permission_classes = [AllowAny]
     serializer_class = LevelDetailSerializer
-    queryset = Level.objects.filter(is_active=True).prefetch_related("weeks")
+    queryset = Level.objects.filter(is_active=True).prefetch_related("courses")
 
 
 # ── Admin views ──
@@ -44,7 +44,7 @@ class LevelDetailView(generics.RetrieveAPIView):
 class AdminLevelListCreateView(generics.ListCreateAPIView):
     permission_classes = [IsAdmin]
     serializer_class = LevelDetailSerializer
-    queryset = Level.objects.prefetch_related("weeks")
+    queryset = Level.objects.prefetch_related("courses")
     pagination_class = None
 
 
@@ -61,8 +61,8 @@ class AdminLevelDetailView(generics.RetrieveUpdateDestroyAPIView):
 
 
 @extend_schema_view(
-    list=extend_schema(tags=["Levels"], summary="List weeks for a level (admin)"),
-    create=extend_schema(tags=["Levels"], summary="Create a week in a level"),
+    list=extend_schema(tags=["Courses"], summary="List weeks for a course (admin)"),
+    create=extend_schema(tags=["Courses"], summary="Create a week in a course"),
 )
 class AdminWeekListCreateView(generics.ListCreateAPIView):
     permission_classes = [IsAdmin]
@@ -72,17 +72,17 @@ class AdminWeekListCreateView(generics.ListCreateAPIView):
     def get_queryset(self):
         if getattr(self, "swagger_fake_view", False):
             return Week.objects.none()
-        return Week.objects.filter(level_id=self.kwargs["level_pk"])
+        return Week.objects.filter(course_id=self.kwargs["course_pk"])
 
     def perform_create(self, serializer):
-        serializer.save(level_id=self.kwargs["level_pk"])
+        serializer.save(course_id=self.kwargs["course_pk"])
 
 
 @extend_schema_view(
-    retrieve=extend_schema(tags=["Levels"], summary="Get week details (admin)"),
-    update=extend_schema(tags=["Levels"], summary="Update a week"),
-    partial_update=extend_schema(tags=["Levels"], summary="Partially update a week"),
-    destroy=extend_schema(tags=["Levels"], summary="Delete a week"),
+    retrieve=extend_schema(tags=["Courses"], summary="Get week details (admin)"),
+    update=extend_schema(tags=["Courses"], summary="Update a week"),
+    partial_update=extend_schema(tags=["Courses"], summary="Partially update a week"),
+    destroy=extend_schema(tags=["Courses"], summary="Delete a week"),
 )
 class AdminWeekDetailView(generics.RetrieveUpdateDestroyAPIView):
     permission_classes = [IsAdmin]

@@ -48,6 +48,7 @@ class StudentProfileSerializer(serializers.ModelSerializer):
             "highest_cleared_level",
             "highest_cleared_level_name",
             "onboarding_completed",
+            "onboarding_exam_attempted",
             "created_at",
         ]
         read_only_fields = fields

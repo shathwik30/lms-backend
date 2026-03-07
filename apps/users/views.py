@@ -1,4 +1,4 @@
-from drf_spectacular.utils import extend_schema, inline_serializer
+from drf_spectacular.utils import extend_schema, extend_schema_view, inline_serializer
 from rest_framework import generics, status
 from rest_framework import serializers as drf_serializers
 from rest_framework.permissions import AllowAny, IsAuthenticated
@@ -31,6 +31,9 @@ from .serializers import (
 from .services import AuthService, PasswordResetService, ProfileService
 
 
+@extend_schema_view(
+    create=extend_schema(tags=["Auth"], summary="Register a new user"),
+)
 class RegisterView(generics.CreateAPIView):
     serializer_class = RegisterSerializer
     permission_classes = [AllowAny]
@@ -236,7 +239,7 @@ class ChangePasswordView(APIView):
         )
         if error:
             return Response(
-                {"old_password": [error]},
+                {"detail": error},
                 status=status.HTTP_400_BAD_REQUEST,
             )
         assert tokens is not None
@@ -252,6 +255,9 @@ class ChangePasswordView(APIView):
 # ── Admin views ──
 
 
+@extend_schema_view(
+    list=extend_schema(tags=["Admin - Users"], summary="List all students"),
+)
 class AdminStudentListView(generics.ListAPIView):
     permission_classes = [IsAdmin]
     serializer_class = StudentProfileSerializer
@@ -300,7 +306,11 @@ class AdminStudentDetailView(APIView):
                     )
                 setattr(profile, f"{field}_id", level_id)
 
-        profile.save()
+        update_fields = [
+            f"{f}_id" for f in ("current_level", "highest_cleared_level") if f in serializer.validated_data
+        ]
+        if update_fields:
+            profile.save(update_fields=update_fields)
         return Response(StudentProfileSerializer(profile).data)
 
 
@@ -495,6 +505,9 @@ class ReportIssueView(APIView):
         return Response(serializer.data, status=status.HTTP_201_CREATED)
 
 
+@extend_schema_view(
+    list=extend_schema(tags=["Users"], summary="List my issue reports"),
+)
 class IssueReportListView(generics.ListAPIView):
     permission_classes = [IsAuthenticated]
     serializer_class = IssueReportSerializer

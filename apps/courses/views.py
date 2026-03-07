@@ -1,11 +1,11 @@
-from drf_spectacular.utils import extend_schema, extend_schema_view
-from rest_framework import generics, status
+from drf_spectacular.utils import extend_schema, extend_schema_view, inline_serializer
+from rest_framework import generics, serializers, status
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
 from rest_framework.views import APIView
 
-from core.constants import ErrorMessage
-from core.exceptions import PurchaseRequired
+from core.constants import ErrorMessage, SuccessMessage
+from core.exceptions import PurchaseRequired, SessionNotAccessible
 from core.pagination import SmallPagination
 from core.permissions import IsAdmin, IsStudent
 
@@ -52,7 +52,7 @@ class CourseSessionsView(generics.ListAPIView):
         except Course.DoesNotExist as exc:
             raise PurchaseRequired() from exc
         return Session.objects.filter(
-            week__level=course.level,
+            week__course=course,
             is_active=True,
         ).select_related("week")
 
@@ -64,16 +64,47 @@ class SessionDetailView(APIView):
     def get(self, request, pk):
         try:
             session = (
-                Session.objects.select_related("week__level").prefetch_related("resources").get(pk=pk, is_active=True)
+                Session.objects.select_related("week__course__level")
+                .prefetch_related("resources")
+                .get(pk=pk, is_active=True)
             )
         except Session.DoesNotExist:
             return Response({"detail": ErrorMessage.NOT_FOUND}, status=status.HTTP_404_NOT_FOUND)
 
         profile = request.user.student_profile
-        if not CourseAccessService.has_level_access(profile, session.week.level):
+        if not CourseAccessService.has_level_access(profile, session.week.course.level):
             raise PurchaseRequired()
 
+        if not CourseAccessService.is_session_accessible(profile, session):
+            raise SessionNotAccessible()
+
         return Response(SessionDetailSerializer(session).data)
+
+
+class CompleteResourceSessionView(APIView):
+    permission_classes = [IsStudent]
+
+    @extend_schema(
+        request=None,
+        responses={
+            200: inline_serializer(
+                "ResourceSessionCompleteResponse",
+                fields={
+                    "detail": serializers.CharField(),
+                },
+            ),
+        },
+        tags=["Courses"],
+        summary="Mark resource session as completed",
+    )
+    def post(self, request, pk):
+        from apps.progress.services import ProgressService
+
+        profile = request.user.student_profile
+        progress, error = ProgressService.complete_resource_session(profile, pk)
+        if error:
+            return Response({"detail": error}, status=status.HTTP_404_NOT_FOUND)
+        return Response({"detail": SuccessMessage.RESOURCE_SESSION_COMPLETED})
 
 
 # ── Bookmark views ──
@@ -148,8 +179,8 @@ class AdminCourseDetailView(generics.RetrieveUpdateDestroyAPIView):
 class AdminSessionListCreateView(generics.ListCreateAPIView):
     permission_classes = [IsAdmin]
     serializer_class = SessionDetailSerializer
-    queryset = Session.objects.select_related("week__level")
-    filterset_fields = ["week", "is_active"]
+    queryset = Session.objects.select_related("week__course__level")
+    filterset_fields = ["week", "is_active", "session_type"]
 
 
 @extend_schema_view(

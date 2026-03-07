@@ -31,6 +31,7 @@ class User(AbstractBaseUser, PermissionsMixin, TimeStampedModel):
     is_staff = models.BooleanField(default=False)
     is_active = models.BooleanField(default=True, db_index=True)
     profile_picture = models.ImageField(upload_to="users/avatars/", blank=True)
+    google_id = models.CharField(max_length=128, unique=True, null=True, blank=True, db_index=True)
 
     objects = UserManager()
 
@@ -39,6 +40,9 @@ class User(AbstractBaseUser, PermissionsMixin, TimeStampedModel):
 
     class Meta:
         db_table = "users"
+        indexes = [
+            models.Index(fields=["is_student", "is_active"], name="idx_user_student_active"),
+        ]
 
     def __str__(self):
         return self.email
@@ -61,6 +65,7 @@ class StudentProfile(TimeStampedModel):
         related_name="cleared_students",
     )
     onboarding_completed = models.BooleanField(default=False)
+    onboarding_exam_attempted = models.BooleanField(default=False)
 
     class Meta:
         db_table = "student_profiles"

@@ -34,7 +34,7 @@ class SearchService:
             is_active=True,
         ).select_related("week")
         if level_id:
-            sessions_qs = sessions_qs.filter(week__level_id=level_id)
+            sessions_qs = sessions_qs.filter(week__course__level_id=level_id)
         if week_id:
             sessions_qs = sessions_qs.filter(week_id=week_id)
         sessions = sessions_qs[: SearchConstants.MAX_SESSIONS]

@@ -11,8 +11,6 @@ class Course(TimeStampedModel):
     )
     title = models.CharField(max_length=200)
     description = models.TextField(blank=True)
-    price = models.DecimalField(max_digits=10, decimal_places=2)
-    validity_days = models.PositiveIntegerField(help_text="Access validity in days")
     is_active = models.BooleanField(default=True, db_index=True)
 
     class Meta:
@@ -46,6 +44,12 @@ class Bookmark(TimeStampedModel):
 
 
 class Session(TimeStampedModel):
+    class SessionType(models.TextChoices):
+        VIDEO = "video", "Video"
+        RESOURCE = "resource", "Resource"
+        PRACTICE_EXAM = "practice_exam", "Practice Exam"
+        PROCTORED_EXAM = "proctored_exam", "Proctored Exam"
+
     week = models.ForeignKey(
         "levels.Week",
         on_delete=models.CASCADE,
@@ -53,10 +57,23 @@ class Session(TimeStampedModel):
     )
     title = models.CharField(max_length=200)
     description = models.TextField(blank=True)
-    video_url = models.URLField(max_length=500)
-    duration_seconds = models.PositiveIntegerField()
+    video_url = models.URLField(max_length=500, blank=True)
+    duration_seconds = models.PositiveIntegerField(default=0)
     order = models.PositiveIntegerField()
     is_active = models.BooleanField(default=True, db_index=True)
+    session_type = models.CharField(
+        max_length=20,
+        choices=SessionType.choices,
+        default=SessionType.VIDEO,
+        db_index=True,
+    )
+    exam = models.ForeignKey(
+        "exams.Exam",
+        null=True,
+        blank=True,
+        on_delete=models.SET_NULL,
+        related_name="sessions",
+    )
 
     class Meta:
         db_table = "sessions"

@@ -28,16 +28,16 @@ class EmailService:
         )
 
     @classmethod
-    def send_purchase_confirmation(cls, email, full_name, course_title, amount, expires_at):
+    def send_purchase_confirmation(cls, email, full_name, level_name, amount, expires_at):
         cls._send(
-            subject=f"Purchase Confirmed — {course_title}",
+            subject=f"Purchase Confirmed — {level_name}",
             message=(
                 f"Hi {full_name},\n\n"
                 f"Your purchase has been confirmed!\n\n"
-                f"Course: {course_title}\n"
+                f"Level: {level_name}\n"
                 f"Amount Paid: INR {amount}\n"
                 f"Valid Until: {expires_at.strftime('%d %b %Y')}\n\n"
-                f"You can now access all sessions and resources for this course. "
+                f"You can now access all courses and sessions in this level. "
                 f"Happy learning!"
             ),
             recipient_list=[email],

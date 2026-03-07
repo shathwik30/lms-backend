@@ -3,7 +3,7 @@ from django.utils.html import format_html
 
 from core.admin import ExportCsvMixin
 
-from .models import LevelProgress, SessionProgress
+from .models import CourseProgress, LevelProgress, SessionProgress
 
 
 @admin.register(SessionProgress)
@@ -16,9 +16,10 @@ class SessionProgressAdmin(
         "session",
         "watch_progress",
         "is_completed",
+        "is_exam_passed",
         "completed_at",
     )
-    list_filter = ("is_completed", "session__week__level")
+    list_filter = ("is_completed", "is_exam_passed")
     search_fields = (
         "student__user__email",
         "session__title",
@@ -48,6 +49,25 @@ class SessionProgressAdmin(
         )
 
 
+@admin.register(CourseProgress)
+class CourseProgressAdmin(admin.ModelAdmin, ExportCsvMixin):
+    list_display = (
+        "student",
+        "course",
+        "status",
+        "started_at",
+        "completed_at",
+    )
+    list_filter = ("status", "course__level")
+    search_fields = (
+        "student__user__email",
+        "course__title",
+    )
+    readonly_fields = ("started_at", "completed_at")
+    list_per_page = 30
+    actions = ["export_as_csv"]
+
+
 @admin.register(LevelProgress)
 class LevelProgressAdmin(
     admin.ModelAdmin,
@@ -57,6 +77,7 @@ class LevelProgressAdmin(
         "student",
         "level",
         "status_badge",
+        "final_exam_attempts_used",
         "started_at",
         "completed_at",
     )

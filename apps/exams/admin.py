@@ -1,5 +1,5 @@
 from django.contrib import admin
-from django.utils.safestring import mark_safe
+from django.utils.html import format_html
 
 from core.admin import ExportCsvMixin, make_active, make_inactive
 
@@ -25,6 +25,7 @@ class QuestionAdmin(admin.ModelAdmin, ExportCsvMixin):
         "text_preview",
         "level",
         "week",
+        "course",
         "difficulty",
         "question_type",
         "marks",
@@ -35,6 +36,7 @@ class QuestionAdmin(admin.ModelAdmin, ExportCsvMixin):
     list_filter = (
         "level",
         "week",
+        "course",
         "difficulty",
         "question_type",
         "is_active",
@@ -62,6 +64,7 @@ class ExamAdmin(admin.ModelAdmin, ExportCsvMixin):
         "title",
         "level",
         "week",
+        "course",
         "exam_type",
         "duration_minutes",
         "num_questions",
@@ -71,7 +74,7 @@ class ExamAdmin(admin.ModelAdmin, ExportCsvMixin):
         "attempt_count",
         "is_active",
     )
-    list_filter = ("level", "exam_type", "is_proctored", "is_active")
+    list_filter = ("level", "course", "exam_type", "is_proctored", "is_active")
     list_editable = ("is_active",)
     search_fields = ("title",)
     list_per_page = 20
@@ -154,16 +157,16 @@ class ExamAttemptAdmin(admin.ModelAdmin, ExportCsvMixin):
     )
     def pass_badge(self, obj):
         if obj.is_disqualified:
-            return mark_safe('<span style="color:#e67e22;font-weight:bold;">DISQUALIFIED</span>')
+            return format_html('<span style="color:{};font-weight:bold;">{}</span>', "#e67e22", "DISQUALIFIED")
         if obj.is_passed is None:
             return "—"
         if obj.is_passed:
-            return mark_safe('<span style="color:#27ae60;font-weight:bold;">PASSED</span>')
-        return mark_safe('<span style="color:#e74c3c;font-weight:bold;">FAILED</span>')
+            return format_html('<span style="color:{};font-weight:bold;">{}</span>', "#27ae60", "PASSED")
+        return format_html('<span style="color:{};font-weight:bold;">{}</span>', "#e74c3c", "FAILED")
 
 
 @admin.register(ProctoringViolation)
-class ProctoringViolationAdmin(admin.ModelAdmin):
+class ProctoringViolationAdmin(admin.ModelAdmin, ExportCsvMixin):
     list_display = ("attempt", "violation_type", "warning_number", "created_at")
     list_filter = ("violation_type",)
     search_fields = ("attempt__student__user__email",)

@@ -31,8 +31,10 @@ class LevelAnalytics(TimeStampedModel):
 
     class Meta:
         db_table = "level_analytics"
-        unique_together = ("level", "date")
         ordering = ["-date"]
+        constraints = [
+            models.UniqueConstraint(fields=["level", "date"], name="unique_level_date"),
+        ]
 
     def __str__(self):
         return f"{self.level.name} analytics: {self.date}"

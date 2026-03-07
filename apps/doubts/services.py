@@ -1,6 +1,7 @@
 from __future__ import annotations
 
-from django.contrib.auth import get_user_model
+from typing import Any
+
 from django.utils import timezone
 from rest_framework.exceptions import PermissionDenied
 
@@ -13,17 +14,15 @@ from core.constants import ErrorMessage
 
 from .models import DoubtReply, DoubtTicket
 
-User = get_user_model()
-
 
 class DoubtService:
     @staticmethod
-    def validate_doubt_access(profile: StudentProfile, context_type: str, validated_data: dict) -> None:
+    def validate_doubt_access(profile: StudentProfile, context_type: str, validated_data: dict[str, Any]) -> None:
         level = None
         if context_type == DoubtTicket.ContextType.SESSION:
             session = validated_data.get("session")
             if session:
-                level = session.week.level
+                level = session.week.course.level
         elif context_type == DoubtTicket.ContextType.EXAM_QUESTION:
             question = validated_data.get("exam_question")
             if question:
@@ -32,7 +31,7 @@ class DoubtService:
         if level is not None:
             has_purchase = Purchase.objects.filter(
                 student=profile,
-                course__level=level,
+                level=level,
                 status=Purchase.Status.ACTIVE,
                 expires_at__gt=timezone.now(),
             ).exists()
@@ -43,7 +42,7 @@ class DoubtService:
     def admin_reply(ticket: DoubtTicket, author: UserModel, reply: DoubtReply) -> None:
         if ticket.status == DoubtTicket.Status.OPEN:
             ticket.status = DoubtTicket.Status.IN_REVIEW
-            ticket.save()
+            ticket.save(update_fields=["status"])
 
         student_user = ticket.student.user
 
@@ -68,8 +67,8 @@ class DoubtService:
     @staticmethod
     def assign_ticket(ticket: DoubtTicket, faculty_id: int) -> tuple[DoubtTicket | None, str | None]:
         try:
-            faculty = User.objects.get(pk=faculty_id)
-        except User.DoesNotExist:
+            faculty = UserModel.objects.get(pk=faculty_id)
+        except UserModel.DoesNotExist:
             return None, ErrorMessage.USER_NOT_FOUND
 
         if not faculty.is_admin:
@@ -77,7 +76,7 @@ class DoubtService:
 
         ticket.assigned_to = faculty
         ticket.status = DoubtTicket.Status.IN_REVIEW
-        ticket.save()
+        ticket.save(update_fields=["assigned_to", "status"])
 
         return ticket, None
 
@@ -87,11 +86,11 @@ class DoubtService:
             return None, f"Invalid status. Choose from: {list(dict(DoubtTicket.Status.choices).keys())}"
 
         ticket.status = new_status
-        ticket.save()
+        ticket.save(update_fields=["status"])
         return ticket, None
 
     @staticmethod
     def update_bonus_marks(ticket: DoubtTicket, bonus_marks: int) -> DoubtTicket:
         ticket.bonus_marks = bonus_marks
-        ticket.save()
+        ticket.save(update_fields=["bonus_marks"])
         return ticket

@@ -36,6 +36,7 @@ class QuestionAdminSerializer(serializers.ModelSerializer):
             "id",
             "level",
             "week",
+            "course",
             "text",
             "image_url",
             "difficulty",
@@ -54,6 +55,7 @@ class QuestionAdminSerializer(serializers.ModelSerializer):
 class ExamSerializer(serializers.ModelSerializer):
     level_name = serializers.CharField(source="level.name", read_only=True)
     week_name = serializers.CharField(source="week.name", default=None, read_only=True)
+    course_title = serializers.CharField(source="course.title", default=None, read_only=True)
 
     class Meta:
         model = Exam
@@ -63,6 +65,8 @@ class ExamSerializer(serializers.ModelSerializer):
             "level_name",
             "week",
             "week_name",
+            "course",
+            "course_title",
             "exam_type",
             "title",
             "duration_minutes",

@@ -1,6 +1,6 @@
 from django.contrib import admin
 from django.contrib.auth.admin import UserAdmin as BaseUserAdmin
-from django.utils.safestring import mark_safe
+from django.utils.html import format_html
 
 from core.admin import ExportCsvMixin
 
@@ -79,9 +79,9 @@ class UserAdmin(BaseUserAdmin, ExportCsvMixin):
     @admin.display(description="Role")
     def role_badge(self, obj):
         if obj.is_admin:
-            return mark_safe('<span style="color:#e74c3c;font-weight:bold;">Admin</span>')
+            return format_html('<span style="color:{};font-weight:bold;">{}</span>', "#e74c3c", "Admin")
         if obj.is_student:
-            return mark_safe('<span style="color:#3498db;">Student</span>')
+            return format_html('<span style="color:{};">{}</span>', "#3498db", "Student")
         return "—"
 
 

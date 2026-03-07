@@ -39,16 +39,20 @@ def auto_submit_timed_out_exams(self):
             if now <= deadline:
                 continue
 
-            # Re-check status to prevent race with manual submission
-            try:
-                attempt = ExamAttempt.objects.select_related("exam").get(
-                    pk=attempt.pk,
-                    status=ExamAttempt.Status.IN_PROGRESS,
-                )
-            except ExamAttempt.DoesNotExist:
-                continue
-
             with transaction.atomic():
+                # Lock row and re-check status to prevent race with manual submission
+                try:
+                    attempt = (
+                        ExamAttempt.objects.select_for_update()
+                        .select_related("exam")
+                        .get(
+                            pk=attempt.pk,
+                            status=ExamAttempt.Status.IN_PROGRESS,
+                        )
+                    )
+                except ExamAttempt.DoesNotExist:
+                    continue
+
                 # Score any answers that were saved before timeout
                 total_score = ExamService._score_timed_out_attempt(attempt)
 
@@ -57,7 +61,7 @@ def auto_submit_timed_out_exams(self):
                 attempt.score = total_score
                 pass_score = (attempt.exam.passing_percentage / ExamConstants.PERCENTAGE_DIVISOR) * attempt.total_marks
                 attempt.is_passed = total_score >= pass_score
-                attempt.save()
+                attempt.save(update_fields=["status", "submitted_at", "score", "is_passed"])
 
                 logger.info(
                     "Auto-submitted attempt %d for student %d (score=%d/%d)",

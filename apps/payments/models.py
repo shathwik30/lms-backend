@@ -15,8 +15,8 @@ class Purchase(TimeStampedModel):
         on_delete=models.CASCADE,
         related_name="purchases",
     )
-    course = models.ForeignKey(
-        "courses.Course",
+    level = models.ForeignKey(
+        "levels.Level",
         on_delete=models.CASCADE,
         related_name="purchases",
     )
@@ -46,7 +46,7 @@ class Purchase(TimeStampedModel):
         ]
 
     def __str__(self):
-        return f"{self.student} → {self.course.title}"
+        return f"{self.student} → {self.level.name}"
 
     @property
     def is_valid(self):
@@ -72,8 +72,8 @@ class PaymentTransaction(TimeStampedModel):
         on_delete=models.CASCADE,
         related_name="transactions",
     )
-    course = models.ForeignKey(
-        "courses.Course",
+    level = models.ForeignKey(
+        "levels.Level",
         null=True,
         blank=True,
         on_delete=models.SET_NULL,

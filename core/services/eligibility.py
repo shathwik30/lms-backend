@@ -1,43 +1,77 @@
+from __future__ import annotations
+
+from typing import Any
+
+from django.db.models import Count, Q
 from django.utils import timezone
 
-from apps.courses.models import Session
+from apps.courses.models import Course, Session
 from apps.exams.models import Exam
-from apps.feedback.models import SessionFeedback
+from apps.levels.models import Level, Week
 from apps.payments.models import Purchase
 from apps.progress.models import LevelProgress, SessionProgress
+from apps.users.models import StudentProfile
 from core.constants import NextAction, NextActionMessage
 
 
 class EligibilityService:
     @staticmethod
-    def is_syllabus_complete(student, level):
-        all_sessions = Session.objects.filter(week__level=level, is_active=True)
-        total = all_sessions.count()
-        if total == 0:
+    def is_syllabus_complete(student: StudentProfile, level: Level) -> bool:
+        total_sessions = Session.objects.filter(
+            week__course__level=level,
+            week__course__is_active=True,
+            is_active=True,
+        ).count()
+
+        if total_sessions == 0:
             return True
 
         completed = SessionProgress.objects.filter(
             student=student,
-            session__in=all_sessions,
+            session__week__course__level=level,
+            session__is_active=True,
             is_completed=True,
         ).count()
-        feedbacks = SessionFeedback.objects.filter(
-            student=student,
-            session__in=all_sessions,
-        ).count()
-        return completed == total and feedbacks == total
+
+        return completed >= total_sessions
 
     @staticmethod
-    def has_active_purchase(student, level):
+    def is_course_complete(student: StudentProfile, course: Course) -> bool:
+        total = Session.objects.filter(week__course=course, is_active=True).count()
+        if total == 0:
+            return True
+        completed = SessionProgress.objects.filter(
+            student=student,
+            session__week__course=course,
+            session__is_active=True,
+            is_completed=True,
+        ).count()
+        return completed == total
+
+    @staticmethod
+    def is_week_complete(student: StudentProfile, week: Week) -> bool:
+        total = Session.objects.filter(week=week, is_active=True).count()
+        if total == 0:
+            return True
+        completed = SessionProgress.objects.filter(
+            student=student,
+            session__week=week,
+            session__is_active=True,
+            is_completed=True,
+        ).count()
+        return completed == total
+
+    @staticmethod
+    def has_active_purchase(student: StudentProfile, level: Level) -> bool:
         return Purchase.objects.filter(
             student=student,
-            course__level=level,
+            level=level,
             status=Purchase.Status.ACTIVE,
             expires_at__gt=timezone.now(),
         ).exists()
 
     @staticmethod
-    def has_cleared_level(student, level):
+    def has_cleared_level(student: StudentProfile, level: Level) -> bool:
         return LevelProgress.objects.filter(
             student=student,
             level=level,
@@ -45,7 +79,7 @@ class EligibilityService:
         ).exists()
 
     @staticmethod
-    def has_cleared_previous_level(student, level):
+    def has_cleared_previous_level(student: StudentProfile, level: Level) -> bool:
         if level.order <= 1:
             return True
         return LevelProgress.objects.filter(
@@ -55,58 +89,96 @@ class EligibilityService:
         ).exists()
 
     @classmethod
-    def can_attempt_exam(cls, student, exam):
+    def can_attempt_exam(cls, student: StudentProfile, exam: Exam) -> bool:
+        if exam.exam_type == Exam.ExamType.ONBOARDING:
+            return not student.onboarding_exam_attempted
+
         level = exam.level
 
-        if level.order == 1 and exam.exam_type == Exam.ExamType.LEVEL_FINAL:
-            failed_before = LevelProgress.objects.filter(
-                student=student,
-                level=level,
-                status=LevelProgress.Status.EXAM_FAILED,
-            ).exists()
-            if failed_before:
-                if not cls.has_active_purchase(student, level):
-                    return False
-                return cls.is_syllabus_complete(student, level)
-            return True
-
-        if exam.exam_type == Exam.ExamType.WEEKLY:
+        if exam.exam_type == Exam.ExamType.LEVEL_FINAL:
             if not cls.has_active_purchase(student, level):
                 return False
-            if exam.week:
-                week_sessions = Session.objects.filter(week=exam.week, is_active=True)
-                completed = SessionProgress.objects.filter(
-                    student=student,
-                    session__in=week_sessions,
-                    is_completed=True,
-                ).count()
-                feedbacks = SessionFeedback.objects.filter(
-                    student=student,
-                    session__in=week_sessions,
-                ).count()
-                total = week_sessions.count()
-                return completed == total and feedbacks == total
+            if not cls.is_syllabus_complete(student, level):
+                return False
+            progress = LevelProgress.objects.filter(student=student, level=level).first()
+            return not (progress and progress.final_exam_attempts_used >= level.max_final_exam_attempts)
+
+        if exam.exam_type == Exam.ExamType.WEEKLY:
+            return cls.has_active_purchase(student, level)
+
+        return False
+
+    @classmethod
+    def can_purchase_level(cls, student: StudentProfile, level: Level) -> bool:
+        if level.order <= 1:
             return True
+        return cls.has_cleared_previous_level(student, level)
 
-        if not cls.has_cleared_previous_level(student, level):
-            return False
+    @staticmethod
+    def is_session_accessible(student: StudentProfile, session: Session) -> bool:
+        week = session.week
+        course = week.course
 
-        if cls.has_active_purchase(student, level):
-            return cls.is_syllabus_complete(student, level)
+        # Bulk check: count total vs completed sessions for all prior weeks
+        prior_week_ids = list(course.weeks.filter(order__lt=week.order, is_active=True).values_list("id", flat=True))
+        if prior_week_ids:
+            prior_stats = (
+                Session.objects.filter(week_id__in=prior_week_ids, is_active=True)
+                .values("week_id")
+                .annotate(
+                    total=Count("id"),
+                    completed=Count(
+                        "id",
+                        filter=Q(
+                            progress_records__student=student,
+                            progress_records__is_completed=True,
+                        ),
+                    ),
+                )
+            )
+            for stat in prior_stats:
+                if stat["completed"] < stat["total"]:
+                    return False
+
+            # Check for weeks with no sessions (they are complete by definition — skip)
+
+        # Bulk check: all prior sessions in current week are complete
+        prior_session_ids = list(
+            week.sessions.filter(order__lt=session.order, is_active=True).values_list("id", flat=True)
+        )
+        if prior_session_ids:
+            completed_count = SessionProgress.objects.filter(
+                student=student,
+                session_id__in=prior_session_ids,
+                is_completed=True,
+            ).count()
+            if completed_count < len(prior_session_ids):
+                return False
 
         return True
 
     @classmethod
-    def can_purchase_course(cls, student, course):
-        level = course.level
-        if level.order == 1:
-            return True
-        return cls.has_cleared_previous_level(student, level)
+    def get_next_action(cls, student: StudentProfile) -> dict[str, Any]:
+        # Check onboarding status
+        if not student.onboarding_exam_attempted:
+            first_level = Level.objects.filter(is_active=True).order_by("order").first()
+            if not first_level:
+                return {
+                    "action": NextAction.NO_LEVELS,
+                    "level": None,
+                    "message": NextActionMessage.NO_LEVELS,
+                }
+            return {
+                "action": NextAction.TAKE_ONBOARDING_EXAM,
+                "level": {
+                    "id": first_level.id,
+                    "name": first_level.name,
+                    "order": first_level.order,
+                },
+                "message": NextActionMessage.take_onboarding(),
+            }
 
-    @classmethod
-    def get_next_action(cls, student):
-        from apps.levels.models import Level
-
+        # Determine current level
         if student.highest_cleared_level:
             cleared_order = student.highest_cleared_level.order
             next_level = Level.objects.filter(
@@ -135,53 +207,40 @@ class EligibilityService:
             "order": next_level.order,
         }
 
+        # Check purchase
+        if not cls.has_active_purchase(student, next_level):
+            return {
+                "action": NextAction.PURCHASE_LEVEL,
+                "level": level_info,
+                "message": NextActionMessage.purchase_level(next_level.order),
+            }
+
+        # Check progress
         progress = LevelProgress.objects.filter(
             student=student,
             level=next_level,
         ).first()
 
-        if not progress:
+        if (
+            progress
+            and progress.status == LevelProgress.Status.EXAM_FAILED
+            and progress.final_exam_attempts_used >= next_level.max_final_exam_attempts
+        ):
             return {
-                "action": NextAction.ATTEMPT_EXAM,
+                "action": NextAction.REDO_LEVEL,
                 "level": level_info,
-                "message": NextActionMessage.attempt_exam(next_level.order),
+                "message": NextActionMessage.redo_level(next_level.order),
             }
 
-        if progress.status == LevelProgress.Status.EXAM_FAILED:
-            if cls.has_active_purchase(student, next_level):
-                if cls.is_syllabus_complete(student, next_level):
-                    return {
-                        "action": NextAction.ATTEMPT_EXAM,
-                        "level": level_info,
-                        "message": NextActionMessage.retry_exam(next_level.order),
-                    }
-                return {
-                    "action": NextAction.COMPLETE_SYLLABUS,
-                    "level": level_info,
-                    "message": NextActionMessage.complete_syllabus_to_unlock(next_level.order),
-                }
+        if cls.is_syllabus_complete(student, next_level):
             return {
-                "action": NextAction.PURCHASE_COURSE,
+                "action": NextAction.TAKE_FINAL_EXAM,
                 "level": level_info,
-                "message": NextActionMessage.purchase_course_to_retry(next_level.order),
-            }
-
-        if progress.status == LevelProgress.Status.IN_PROGRESS:
-            return {
-                "action": NextAction.COMPLETE_SYLLABUS,
-                "level": level_info,
-                "message": NextActionMessage.complete_syllabus(next_level.order),
-            }
-
-        if progress.status == LevelProgress.Status.SYLLABUS_COMPLETE:
-            return {
-                "action": NextAction.ATTEMPT_EXAM,
-                "level": level_info,
-                "message": NextActionMessage.syllabus_complete_attempt(next_level.order),
+                "message": NextActionMessage.take_final_exam(next_level.order),
             }
 
         return {
-            "action": NextAction.ATTEMPT_EXAM,
+            "action": NextAction.COMPLETE_COURSES,
             "level": level_info,
-            "message": NextActionMessage.attempt_exam(next_level.order),
+            "message": NextActionMessage.complete_courses(next_level.order),
         }

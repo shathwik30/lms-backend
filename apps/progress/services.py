@@ -5,17 +5,17 @@ from typing import Any
 from django.conf import settings
 from django.core.cache import cache
 from django.db import transaction
-from django.db.models import Count, FloatField, Sum
+from django.db.models import Count, FloatField, Q, Sum
 from django.db.models.functions import Coalesce, TruncDate
 from django.utils import timezone
 
 from apps.courses.models import Session
-from apps.feedback.models import SessionFeedback
+from apps.levels.models import Level, Week
 from apps.users.models import StudentProfile, User
 from core.constants import ErrorMessage, ProgressConstants
 from core.services.eligibility import EligibilityService
 
-from .models import LevelProgress, SessionProgress
+from .models import CourseProgress, LevelProgress, SessionProgress
 
 
 class ProgressService:
@@ -24,8 +24,12 @@ class ProgressService:
         profile: StudentProfile, session_pk: int, watched_seconds: int
     ) -> tuple[SessionProgress | None, str | None]:
         try:
-            session = Session.objects.get(pk=session_pk, is_active=True)
+            session = Session.objects.select_related("week__course__level").get(pk=session_pk, is_active=True)
         except Session.DoesNotExist:
+            return None, ErrorMessage.SESSION_NOT_FOUND
+
+        # Only applicable for VIDEO sessions
+        if session.session_type != Session.SessionType.VIDEO:
             return None, ErrorMessage.SESSION_NOT_FOUND
 
         with transaction.atomic():
@@ -34,10 +38,12 @@ class ProgressService:
                 session=session,
             )
 
-            capped = min(watched_seconds, session.duration_seconds)
+            capped = min(watched_seconds, session.duration_seconds) if session.duration_seconds > 0 else 0
             progress.watched_seconds = max(progress.watched_seconds, capped)
 
-            if not progress.is_completed:
+            if not progress.is_completed and session.duration_seconds > 0:
+                from apps.feedback.models import SessionFeedback
+
                 threshold = session.duration_seconds * ProgressConstants.SESSION_COMPLETION_THRESHOLD
                 has_feedback = SessionFeedback.objects.filter(
                     student=profile,
@@ -47,17 +53,166 @@ class ProgressService:
                     progress.is_completed = True
                     progress.completed_at = timezone.now()
 
-            progress.save()
+            progress.save(update_fields=["watched_seconds", "is_completed", "completed_at"])
 
-            level = session.week.level
-            if EligibilityService.is_syllabus_complete(profile, level):
-                LevelProgress.objects.filter(
-                    student=profile,
-                    level=level,
-                    status=LevelProgress.Status.IN_PROGRESS,
-                ).update(status=LevelProgress.Status.SYLLABUS_COMPLETE)
+            if progress.is_completed:
+                ProgressService._check_cascading_completion(profile, session)
 
         return progress, None
+
+    @staticmethod
+    def complete_resource_session(
+        profile: StudentProfile, session_pk: int
+    ) -> tuple[SessionProgress | None, str | None]:
+        try:
+            session = Session.objects.select_related("week__course__level").get(pk=session_pk, is_active=True)
+        except Session.DoesNotExist:
+            return None, ErrorMessage.SESSION_NOT_FOUND
+
+        if session.session_type != Session.SessionType.RESOURCE:
+            return None, ErrorMessage.SESSION_NOT_FOUND
+
+        with transaction.atomic():
+            progress, _ = SessionProgress.objects.get_or_create(
+                student=profile,
+                session=session,
+            )
+            if not progress.is_completed:
+                progress.is_completed = True
+                progress.completed_at = timezone.now()
+                progress.save(update_fields=["is_completed", "completed_at"])
+                ProgressService._check_cascading_completion(profile, session)
+
+        return progress, None
+
+    @staticmethod
+    def complete_exam_session(
+        profile: StudentProfile, session: Session, passed: bool
+    ) -> tuple[SessionProgress | None, str | None]:
+        with transaction.atomic():
+            progress, _ = SessionProgress.objects.get_or_create(
+                student=profile,
+                session=session,
+            )
+            progress.is_exam_passed = passed
+            if passed:
+                progress.is_completed = True
+                progress.completed_at = timezone.now()
+                progress.save(update_fields=["is_exam_passed", "is_completed", "completed_at"])
+                ProgressService._check_cascading_completion(profile, session)
+            else:
+                progress.save(update_fields=["is_exam_passed"])
+                # Proctored exam failure → reset week progress
+                if session.session_type == Session.SessionType.PROCTORED_EXAM:
+                    ProgressService.reset_week_progress(profile, session.week)
+
+        return progress, None
+
+    @staticmethod
+    def _check_cascading_completion(profile: StudentProfile, session: Session) -> None:
+        week = session.week
+        course = week.course
+        level = course.level
+
+        if not EligibilityService.is_week_complete(profile, week):
+            return
+        if not EligibilityService.is_course_complete(profile, course):
+            return
+
+        CourseProgress.objects.update_or_create(
+            student=profile,
+            course=course,
+            defaults={
+                "status": CourseProgress.Status.COMPLETED,
+                "completed_at": timezone.now(),
+            },
+        )
+
+        if EligibilityService.is_syllabus_complete(profile, level):
+            LevelProgress.objects.filter(
+                student=profile,
+                level=level,
+                status__in=[
+                    LevelProgress.Status.IN_PROGRESS,
+                    LevelProgress.Status.EXAM_FAILED,
+                ],
+            ).update(status=LevelProgress.Status.SYLLABUS_COMPLETE)
+
+    @staticmethod
+    def reset_week_progress(profile: StudentProfile, week: Week) -> None:
+        SessionProgress.objects.filter(
+            student=profile,
+            session__week=week,
+            session__is_active=True,
+        ).delete()
+
+    @staticmethod
+    def reset_level_progress(profile: StudentProfile, level: Level) -> None:
+        sessions = Session.objects.filter(
+            week__course__level=level,
+            is_active=True,
+        )
+        SessionProgress.objects.filter(
+            student=profile,
+            session__in=sessions,
+        ).delete()
+
+        CourseProgress.objects.filter(
+            student=profile,
+            course__level=level,
+        ).delete()
+
+        LevelProgress.objects.filter(
+            student=profile,
+            level=level,
+        ).update(
+            status=LevelProgress.Status.IN_PROGRESS,
+            completed_at=None,
+            final_exam_attempts_used=0,
+        )
+
+    @staticmethod
+    def get_course_progress(profile: StudentProfile, course) -> dict[str, Any]:
+        # Two queries instead of 2*N: aggregate per-week stats
+        week_stats = (
+            Week.objects.filter(course=course, is_active=True)
+            .order_by("order")
+            .annotate(
+                total_sessions=Count(
+                    "sessions",
+                    filter=Q(sessions__is_active=True),
+                ),
+                completed_sessions=Count(
+                    "sessions",
+                    filter=Q(
+                        sessions__is_active=True,
+                        sessions__progress_records__student=profile,
+                        sessions__progress_records__is_completed=True,
+                    ),
+                ),
+            )
+            .values("id", "name", "order", "total_sessions", "completed_sessions")
+        )
+
+        week_data = [
+            {
+                "week_id": ws["id"],
+                "week_name": ws["name"],
+                "week_order": ws["order"],
+                "total_sessions": ws["total_sessions"],
+                "completed_sessions": ws["completed_sessions"],
+                "is_complete": ws["completed_sessions"] == ws["total_sessions"] and ws["total_sessions"] > 0,
+            }
+            for ws in week_stats
+        ]
+
+        cp = CourseProgress.objects.filter(student=profile, course=course).first()
+        return {
+            "course_id": course.id,
+            "course_title": course.title,
+            "status": cp.status if cp else CourseProgress.Status.NOT_STARTED,
+            "weeks": week_data,
+        }
 
     @staticmethod
     def get_dashboard(profile: StudentProfile) -> dict[str, Any]:
@@ -71,11 +226,17 @@ class ProgressService:
 
         next_info = EligibilityService.get_next_action(profile)
 
+        course_progress_qs = CourseProgress.objects.filter(
+            student=profile,
+        ).select_related("course")
+
         return {
             "current_level": next_info["level"],
             "level_progress": progress_qs,
+            "course_progress": course_progress_qs,
             "next_action": next_info["action"],
             "message": next_info["message"],
+            "onboarding_exam_attempted": profile.onboarding_exam_attempted,
         }
 
     @staticmethod

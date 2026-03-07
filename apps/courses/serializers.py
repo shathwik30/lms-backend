@@ -27,6 +27,7 @@ class SessionListSerializer(serializers.ModelSerializer):
             "description",
             "duration_seconds",
             "order",
+            "session_type",
             "is_active",
         ]
         read_only_fields = ["id"]
@@ -45,6 +46,8 @@ class SessionDetailSerializer(serializers.ModelSerializer):
             "video_url",
             "duration_seconds",
             "order",
+            "session_type",
+            "exam",
             "is_active",
             "resources",
         ]
@@ -76,6 +79,7 @@ class BookmarkSerializer(serializers.ModelSerializer):
 
 class CourseSerializer(serializers.ModelSerializer):
     level_name = serializers.CharField(source="level.name", read_only=True)
+    weeks_count = serializers.IntegerField(source="weeks.count", read_only=True)
 
     class Meta:
         model = Course
@@ -85,9 +89,8 @@ class CourseSerializer(serializers.ModelSerializer):
             "level_name",
             "title",
             "description",
-            "price",
-            "validity_days",
             "is_active",
+            "weeks_count",
             "created_at",
         ]
         read_only_fields = ["id", "created_at"]

@@ -4,9 +4,11 @@ from enum import Enum
 class NextAction(str, Enum):
     """Actions returned by EligibilityService.get_next_action()."""
 
-    ATTEMPT_EXAM = "attempt_exam"
-    COMPLETE_SYLLABUS = "complete_syllabus"
-    PURCHASE_COURSE = "purchase_course"
+    TAKE_ONBOARDING_EXAM = "take_onboarding_exam"
+    PURCHASE_LEVEL = "purchase_level"
+    COMPLETE_COURSES = "complete_courses"
+    TAKE_FINAL_EXAM = "take_final_exam"
+    REDO_LEVEL = "redo_level"
     ALL_COMPLETE = "all_complete"
     NO_LEVELS = "no_levels"
 
@@ -24,6 +26,7 @@ class ErrorMessage:
     USER_NOT_FOUND = "User not found."
     SESSION_NOT_FOUND = "Session not found."
     COURSE_NOT_FOUND = "Course not found."
+    LEVEL_NOT_FOUND = "Level not found."
     TRANSACTION_NOT_FOUND = "Transaction not found."
     PURCHASE_NOT_FOUND = "Purchase not found."
 
@@ -40,11 +43,11 @@ class ErrorMessage:
     ONLY_STUDENTS_ONBOARDING = "Only students have onboarding."
 
     # Payment
-    ACTIVE_PURCHASE_EXISTS = "You already have an active purchase for this course."
+    ACTIVE_LEVEL_PURCHASE_EXISTS = "You already have an active purchase for this level."
     PAYMENT_GATEWAY_ERROR = "Payment gateway error. Please try again."
     PAYMENT_VERIFICATION_FAILED = "Payment verification failed."
-    COURSE_NOT_LINKED = "Could not match course. Contact support."
-    AMOUNT_MISMATCH = "Payment amount does not match course price."
+    LEVEL_NOT_LINKED = "Could not match level. Contact support."
+    AMOUNT_MISMATCH = "Payment amount does not match level price."
 
     # Exam
     NO_QUESTIONS_AVAILABLE = "No questions available for this exam."
@@ -54,13 +57,17 @@ class ErrorMessage:
     SUBMISSION_DEADLINE_PASSED = "Submission deadline has passed. This attempt has been timed out."
     EXAM_NOT_PROCTORED = "This exam is not proctored."
     ATTEMPT_ALREADY_DISQUALIFIED = "Attempt already disqualified."
+    ONBOARDING_ALREADY_ATTEMPTED = "You have already taken the placement test."
+    FINAL_EXAM_ATTEMPTS_EXHAUSTED = "All final exam attempts have been used. Level progress has been reset."
+    SESSION_NOT_ACCESSIBLE = "Complete prior sessions and weeks before accessing this session."
+    WEEK_NOT_ACCESSIBLE = "Complete prior weeks before accessing this week."
 
     # Feedback
-    PURCHASE_REQUIRED_FOR_FEEDBACK = "You must purchase a course for this level to submit feedback."
+    PURCHASE_REQUIRED_FOR_FEEDBACK = "You must purchase this level to submit feedback."
     FEEDBACK_ALREADY_SUBMITTED = "Feedback already submitted for this session."
 
     # Doubt
-    PURCHASE_REQUIRED_FOR_DOUBT = "You must purchase a course for this level to submit a doubt."
+    PURCHASE_REQUIRED_FOR_DOUBT = "You must purchase this level to submit a doubt."
     TICKET_CLOSED = "This ticket is closed."
     ASSIGN_STAFF_ONLY = "Can only assign to staff or admin users."
 
@@ -83,6 +90,7 @@ class SuccessMessage:
     MARKED_AS_READ = "Marked as read."
     ALL_NOTIFICATIONS_READ = "All notifications marked as read."
     ALL_NOTIFICATIONS_CLEARED = "All notifications cleared."
+    RESOURCE_SESSION_COMPLETED = "Resource session marked as completed."
 
 
 # ── Next Action Messages ──
@@ -93,28 +101,24 @@ class NextActionMessage:
     NO_LEVELS = "No levels available yet."
 
     @staticmethod
-    def attempt_exam(level_order):
-        return f"Attempt the Level {level_order} exam."
+    def take_onboarding():
+        return "Take the placement test to determine your starting level."
 
     @staticmethod
-    def retry_exam(level_order):
-        return f"Syllabus complete. Retry Level {level_order} exam."
+    def purchase_level(level_order):
+        return f"Purchase Level {level_order} to access its courses."
 
     @staticmethod
-    def complete_syllabus(level_order):
-        return f"Complete the Level {level_order} syllabus."
+    def complete_courses(level_order):
+        return f"Complete the Level {level_order} courses."
 
     @staticmethod
-    def complete_syllabus_to_unlock(level_order):
-        return f"Complete the Level {level_order} syllabus to unlock the exam."
+    def take_final_exam(level_order):
+        return f"All courses complete. Take the Level {level_order} final exam."
 
     @staticmethod
-    def purchase_course_to_retry(level_order):
-        return f"Purchase the Level {level_order} course to retry."
-
-    @staticmethod
-    def syllabus_complete_attempt(level_order):
-        return f"Syllabus complete. Attempt Level {level_order} exam."
+    def redo_level(level_order):
+        return f"Redo Level {level_order} — all final exam attempts exhausted."
 
 
 # ── Payment ──
@@ -122,7 +126,7 @@ class NextActionMessage:
 
 class PaymentConstants:
     DEFAULT_CURRENCY = "INR"
-    RECEIPT_FORMAT = "course_{course_id}_student_{student_id}"
+    RECEIPT_FORMAT = "level_{level_id}_student_{student_id}"
     DEV_ORDER_FORMAT = "dev_order_{timestamp}_{student_pk}"
 
 

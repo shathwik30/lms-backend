@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+from typing import Any
+
 from django.utils import timezone
 
 from apps.courses.models import Session
@@ -13,19 +15,20 @@ from .models import SessionFeedback
 class FeedbackService:
     @staticmethod
     def submit(
-        profile: StudentProfile, session_pk: int, validated_data: dict
+        profile: StudentProfile, session_pk: int, validated_data: dict[str, Any]
     ) -> tuple[SessionFeedback | None, str | None]:
         try:
-            session = Session.objects.select_related("week__level").get(
+            session = Session.objects.select_related("week__course__level").get(
                 pk=session_pk,
                 is_active=True,
             )
         except Session.DoesNotExist:
             return None, ErrorMessage.SESSION_NOT_FOUND
 
+        level = session.week.course.level
         has_purchase = Purchase.objects.filter(
             student=profile,
-            course__level=session.week.level,
+            level=level,
             status=Purchase.Status.ACTIVE,
             expires_at__gt=timezone.now(),
         ).exists()

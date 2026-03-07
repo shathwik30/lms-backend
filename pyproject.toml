@@ -45,8 +45,8 @@ django_settings_module = "config.settings.development"
 
 [tool.coverage.run]
 source = ["apps", "core"]
-omit = ["*/migrations/*", "*/tests/*"]
+omit = ["*/migrations/*", "*/tests/*", "tests/*"]
 
 [tool.coverage.report]
-fail_under = 80
+fail_under = 88
 show_missing = true

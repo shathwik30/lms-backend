@@ -46,7 +46,7 @@ class ExamStartView(APIView):
     @extend_schema(request=None, responses={201: ExamAttemptDetailSerializer})
     def post(self, request, pk):
         try:
-            exam = Exam.objects.select_related("level", "week").get(pk=pk, is_active=True)
+            exam = Exam.objects.select_related("level", "week", "course").get(pk=pk, is_active=True)
         except Exam.DoesNotExist:
             return Response({"detail": ErrorMessage.NOT_FOUND}, status=status.HTTP_404_NOT_FOUND)
 
@@ -201,9 +201,9 @@ class AttemptViolationsView(APIView):
 class AdminQuestionListCreateView(generics.ListCreateAPIView):
     permission_classes = [IsAdmin]
     serializer_class = QuestionAdminSerializer
-    queryset = Question.objects.select_related("level", "week").prefetch_related("options")
+    queryset = Question.objects.select_related("level", "week", "course").prefetch_related("options")
     pagination_class = LargePagination
-    filterset_fields = ["level", "week", "difficulty", "question_type", "is_active"]
+    filterset_fields = ["level", "week", "course", "difficulty", "question_type", "is_active"]
 
 
 @extend_schema_view(
@@ -243,7 +243,7 @@ class AdminOptionListCreateView(generics.ListCreateAPIView):
 class AdminExamListCreateView(generics.ListCreateAPIView):
     permission_classes = [IsAdmin]
     serializer_class = ExamSerializer
-    queryset = Exam.objects.select_related("level", "week")
+    queryset = Exam.objects.select_related("level", "week", "course")
     filterset_fields = ["level", "exam_type", "is_active"]
 
 

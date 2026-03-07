@@ -17,6 +17,7 @@ class SessionProgress(TimeStampedModel):
     watched_seconds = models.PositiveIntegerField(default=0)
     is_completed = models.BooleanField(default=False, db_index=True)
     completed_at = models.DateTimeField(null=True, blank=True)
+    is_exam_passed = models.BooleanField(null=True, blank=True)
 
     class Meta:
         db_table = "session_progress"
@@ -31,6 +32,42 @@ class SessionProgress(TimeStampedModel):
 
     def __str__(self):
         return f"{self.student} → {self.session.title}"
+
+
+class CourseProgress(TimeStampedModel):
+    class Status(models.TextChoices):
+        NOT_STARTED = "not_started", "Not Started"
+        IN_PROGRESS = "in_progress", "In Progress"
+        COMPLETED = "completed", "Completed"
+
+    student = models.ForeignKey(
+        "users.StudentProfile",
+        on_delete=models.CASCADE,
+        related_name="course_progress",
+    )
+    course = models.ForeignKey(
+        "courses.Course",
+        on_delete=models.CASCADE,
+        related_name="progress_records",
+    )
+    status = models.CharField(
+        max_length=15,
+        choices=Status.choices,
+        default=Status.NOT_STARTED,
+        db_index=True,
+    )
+    started_at = models.DateTimeField(null=True, blank=True)
+    completed_at = models.DateTimeField(null=True, blank=True)
+
+    class Meta:
+        db_table = "course_progress"
+        ordering = ["-updated_at"]
+        constraints = [
+            models.UniqueConstraint(fields=["student", "course"], name="unique_course_progress"),
+        ]
+
+    def __str__(self):
+        return f"{self.student} → {self.course.title} ({self.status})"
 
 
 class LevelProgress(TimeStampedModel):
@@ -66,6 +103,7 @@ class LevelProgress(TimeStampedModel):
     )
     started_at = models.DateTimeField(null=True, blank=True)
     completed_at = models.DateTimeField(null=True, blank=True)
+    final_exam_attempts_used = models.PositiveIntegerField(default=0)
 
     class Meta:
         db_table = "level_progress"

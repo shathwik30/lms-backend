@@ -4,16 +4,14 @@ from .models import PaymentTransaction, Purchase
 
 
 class PurchaseSerializer(serializers.ModelSerializer):
-    course_title = serializers.CharField(source="course.title", read_only=True)
-    level_name = serializers.CharField(source="course.level.name", read_only=True)
+    level_name = serializers.CharField(source="level.name", read_only=True)
     is_valid = serializers.BooleanField(read_only=True)  # type: ignore[assignment]
 
     class Meta:
         model = Purchase
         fields = [
             "id",
-            "course",
-            "course_title",
+            "level",
             "level_name",
             "amount_paid",
             "purchased_at",
@@ -26,7 +24,7 @@ class PurchaseSerializer(serializers.ModelSerializer):
 
 
 class InitiatePaymentSerializer(serializers.Serializer):
-    course_id = serializers.IntegerField()
+    level_id = serializers.IntegerField()
 
 
 class VerifyPaymentSerializer(serializers.Serializer):

@@ -51,14 +51,14 @@ def send_welcome_email_task(self, email, full_name):
     soft_time_limit=TaskConfig.EMAIL_SOFT_TIME_LIMIT,
     time_limit=TaskConfig.EMAIL_TIME_LIMIT,
 )
-def send_purchase_confirmation_task(self, email, full_name, course_title, amount, expires_at_iso):
+def send_purchase_confirmation_task(self, email, full_name, level_name, amount, expires_at_iso):
     try:
         from datetime import datetime
 
         from core.emails import EmailService
 
         expires_at = datetime.fromisoformat(expires_at_iso)
-        EmailService.send_purchase_confirmation(email, full_name, course_title, amount, expires_at)
+        EmailService.send_purchase_confirmation(email, full_name, level_name, amount, expires_at)
         logger.info("Purchase confirmation email sent to %s", email)
     except SoftTimeLimitExceeded:
         logger.error("Soft time limit exceeded sending purchase confirmation to %s", email)
