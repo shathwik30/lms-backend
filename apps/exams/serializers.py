@@ -79,7 +79,7 @@ class ExamSerializer(serializers.ModelSerializer):
 
 class AttemptQuestionSerializer(serializers.ModelSerializer):
     question = QuestionSerializer(read_only=True)
-    selected_option_ids = serializers.PrimaryKeyRelatedField(
+    selected_option_ids = serializers.PrimaryKeyRelatedField(  # type: ignore[var-annotated]
         source="selected_options",
         many=True,
         read_only=True,
@@ -96,7 +96,7 @@ class AttemptQuestionResultSerializer(serializers.ModelSerializer):
     question_type = serializers.CharField(source="question.question_type", read_only=True)
     explanation = serializers.CharField(source="question.explanation", read_only=True)
     correct_text_answer = serializers.CharField(source="question.correct_text_answer", read_only=True)
-    selected_option_ids = serializers.PrimaryKeyRelatedField(
+    selected_option_ids = serializers.PrimaryKeyRelatedField(  # type: ignore[var-annotated]
         source="selected_options",
         many=True,
         read_only=True,
@@ -188,7 +188,7 @@ class SubmitAnswerSerializer(serializers.Serializer):
 
 
 class SubmitExamSerializer(serializers.Serializer):
-    answers = SubmitAnswerSerializer(many=True, max_length=200)
+    answers = SubmitAnswerSerializer(many=True, max_length=200)  # type: ignore[call-arg]
 
 
 class ProctoringViolationSerializer(serializers.ModelSerializer):

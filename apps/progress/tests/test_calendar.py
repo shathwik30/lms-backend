@@ -55,6 +55,22 @@ class CalendarAPITests(APITestCase):
         response = self.client.get("/api/v1/progress/calendar/?year=2020&month=1")
         self.assertEqual(len(response.data["active_dates"]), 0)
 
+    def test_calendar_month_too_low(self):
+        response = self.client.get("/api/v1/progress/calendar/?year=2026&month=0")
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+
+    def test_calendar_month_too_high(self):
+        response = self.client.get("/api/v1/progress/calendar/?year=2026&month=13")
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+
+    def test_calendar_year_too_low(self):
+        response = self.client.get("/api/v1/progress/calendar/?year=1999&month=6")
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+
+    def test_calendar_year_too_high(self):
+        response = self.client.get("/api/v1/progress/calendar/?year=2101&month=6")
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+
     def test_unauthenticated_denied(self):
         from rest_framework.test import APIClient
 

@@ -23,7 +23,7 @@ class StudentCertificateListView(generics.ListAPIView):
         if getattr(self, "swagger_fake_view", False):
             return Certificate.objects.none()
         return Certificate.objects.filter(
-            student=self.request.user.student_profile,
+            student=self.request.user.student_profile,  # type: ignore[union-attr]
         ).select_related("level", "student__user")
 
 

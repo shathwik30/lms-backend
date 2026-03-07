@@ -259,6 +259,16 @@ class AdminDoubtTests(APITestCase):
         )
         self.assertEqual(response.status_code, status.HTTP_200_OK)
 
+    def test_admin_cannot_reply_to_closed_ticket(self):
+        ticket = DoubtTicket.objects.get(pk=self.doubt_id)
+        ticket.status = DoubtTicket.Status.CLOSED
+        ticket.save()
+        response = self.admin_client.post(
+            f"/api/v1/doubts/admin/{self.doubt_id}/reply/",
+            {"message": "This should be blocked."},
+        )
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+
     def test_student_cannot_access_admin_doubts(self):
         response = self.student_client.get("/api/v1/doubts/admin/")
         self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)

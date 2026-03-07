@@ -75,6 +75,7 @@ class NotificationAPITests(APITestCase):
     def test_mark_read_other_user_404(self):
         other_user, _ = self.factory.create_student(email="other2@test.com")
         n = NotificationService.create(user=other_user, title="X", message="X")
+        assert n is not None
         response = self.client.patch(f"/api/v1/notifications/{n.pk}/read/")
         self.assertEqual(response.status_code, status.HTTP_404_NOT_FOUND)
 
@@ -129,6 +130,7 @@ class NotificationHelperTests(APITestCase):
             title="Test",
             message="Body",
         )
+        assert n is not None
         self.assertEqual(n.notification_type, Notification.NotificationType.GENERAL)
         self.assertFalse(n.is_read)
 
@@ -140,7 +142,8 @@ class NotificationHelperTests(APITestCase):
             notification_type=Notification.NotificationType.PURCHASE,
             data={"purchase_id": 42},
         )
-        self.assertEqual(n.data["purchase_id"], 42)
+        assert n is not None
+        self.assertEqual(n.data["purchase_id"], 42)  # type: ignore[index]
 
 
 class NotificationClearAllTests(APITestCase):
@@ -217,6 +220,7 @@ class NotificationHelperErrorHandlingTests(APITestCase):
             title="Hello",
             message="World",
         )
+        assert n is not None
         self.assertIsInstance(n, Notification)
         self.assertEqual(n.title, "Hello")
         self.assertEqual(n.message, "World")

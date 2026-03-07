@@ -98,7 +98,7 @@ class PurchaseHistoryView(generics.ListAPIView):
         if getattr(self, "swagger_fake_view", False):
             return Purchase.objects.none()
         return Purchase.objects.filter(
-            student=self.request.user.student_profile,
+            student=self.request.user.student_profile,  # type: ignore[union-attr]
         ).select_related("course__level")
 
 
@@ -113,7 +113,7 @@ class TransactionHistoryView(generics.ListAPIView):
         if getattr(self, "swagger_fake_view", False):
             return PaymentTransaction.objects.none()
         return PaymentTransaction.objects.filter(
-            student=self.request.user.student_profile,
+            student=self.request.user.student_profile,  # type: ignore[union-attr]
         )
 
 

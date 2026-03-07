@@ -42,7 +42,7 @@ class CourseSessionsView(generics.ListAPIView):
         if getattr(self, "swagger_fake_view", False):
             return Session.objects.none()
         course_id = self.kwargs["course_pk"]
-        profile = self.request.user.student_profile
+        profile = self.request.user.student_profile  # type: ignore[union-attr]
 
         if not CourseAccessService.has_course_access(profile, course_id):
             raise PurchaseRequired()
@@ -92,11 +92,11 @@ class BookmarkListCreateView(generics.ListCreateAPIView):
         if getattr(self, "swagger_fake_view", False):
             return Bookmark.objects.none()
         return Bookmark.objects.filter(
-            student=self.request.user.student_profile,
+            student=self.request.user.student_profile,  # type: ignore[union-attr]
         ).select_related("session__week")
 
     def perform_create(self, serializer):
-        serializer.save(student=self.request.user.student_profile)
+        serializer.save(student=self.request.user.student_profile)  # type: ignore[union-attr]
 
 
 class BookmarkDeleteView(APIView):

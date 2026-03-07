@@ -52,6 +52,7 @@ class ExamFlowTests(APITestCase):
         answers = []
         for aq in aqs:
             correct = aq.question.options.filter(is_correct=True).first()
+            assert correct is not None
             answers.append({"question_id": aq.question_id, "option_id": correct.pk})
 
         response = self.client.post(
@@ -70,7 +71,7 @@ class ExamFlowTests(APITestCase):
         attempt_id = start.data["id"]
         aqs = AttemptQuestion.objects.filter(attempt_id=attempt_id).select_related("question")
         answers = [
-            {"question_id": aq.question_id, "option_id": aq.question.options.filter(is_correct=True).first().pk}
+            {"question_id": aq.question_id, "option_id": aq.question.options.filter(is_correct=True).first().pk}  # type: ignore[union-attr]
             for aq in aqs
         ]
         self.client.post(
@@ -89,7 +90,7 @@ class ExamFlowTests(APITestCase):
 
         aqs = AttemptQuestion.objects.filter(attempt_id=attempt_id).select_related("question")
         answers = [
-            {"question_id": aq.question_id, "option_id": aq.question.options.filter(is_correct=True).first().pk}
+            {"question_id": aq.question_id, "option_id": aq.question.options.filter(is_correct=True).first().pk}  # type: ignore[union-attr]
             for aq in aqs
         ]
 
@@ -113,7 +114,7 @@ class ExamFlowTests(APITestCase):
 
         aqs = AttemptQuestion.objects.filter(attempt_id=attempt_id).select_related("question")
         answers = [
-            {"question_id": aq.question_id, "option_id": aq.question.options.filter(is_correct=False).first().pk}
+            {"question_id": aq.question_id, "option_id": aq.question.options.filter(is_correct=False).first().pk}  # type: ignore[union-attr]
             for aq in aqs
         ]
 
@@ -133,7 +134,7 @@ class ExamFlowTests(APITestCase):
         start1 = self.client.post(f"/api/v1/exams/{self.data['exam'].pk}/start/")
         aqs = AttemptQuestion.objects.filter(attempt_id=start1.data["id"]).select_related("question")
         answers = [
-            {"question_id": aq.question_id, "option_id": aq.question.options.filter(is_correct=True).first().pk}
+            {"question_id": aq.question_id, "option_id": aq.question.options.filter(is_correct=True).first().pk}  # type: ignore[union-attr]
             for aq in aqs
         ]
         self.client.post(
@@ -148,7 +149,7 @@ class ExamFlowTests(APITestCase):
         start2 = self.client.post(f"/api/v1/exams/{self.data['exam'].pk}/start/")
         aqs2 = AttemptQuestion.objects.filter(attempt_id=start2.data["id"]).select_related("question")
         wrong_answers = [
-            {"question_id": aq.question_id, "option_id": aq.question.options.filter(is_correct=False).first().pk}
+            {"question_id": aq.question_id, "option_id": aq.question.options.filter(is_correct=False).first().pk}  # type: ignore[union-attr]
             for aq in aqs2
         ]
         self.client.post(
@@ -167,6 +168,7 @@ class ExamFlowTests(APITestCase):
         answers = []
         for aq in aqs:
             wrong = aq.question.options.filter(is_correct=False).first()
+            assert wrong is not None
             answers.append({"question_id": aq.question_id, "option_id": wrong.pk})
 
         response = self.client.post(
@@ -388,7 +390,7 @@ class AutoSubmitTimedOutExamsTaskTests(TestCase):
         self.assertEqual(count, 1)
         attempt.refresh_from_db()
         self.assertEqual(attempt.status, ExamAttempt.Status.TIMED_OUT)
-        self.assertEqual(float(attempt.score), 0)
+        self.assertEqual(float(attempt.score or 0), 0)
         self.assertFalse(attempt.is_passed)
 
     def test_active_attempt_not_timed_out(self):
@@ -920,7 +922,7 @@ class ProctoringTests(APITestCase):
         attempt = ExamAttempt.objects.get(pk=attempt_id)
         self.assertTrue(attempt.is_disqualified)
         self.assertEqual(attempt.status, ExamAttempt.Status.SUBMITTED)
-        self.assertEqual(float(attempt.score), 0)
+        self.assertEqual(float(attempt.score or 0), 0)
         self.assertFalse(attempt.is_passed)
 
     def test_non_proctored_exam_rejects_violation(self):
@@ -1073,7 +1075,7 @@ class ExamDeadlineEnforcementTests(APITestCase):
 
         attempt = ExamAttempt.objects.get(pk=attempt_id)
         self.assertEqual(attempt.status, ExamAttempt.Status.TIMED_OUT)
-        self.assertEqual(float(attempt.score), 0)
+        self.assertEqual(float(attempt.score or 0), 0)
         self.assertFalse(attempt.is_passed)
         self.assertIsNotNone(attempt.submitted_at)
 
@@ -1149,6 +1151,7 @@ class ExamAnswerValidationTests(APITestCase):
 
         # Find the actual question assigned to this attempt
         aq = AttemptQuestion.objects.filter(attempt_id=attempt_id).first()
+        assert aq is not None
         actual_question_id = aq.question_id
 
         # Pick an option from the OTHER question
@@ -1173,6 +1176,7 @@ class ExamAnswerValidationTests(APITestCase):
         """Submitting an option_id that does not exist should not crash — treated as wrong."""
         attempt_id = self._start_attempt()
         aq = AttemptQuestion.objects.filter(attempt_id=attempt_id).first()
+        assert aq is not None
 
         answers = [{"question_id": aq.question_id, "option_id": 999999}]
         response = self.client.post(
@@ -1189,6 +1193,7 @@ class ExamAnswerValidationTests(APITestCase):
         """Answers referencing questions not assigned to this attempt should be ignored."""
         attempt_id = self._start_attempt()
         aq = AttemptQuestion.objects.filter(attempt_id=attempt_id).first()
+        assert aq is not None
         actual_question_id = aq.question_id
 
         # Determine which question is NOT in the attempt

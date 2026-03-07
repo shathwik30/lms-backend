@@ -1,4 +1,5 @@
 import sentry_sdk
+from django.core.exceptions import ImproperlyConfigured
 
 from .base import *  # noqa: F401,F403
 
@@ -47,14 +48,14 @@ if SENTRY_DSN:
     )
 
 # ── Structured logging for production ──
-LOGGING["formatters"]["structured"] = {  # noqa: F405
+LOGGING["formatters"]["structured"] = {  # type: ignore[index]  # noqa: F405
     "format": "{levelname} {asctime} {name} {module} {process:d} {thread:d} {message}",
     "style": "{",
 }
-LOGGING["handlers"]["console"]["formatter"] = "structured"  # noqa: F405
+LOGGING["handlers"]["console"]["formatter"] = "structured"  # type: ignore[index]  # noqa: F405
 
 # Override apps logger to INFO in production (no DEBUG)
-LOGGING["loggers"]["apps"]["level"] = "INFO"  # noqa: F405
+LOGGING["loggers"]["apps"]["level"] = "INFO"  # type: ignore[index]  # noqa: F405
 
 # Allow credentials for JWT auth with CORS
 CORS_ALLOW_CREDENTIALS = True
@@ -65,3 +66,10 @@ FILE_UPLOAD_MAX_MEMORY_SIZE = 5 * 1024 * 1024  # 5 MB
 
 # Restrict Swagger/API docs to admin users in production
 SPECTACULAR_SETTINGS["SERVE_PERMISSIONS"] = ["rest_framework.permissions.IsAdminUser"]  # noqa: F405
+
+# ── Required secrets validation ──
+# Fail fast at startup rather than silently bypassing payment verification.
+if not RAZORPAY_KEY_ID:  # noqa: F405
+    raise ImproperlyConfigured("RAZORPAY_KEY_ID must be set in production.")
+if not RAZORPAY_KEY_SECRET:  # noqa: F405
+    raise ImproperlyConfigured("RAZORPAY_KEY_SECRET must be set in production.")

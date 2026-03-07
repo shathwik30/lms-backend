@@ -4,7 +4,8 @@ from django.test import TestCase, override_settings
 from django.utils import timezone
 
 from apps.exams.models import AttemptQuestion, ExamAttempt, Option
-from apps.exams.tasks import _score_attempt, auto_submit_timed_out_exams
+from apps.exams.services import ExamService
+from apps.exams.tasks import auto_submit_timed_out_exams
 from core.test_utils import TestFactory
 
 
@@ -150,20 +151,20 @@ class ScoreAttemptTests(TestCase):
         )
 
     def test_score_with_no_answers(self):
-        score = _score_attempt(self.attempt)
+        score = ExamService._score_timed_out_attempt(self.attempt)
         self.assertEqual(score, 0)
 
     def test_score_correct_mcq(self):
         question, correct_option = self.data["questions"][0]
         _create_aq(self.attempt, question, order=1, selected_option=correct_option)
-        score = _score_attempt(self.attempt)
+        score = ExamService._score_timed_out_attempt(self.attempt)
         self.assertEqual(score, question.marks)
 
     def test_score_wrong_mcq(self):
         question, _ = self.data["questions"][0]
         wrong = Option.objects.filter(question=question, is_correct=False).first()
         _create_aq(self.attempt, question, order=1, selected_option=wrong)
-        score = _score_attempt(self.attempt)
+        score = ExamService._score_timed_out_attempt(self.attempt)
         self.assertEqual(score, -question.negative_marks)
 
     def test_score_fill_blank_correct(self):
@@ -172,7 +173,7 @@ class ScoreAttemptTests(TestCase):
         question.correct_text_answer = "42"
         question.save()
         _create_aq(self.attempt, question, order=1, text_answer="42")
-        score = _score_attempt(self.attempt)
+        score = ExamService._score_timed_out_attempt(self.attempt)
         self.assertEqual(score, question.marks)
 
     def test_score_fill_blank_case_insensitive(self):
@@ -181,7 +182,7 @@ class ScoreAttemptTests(TestCase):
         question.correct_text_answer = "Newton"
         question.save()
         _create_aq(self.attempt, question, order=1, text_answer="newton")
-        score = _score_attempt(self.attempt)
+        score = ExamService._score_timed_out_attempt(self.attempt)
         self.assertEqual(score, question.marks)
 
     def test_score_fill_blank_wrong(self):
@@ -190,13 +191,13 @@ class ScoreAttemptTests(TestCase):
         question.correct_text_answer = "42"
         question.save()
         _create_aq(self.attempt, question, order=1, text_answer="wrong")
-        score = _score_attempt(self.attempt)
+        score = ExamService._score_timed_out_attempt(self.attempt)
         self.assertEqual(score, -question.negative_marks)
 
     def test_score_unanswered_gets_zero(self):
         question, _ = self.data["questions"][0]
         _create_aq(self.attempt, question, order=1)
-        score = _score_attempt(self.attempt)
+        score = ExamService._score_timed_out_attempt(self.attempt)
         self.assertEqual(score, 0)
 
     def test_score_mixed_answers(self):
@@ -205,6 +206,6 @@ class ScoreAttemptTests(TestCase):
         wrong2 = Option.objects.filter(question=q2, is_correct=False).first()
         _create_aq(self.attempt, q1, order=1, selected_option=correct1)
         _create_aq(self.attempt, q2, order=2, selected_option=wrong2)
-        score = _score_attempt(self.attempt)
+        score = ExamService._score_timed_out_attempt(self.attempt)
         expected = q1.marks - q2.negative_marks
         self.assertEqual(score, expected)

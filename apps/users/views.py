@@ -239,6 +239,7 @@ class ChangePasswordView(APIView):
                 {"old_password": [error]},
                 status=status.HTTP_400_BAD_REQUEST,
             )
+        assert tokens is not None
         return Response(
             {
                 "detail": SuccessMessage.PASSWORD_CHANGED,
@@ -505,4 +506,4 @@ class IssueReportListView(generics.ListAPIView):
             return IssueReport.objects.none()
         from .models import IssueReport
 
-        return IssueReport.objects.filter(user=self.request.user)
+        return IssueReport.objects.filter(user=self.request.user)  # type: ignore[misc]

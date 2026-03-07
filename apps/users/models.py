@@ -10,7 +10,7 @@ class UserManager(BaseUserManager):
             raise ValueError("Email is required")
         email = self.normalize_email(email)
         user = self.model(email=email, **extra_fields)
-        user.set_password(password)
+        user.set_password(password)  # type: ignore[attr-defined]
         user.save(using=self._db)
         return user
 

@@ -16,7 +16,7 @@ class ExportCsvMixin:
     """Admin mixin: 'Export selected to CSV' action."""
 
     def export_as_csv(self, request, queryset):
-        meta = self.model._meta
+        meta = self.model._meta  # type: ignore[attr-defined]
         field_names = [f.name for f in meta.fields]
 
         response = HttpResponse(content_type="text/csv")
@@ -30,21 +30,21 @@ class ExportCsvMixin:
 
         return response
 
-    export_as_csv.short_description = "Export selected to CSV"
+    export_as_csv.short_description = "Export selected to CSV"  # type: ignore[attr-defined]
 
 
 def make_active(modeladmin, request, queryset):
     queryset.update(is_active=True)
 
 
-make_active.short_description = "Mark selected as active"
+make_active.short_description = "Mark selected as active"  # type: ignore[attr-defined]
 
 
 def make_inactive(modeladmin, request, queryset):
     queryset.update(is_active=False)
 
 
-make_inactive.short_description = "Mark selected as inactive"
+make_inactive.short_description = "Mark selected as inactive"  # type: ignore[attr-defined]
 
 
 # Custom admin site

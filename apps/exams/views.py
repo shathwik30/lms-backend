@@ -127,7 +127,7 @@ class StudentAttemptListView(generics.ListAPIView):
         if getattr(self, "swagger_fake_view", False):
             return ExamAttempt.objects.none()
         return ExamAttempt.objects.filter(
-            student=self.request.user.student_profile,
+            student=self.request.user.student_profile,  # type: ignore[union-attr]
         ).select_related("exam")
 
 
@@ -159,6 +159,7 @@ class ReportViolationView(APIView):
         if error:
             return Response({"detail": error}, status=status.HTTP_400_BAD_REQUEST)
 
+        assert result is not None
         data = ProctoringViolationSerializer(result["violation"]).data
         data["total_warnings"] = result["total_warnings"]
         data["max_warnings"] = result["max_warnings"]

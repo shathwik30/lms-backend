@@ -25,7 +25,7 @@ class NotificationListView(generics.ListAPIView):
     def get_queryset(self):
         if getattr(self, "swagger_fake_view", False):
             return Notification.objects.none()
-        return Notification.objects.filter(user=self.request.user)
+        return Notification.objects.filter(user=self.request.user)  # type: ignore[misc]
 
 
 class NotificationMarkReadView(APIView):

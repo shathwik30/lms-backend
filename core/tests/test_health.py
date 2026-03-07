@@ -4,6 +4,7 @@ from django.test import TestCase
 from rest_framework.test import APIClient
 
 from core.constants import HealthStatus
+from core.test_utils import TestFactory
 
 
 class HealthCheckTests(TestCase):
@@ -51,3 +52,27 @@ class HealthCheckTests(TestCase):
             data = response.json()
             self.assertEqual(data["status"], HealthStatus.DEGRADED)
             self.assertFalse(data["redis"])
+
+
+class MetricsEndpointTests(TestCase):
+    """Tests for the /metrics/ endpoint auth guard."""
+
+    def setUp(self):
+        self.factory = TestFactory()
+        self.url = "/metrics/"
+
+    def test_unauthenticated_returns_401(self):
+        response = APIClient().get(self.url)
+        self.assertEqual(response.status_code, 401)
+
+    def test_student_returns_403(self):
+        user, _ = self.factory.create_student()
+        client = self.factory.get_auth_client(user)
+        response = client.get(self.url)
+        self.assertEqual(response.status_code, 403)
+
+    def test_admin_returns_200(self):
+        admin = self.factory.create_admin()
+        client = self.factory.get_auth_client(admin)
+        response = client.get(self.url)
+        self.assertEqual(response.status_code, 200)
