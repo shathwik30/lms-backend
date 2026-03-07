@@ -1,6 +1,5 @@
-from drf_spectacular.utils import extend_schema, extend_schema_view, inline_serializer
+from drf_spectacular.utils import extend_schema, extend_schema_view
 from rest_framework import generics, status
-from rest_framework import serializers as drf_serializers
 from rest_framework.response import Response
 from rest_framework.views import APIView
 
@@ -17,6 +16,7 @@ from .serializers import (
     DoubtReplySerializer,
     DoubtTicketDetailSerializer,
     DoubtTicketListSerializer,
+    UpdateDoubtStatusSerializer,
 )
 from .services import DoubtService
 
@@ -42,11 +42,11 @@ class StudentDoubtListCreateView(generics.ListCreateAPIView):
         if getattr(self, "swagger_fake_view", False):
             return DoubtTicket.objects.none()
         return DoubtTicket.objects.filter(
-            student=self.request.user.student_profile,
+            student=self.request.user.student_profile,  # type: ignore[union-attr]
         ).prefetch_related("replies")
 
     def perform_create(self, serializer):
-        profile = self.request.user.student_profile
+        profile = self.request.user.student_profile  # type: ignore[union-attr]
         DoubtService.validate_doubt_access(
             profile,
             serializer.validated_data.get("context_type"),
@@ -66,7 +66,7 @@ class StudentDoubtDetailView(generics.RetrieveAPIView):
         if getattr(self, "swagger_fake_view", False):
             return DoubtTicket.objects.none()
         return DoubtTicket.objects.filter(
-            student=self.request.user.student_profile,
+            student=self.request.user.student_profile,  # type: ignore[union-attr]
         ).prefetch_related("replies__author")
 
 
@@ -132,6 +132,12 @@ class AdminDoubtReplyView(APIView):
         except DoubtTicket.DoesNotExist:
             return Response({"detail": ErrorMessage.NOT_FOUND}, status=status.HTTP_404_NOT_FOUND)
 
+        if ticket.status == DoubtTicket.Status.CLOSED:
+            return Response(
+                {"detail": ErrorMessage.TICKET_CLOSED},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
         serializer = DoubtReplySerializer(data=request.data)
         serializer.is_valid(raise_exception=True)
         reply = serializer.save(ticket=ticket, author=request.user)
@@ -170,12 +176,7 @@ class AdminDoubtStatusView(APIView):
     permission_classes = [IsAdmin]
 
     @extend_schema(
-        request=inline_serializer(
-            "UpdateDoubtStatus",
-            fields={
-                "status": drf_serializers.ChoiceField(choices=DoubtTicket.Status.choices),
-            },
-        ),
+        request=UpdateDoubtStatusSerializer,
         responses={200: DoubtTicketDetailSerializer},
     )
     def post(self, request, pk):
@@ -184,9 +185,12 @@ class AdminDoubtStatusView(APIView):
         except DoubtTicket.DoesNotExist:
             return Response({"detail": ErrorMessage.NOT_FOUND}, status=status.HTTP_404_NOT_FOUND)
 
+        serializer = UpdateDoubtStatusSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+
         result, error = DoubtService.update_status(
             ticket,
-            request.data.get("status"),
+            serializer.validated_data["status"],
         )
         if error:
             return Response({"detail": error}, status=status.HTTP_400_BAD_REQUEST)

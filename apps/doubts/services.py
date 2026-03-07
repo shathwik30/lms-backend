@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from django.contrib.auth import get_user_model
+from django.utils import timezone
 from rest_framework.exceptions import PermissionDenied
 
 from apps.notifications.models import Notification
@@ -33,6 +34,7 @@ class DoubtService:
                 student=profile,
                 course__level=level,
                 status=Purchase.Status.ACTIVE,
+                expires_at__gt=timezone.now(),
             ).exists()
             if not has_purchase:
                 raise PermissionDenied(ErrorMessage.PURCHASE_REQUIRED_FOR_DOUBT)
@@ -70,7 +72,7 @@ class DoubtService:
         except User.DoesNotExist:
             return None, ErrorMessage.USER_NOT_FOUND
 
-        if not (faculty.is_staff or faculty.is_superuser):
+        if not faculty.is_admin:
             return None, ErrorMessage.ASSIGN_STAFF_ONLY
 
         ticket.assigned_to = faculty

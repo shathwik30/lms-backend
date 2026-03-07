@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+from django.utils import timezone
+
 from apps.courses.models import Session
 from apps.payments.models import Purchase
 from apps.users.models import StudentProfile
@@ -25,6 +27,7 @@ class FeedbackService:
             student=profile,
             course__level=session.week.level,
             status=Purchase.Status.ACTIVE,
+            expires_at__gt=timezone.now(),
         ).exists()
         if not has_purchase:
             return None, ErrorMessage.PURCHASE_REQUIRED_FOR_FEEDBACK

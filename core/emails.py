@@ -64,6 +64,19 @@ class EmailService:
         )
 
     @classmethod
+    def send_password_reset(cls, email, full_name, reset_url):
+        cls._send(
+            subject="Password Reset — LMS",
+            message=(
+                f"Hi {full_name},\n\n"
+                f"Click the link below to reset your password:\n{reset_url}\n\n"
+                f"This link expires in 1 hour.\n\n"
+                f"If you did not request this, ignore this email."
+            ),
+            recipient_list=[email],
+        )
+
+    @classmethod
     def send_doubt_reply(cls, email, full_name, ticket_title, reply_author, reply_preview):
         cls._send(
             subject=f"New Reply on Your Doubt — {ticket_title}",

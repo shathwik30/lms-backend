@@ -110,21 +110,9 @@ def send_exam_result_task(self, email, full_name, exam_title, score, total_marks
 )
 def send_password_reset_task(self, email, full_name, reset_url):
     try:
-        from django.conf import settings
-        from django.core.mail import send_mail
+        from core.emails import EmailService
 
-        send_mail(
-            subject="Password Reset — LMS",
-            message=(
-                f"Hi {full_name},\n\n"
-                f"Click the link below to reset your password:\n{reset_url}\n\n"
-                f"This link expires in 1 hour.\n\n"
-                f"If you did not request this, ignore this email."
-            ),
-            from_email=settings.DEFAULT_FROM_EMAIL,
-            recipient_list=[email],
-            fail_silently=False,
-        )
+        EmailService.send_password_reset(email, full_name, reset_url)
         logger.info("Password reset email sent to %s", email)
     except SoftTimeLimitExceeded:
         logger.error("Soft time limit exceeded sending password reset to %s", email)

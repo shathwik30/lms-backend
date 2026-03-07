@@ -2,20 +2,33 @@ from django.conf import settings
 from django.conf.urls.static import static
 from django.contrib import admin
 from django.urls import include, path
+from drf_spectacular.utils import extend_schema
 from drf_spectacular.views import (
     SpectacularAPIView,
     SpectacularRedocView,
     SpectacularSwaggerView,
 )
+from rest_framework.decorators import api_view, permission_classes
 
+from core.permissions import IsAdmin
 from core.views import HealthCheckView
+
+
+@extend_schema(exclude=True)
+@api_view(["GET"])
+@permission_classes([IsAdmin])
+def _metrics_view(request):
+    from django_prometheus.exports import ExportToDjangoView
+
+    return ExportToDjangoView(request._request)
+
 
 urlpatterns = [
     path("admin/", admin.site.urls),
     # Health check
     path("api/v1/health/", HealthCheckView.as_view(), name="health-check"),
-    # Prometheus metrics
-    path("metrics/", include("django_prometheus.urls")),
+    # Prometheus metrics (admin-only)
+    path("metrics/", _metrics_view, name="prometheus-django-metrics"),
     # API v1
     path("api/v1/auth/", include("apps.users.urls")),
     path("api/v1/levels/", include("apps.levels.urls")),

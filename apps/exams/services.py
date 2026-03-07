@@ -1,8 +1,11 @@
 from __future__ import annotations
 
+import logging
 import random
 from datetime import timedelta
+from decimal import Decimal
 
+from django.db import transaction
 from django.utils import timezone
 
 from apps.notifications.models import Notification
@@ -15,6 +18,8 @@ from core.exceptions import LevelLocked
 from core.services.eligibility import EligibilityService
 
 from .models import AttemptQuestion, Exam, ExamAttempt, ProctoringViolation, Question
+
+logger = logging.getLogger(__name__)
 
 
 class ExamService:
@@ -32,34 +37,49 @@ class ExamService:
         if not EligibilityService.can_attempt_exam(student_profile, exam):
             raise LevelLocked()
 
-        active_attempt = ExamAttempt.objects.filter(
-            student=student_profile,
-            exam=exam,
-            status=ExamAttempt.Status.IN_PROGRESS,
-        ).first()
-        if active_attempt:
-            return active_attempt, False
+        with transaction.atomic():
+            active_attempt = (
+                ExamAttempt.objects.select_for_update()
+                .filter(
+                    student=student_profile,
+                    exam=exam,
+                    status=ExamAttempt.Status.IN_PROGRESS,
+                )
+                .first()
+            )
+            if active_attempt:
+                return active_attempt, False
 
-        pool = Question.objects.filter(level=exam.level, is_active=True)
-        if exam.week:
-            pool = pool.filter(week=exam.week)
+            pool = Question.objects.filter(level=exam.level, is_active=True)
+            if exam.week:
+                pool = pool.filter(week=exam.week)
 
-        pool_list = list(pool)
-        if not pool_list:
-            return None, None
+            pool_ids_marks = list(pool.values_list("id", "marks"))
+            if not pool_ids_marks:
+                return None, None
 
-        count = min(exam.num_questions, len(pool_list))
-        selected = random.sample(pool_list, count)
+            count = min(exam.num_questions, len(pool_ids_marks))
+            if count < exam.num_questions:
+                logger.warning(
+                    "Exam %d: only %d questions available, required %d",
+                    exam.pk,
+                    count,
+                    exam.num_questions,
+                )
+            selected_pairs = random.sample(pool_ids_marks, count)
 
-        attempt = ExamAttempt.objects.create(
-            student=student_profile,
-            exam=exam,
-            total_marks=sum(q.marks for q in selected),
-        )
+            attempt = ExamAttempt.objects.create(
+                student=student_profile,
+                exam=exam,
+                total_marks=sum(marks for _, marks in selected_pairs),
+            )
 
-        random.shuffle(selected)
-        attempt_questions = [AttemptQuestion(attempt=attempt, question=q, order=i + 1) for i, q in enumerate(selected)]
-        AttemptQuestion.objects.bulk_create(attempt_questions)
+            random.shuffle(selected_pairs)
+            attempt_questions = [
+                AttemptQuestion(attempt=attempt, question_id=qid, order=i + 1)
+                for i, (qid, _) in enumerate(selected_pairs)
+            ]
+            AttemptQuestion.objects.bulk_create(attempt_questions)
 
         return attempt, True
 
@@ -75,20 +95,22 @@ class ExamService:
 
         deadline = attempt.started_at + timedelta(minutes=attempt.exam.duration_minutes)
         if timezone.now() > deadline + timedelta(seconds=ExamConstants.SUBMISSION_GRACE_SECONDS):
+            timed_score = cls._score_timed_out_attempt(attempt)
+            pass_score = (attempt.exam.passing_percentage / ExamConstants.PERCENTAGE_DIVISOR) * attempt.total_marks
             attempt.status = ExamAttempt.Status.TIMED_OUT
             attempt.submitted_at = deadline
-            attempt.score = 0
-            attempt.is_passed = False
+            attempt.score = timed_score
+            attempt.is_passed = timed_score >= pass_score
             attempt.save()
             return None, ErrorMessage.SUBMISSION_DEADLINE_PASSED
 
         answers_map = {a["question_id"]: a for a in answers_data}
 
-        total_score = 0
+        total_score: Decimal = Decimal(0)
         attempt_questions = list(
             attempt.attempt_questions.select_related("question").prefetch_related("question__options")
         )
-        multi_mcq_updates = []
+        multi_mcq_updates: list[tuple[AttemptQuestion, list[int]]] = []
 
         for aq in attempt_questions:
             answer = answers_map.get(aq.question_id)
@@ -139,6 +161,43 @@ class ExamService:
         )
 
         return attempt, None
+
+    @staticmethod
+    def _score_timed_out_attempt(attempt: ExamAttempt) -> Decimal:
+        """Score previously-saved answers for a timed-out attempt."""
+        total_score = Decimal(0)
+        attempt_questions = list(
+            attempt.attempt_questions.select_related("question").prefetch_related(
+                "question__options", "selected_options"
+            )
+        )
+
+        for aq in attempt_questions:
+            if aq.selected_option_id:
+                option = next((o for o in aq.question.options.all() if o.pk == aq.selected_option_id), None)
+                if option:
+                    aq.is_correct = option.is_correct
+                    aq.marks_awarded = aq.question.marks if option.is_correct else -aq.question.negative_marks
+                else:
+                    aq.is_correct = False
+                    aq.marks_awarded = -aq.question.negative_marks
+            elif any(True for _ in aq.selected_options.all()):
+                correct_ids = {o.id for o in aq.question.options.all() if o.is_correct}
+                selected_ids = {o.id for o in aq.selected_options.all()}
+                aq.is_correct = selected_ids == correct_ids
+                aq.marks_awarded = aq.question.marks if aq.is_correct else -aq.question.negative_marks
+            elif aq.text_answer:
+                correct = (aq.question.correct_text_answer or "").strip()
+                aq.is_correct = aq.text_answer.strip().lower() == correct.lower()
+                aq.marks_awarded = aq.question.marks if aq.is_correct else -aq.question.negative_marks
+            else:
+                aq.is_correct = None
+                aq.marks_awarded = 0
+
+            total_score += aq.marks_awarded
+
+        AttemptQuestion.objects.bulk_update(attempt_questions, ["is_correct", "marks_awarded"])
+        return total_score
 
     @staticmethod
     def report_violation(
@@ -250,7 +309,7 @@ class ExamService:
             progress.save()
 
             profile.highest_cleared_level = level
-            profile.save()
+            profile.save(update_fields=["highest_cleared_level"])
 
             from apps.certificates.models import Certificate
 

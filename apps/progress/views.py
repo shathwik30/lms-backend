@@ -52,7 +52,7 @@ class SessionProgressListView(generics.ListAPIView):
             return SessionProgress.objects.none()
         level_pk = self.kwargs.get("level_pk")
         return SessionProgress.objects.filter(
-            student=self.request.user.student_profile,
+            student=self.request.user.student_profile,  # type: ignore[union-attr]
             session__week__level_id=level_pk,
         ).select_related("session")
 
@@ -69,7 +69,7 @@ class LevelProgressListView(generics.ListAPIView):
         if getattr(self, "swagger_fake_view", False):
             return LevelProgress.objects.none()
         return LevelProgress.objects.filter(
-            student=self.request.user.student_profile,
+            student=self.request.user.student_profile,  # type: ignore[union-attr]
         ).select_related("level")
 
 
@@ -130,6 +130,12 @@ class CalendarView(APIView):
                 status=status.HTTP_400_BAD_REQUEST,
             )
 
+        if not (1 <= month <= 12) or not (2000 <= year <= 2100):
+            return Response(
+                {"detail": ErrorMessage.YEAR_MONTH_REQUIRED},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
         active_dates = ProgressService.get_calendar_data(
             request.user.student_profile,
             year,
@@ -159,10 +165,13 @@ class LeaderboardView(APIView):
         },
     )
     def get(self, request):
-        limit = min(
-            int(request.query_params.get("limit", ProgressConstants.DEFAULT_LEADERBOARD_LIMIT)),
-            ProgressConstants.MAX_LEADERBOARD_LIMIT,
-        )
+        try:
+            limit = min(
+                int(request.query_params.get("limit", ProgressConstants.DEFAULT_LEADERBOARD_LIMIT)),
+                ProgressConstants.MAX_LEADERBOARD_LIMIT,
+            )
+        except ValueError:
+            limit = ProgressConstants.DEFAULT_LEADERBOARD_LIMIT
         level_id = request.query_params.get("level")
 
         data = ProgressService.get_leaderboard(request.user, level_id, limit)

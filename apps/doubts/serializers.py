@@ -112,3 +112,7 @@ class AdminAssignDoubtSerializer(serializers.Serializer):
 
 class AdminBonusMarksSerializer(serializers.Serializer):
     bonus_marks = serializers.DecimalField(max_digits=5, decimal_places=2, min_value=0, max_value=100)
+
+
+class UpdateDoubtStatusSerializer(serializers.Serializer):
+    status = serializers.ChoiceField(choices=DoubtTicket.Status.choices)

@@ -122,18 +122,16 @@ class PaymentService:
             return None, ErrorMessage.AMOUNT_MISMATCH
 
         with transaction.atomic():
-            txn.gateway_payment_id = data["gateway_payment_id"]
-            txn.status = PaymentTransaction.Status.SUCCESS
-            txn.save(update_fields=["gateway_payment_id", "status"])
-
             purchase = Purchase.objects.create(
                 student=profile,
                 course=course,
                 amount_paid=txn.amount,
                 expires_at=timezone.now() + timedelta(days=course.validity_days),
             )
+            txn.gateway_payment_id = data["gateway_payment_id"]
+            txn.status = PaymentTransaction.Status.SUCCESS
             txn.purchase = purchase
-            txn.save(update_fields=["purchase"])
+            txn.save(update_fields=["gateway_payment_id", "status", "purchase"])
 
             existing_progress = LevelProgress.objects.filter(
                 student=profile,

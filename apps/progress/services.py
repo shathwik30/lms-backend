@@ -4,6 +4,7 @@ from typing import Any
 
 from django.conf import settings
 from django.core.cache import cache
+from django.db import transaction
 from django.db.models import Count, FloatField, Sum
 from django.db.models.functions import Coalesce, TruncDate
 from django.utils import timezone
@@ -27,33 +28,34 @@ class ProgressService:
         except Session.DoesNotExist:
             return None, ErrorMessage.SESSION_NOT_FOUND
 
-        progress, _ = SessionProgress.objects.get_or_create(
-            student=profile,
-            session=session,
-        )
-
-        capped = min(watched_seconds, session.duration_seconds)
-        progress.watched_seconds = max(progress.watched_seconds, capped)
-
-        if not progress.is_completed:
-            threshold = session.duration_seconds * ProgressConstants.SESSION_COMPLETION_THRESHOLD
-            has_feedback = SessionFeedback.objects.filter(
+        with transaction.atomic():
+            progress, _ = SessionProgress.objects.select_for_update().get_or_create(
                 student=profile,
                 session=session,
-            ).exists()
-            if progress.watched_seconds >= threshold and has_feedback:
-                progress.is_completed = True
-                progress.completed_at = timezone.now()
+            )
 
-        progress.save()
+            capped = min(watched_seconds, session.duration_seconds)
+            progress.watched_seconds = max(progress.watched_seconds, capped)
 
-        level = session.week.level
-        if EligibilityService.is_syllabus_complete(profile, level):
-            LevelProgress.objects.filter(
-                student=profile,
-                level=level,
-                status=LevelProgress.Status.IN_PROGRESS,
-            ).update(status=LevelProgress.Status.SYLLABUS_COMPLETE)
+            if not progress.is_completed:
+                threshold = session.duration_seconds * ProgressConstants.SESSION_COMPLETION_THRESHOLD
+                has_feedback = SessionFeedback.objects.filter(
+                    student=profile,
+                    session=session,
+                ).exists()
+                if progress.watched_seconds >= threshold and has_feedback:
+                    progress.is_completed = True
+                    progress.completed_at = timezone.now()
+
+            progress.save()
+
+            level = session.week.level
+            if EligibilityService.is_syllabus_complete(profile, level):
+                LevelProgress.objects.filter(
+                    student=profile,
+                    level=level,
+                    status=LevelProgress.Status.IN_PROGRESS,
+                ).update(status=LevelProgress.Status.SYLLABUS_COMPLETE)
 
         return progress, None
 
@@ -121,7 +123,7 @@ class ProgressService:
     def _build_ranked_leaderboard(
         level_id: int | str | None, limit: int
     ) -> tuple[list[dict[str, Any]], list[tuple[int, dict[str, Any]]]]:
-        """Build the ranked leaderboard data (expensive, cached)."""
+        """Build the ranked leaderboard data (expensive)."""
         from apps.exams.models import ExamAttempt
 
         attempts_qs = ExamAttempt.objects.filter(
@@ -198,20 +200,24 @@ class ProgressService:
         user: User, level_id: int | str | None = None, limit: int = ProgressConstants.DEFAULT_LEADERBOARD_LIMIT
     ) -> dict[str, Any]:
         cache_key = f"leaderboard:{level_id or 'all'}:{limit}"
-        cached = cache.get(cache_key)
+        leaderboard = cache.get(cache_key)
 
-        if cached:
-            leaderboard, ranked = cached
-        else:
+        ranked = None
+        if leaderboard is None:
             leaderboard, ranked = ProgressService._build_ranked_leaderboard(level_id, limit)
-            cache.set(cache_key, (leaderboard, ranked), settings.CACHE_TTL_SHORT)
+            cache.set(cache_key, leaderboard, settings.CACHE_TTL_SHORT)
 
         my_rank = None
         if user.is_student and hasattr(user, "student_profile"):
             my_id = user.student_profile.id
-            for i, (sid, _) in enumerate(ranked, start=1):
-                if sid == my_id:
-                    my_rank = i
+            for entry in leaderboard:
+                if entry["student_id"] == my_id:
+                    my_rank = entry["rank"]
                     break
+            if my_rank is None and ranked is not None:
+                for i, (sid, _) in enumerate(ranked, start=1):
+                    if sid == my_id:
+                        my_rank = i
+                        break
 
         return {"leaderboard": leaderboard, "my_rank": my_rank}

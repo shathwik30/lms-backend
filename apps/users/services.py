@@ -83,7 +83,7 @@ class AuthService:
     @staticmethod
     def logout(refresh_token: str) -> tuple[bool, str]:
         try:
-            RefreshToken(refresh_token).blacklist()
+            RefreshToken(refresh_token).blacklist()  # type: ignore[arg-type]
             return True, SuccessMessage.LOGGED_OUT
         except Exception:
             return False, ErrorMessage.INVALID_OR_EXPIRED_TOKEN
@@ -96,13 +96,13 @@ class AuthService:
             return None, ErrorMessage.INCORRECT_PASSWORD
 
         user.set_password(new_password)
-        user.save()
+        user.save(update_fields=["password"])
 
         from rest_framework_simplejwt.token_blacklist.models import OutstandingToken
 
         for token in OutstandingToken.objects.filter(user=user):
             with contextlib.suppress(Exception):
-                RefreshToken(token.token).blacklist()
+                RefreshToken(token.token).blacklist()  # type: ignore[arg-type]
 
         refresh = RefreshToken.for_user(user)
         return {
@@ -139,7 +139,7 @@ class PasswordResetService:
             return False, ErrorMessage.INVALID_OR_EXPIRED_RESET_LINK
 
         user.set_password(new_password)
-        user.save()
+        user.save(update_fields=["password"])
         logger.info("Password reset completed for %s", user.email)
         return True, SuccessMessage.PASSWORD_RESET_DONE
 
@@ -157,9 +157,10 @@ class ProfileService:
     @staticmethod
     def remove_profile_picture(user: UserModel) -> UserModel:
         if user.profile_picture:
-            user.profile_picture.delete(save=False)
+            old_file = user.profile_picture
             user.profile_picture = ""
             user.save(update_fields=["profile_picture"])
+            old_file.delete(save=False)
         return user
 
     @staticmethod

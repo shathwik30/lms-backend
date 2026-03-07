@@ -3,7 +3,7 @@ from datetime import timedelta
 
 from celery import shared_task
 from celery.exceptions import SoftTimeLimitExceeded
-from django.db.models import Count, Sum
+from django.db.models import Case, Count, IntegerField, Sum, When
 from django.utils import timezone
 
 from apps.analytics.models import DailyRevenue, LevelAnalytics
@@ -48,32 +48,49 @@ def aggregate_daily_analytics(self):
         )
 
         # --- Per-Level Analytics ---
-        for level in Level.objects.filter(is_active=True):
-            attempts = ExamAttempt.objects.filter(
-                exam__level=level,
+        active_levels = list(Level.objects.filter(is_active=True))
+        active_level_ids = [level.id for level in active_levels]
+
+        attempt_stats = {
+            row["exam__level_id"]: row
+            for row in ExamAttempt.objects.filter(
+                exam__level_id__in=active_level_ids,
                 exam__exam_type=Exam.ExamType.LEVEL_FINAL,
                 submitted_at__date=yesterday,
             )
-            total_attempts = attempts.count()
-            total_passes = attempts.filter(is_passed=True).count()
-            total_failures = attempts.filter(is_passed=False).count()
+            .values("exam__level_id")
+            .annotate(
+                total_attempts=Count("id"),
+                total_passes=Count(Case(When(is_passed=True, then=1), output_field=IntegerField())),
+                total_failures=Count(Case(When(is_passed=False, then=1), output_field=IntegerField())),
+            )
+        }
 
-            purchases = Purchase.objects.filter(
-                course__level=level,
+        purchase_stats = {
+            row["course__level_id"]: row
+            for row in Purchase.objects.filter(
+                course__level_id__in=active_level_ids,
                 purchased_at__date=yesterday,
             )
-            total_purchases = purchases.count()
-            revenue = purchases.aggregate(total=Sum("amount_paid"))["total"] or 0
+            .values("course__level_id")
+            .annotate(
+                total_purchases=Count("id"),
+                revenue=Sum("amount_paid"),
+            )
+        }
 
+        for level in active_levels:
+            astats = attempt_stats.get(level.id, {})
+            pstats = purchase_stats.get(level.id, {})
             LevelAnalytics.objects.update_or_create(
                 level=level,
                 date=yesterday,
                 defaults={
-                    "total_attempts": total_attempts,
-                    "total_passes": total_passes,
-                    "total_failures": total_failures,
-                    "total_purchases": total_purchases,
-                    "revenue": revenue,
+                    "total_attempts": astats.get("total_attempts", 0),
+                    "total_passes": astats.get("total_passes", 0),
+                    "total_failures": astats.get("total_failures", 0),
+                    "total_purchases": pstats.get("total_purchases", 0),
+                    "revenue": pstats.get("revenue") or 0,
                 },
             )
 

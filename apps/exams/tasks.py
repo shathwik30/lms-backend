@@ -7,49 +7,10 @@ from django.db import transaction
 from django.utils import timezone
 
 from apps.exams.models import ExamAttempt
+from apps.exams.services import ExamService
 from core.constants import ExamConstants, TaskConfig
 
 logger = logging.getLogger(__name__)
-
-
-def _score_attempt(attempt):
-    """Evaluate submitted answers and compute score for a timed-out attempt."""
-    total_score = 0
-    attempt_questions = list(
-        attempt.attempt_questions.select_related("question").prefetch_related("question__options", "selected_options")
-    )
-
-    for aq in attempt_questions:
-        if aq.selected_option_id:
-            # MCQ — check if selected option is correct
-            option = next((o for o in aq.question.options.all() if o.pk == aq.selected_option_id), None)
-            if option:
-                aq.is_correct = option.is_correct
-                aq.marks_awarded = aq.question.marks if option.is_correct else -aq.question.negative_marks
-            else:
-                aq.is_correct = False
-                aq.marks_awarded = -aq.question.negative_marks
-        elif any(True for _ in aq.selected_options.all()):
-            # MULTI_MCQ — compare sets
-            correct_ids = {o.id for o in aq.question.options.all() if o.is_correct}
-            selected_ids = {o.id for o in aq.selected_options.all()}
-            aq.is_correct = selected_ids == correct_ids
-            aq.marks_awarded = aq.question.marks if aq.is_correct else -aq.question.negative_marks
-        elif aq.text_answer:
-            # FILL_BLANK
-            correct = (aq.question.correct_text_answer or "").strip()
-            aq.is_correct = aq.text_answer.strip().lower() == correct.lower()
-            aq.marks_awarded = aq.question.marks if aq.is_correct else -aq.question.negative_marks
-        else:
-            aq.is_correct = None
-            aq.marks_awarded = 0
-
-        total_score += aq.marks_awarded
-
-    from apps.exams.models import AttemptQuestion
-
-    AttemptQuestion.objects.bulk_update(attempt_questions, ["is_correct", "marks_awarded"])
-    return total_score
 
 
 @shared_task(
@@ -65,13 +26,13 @@ def auto_submit_timed_out_exams(self):
     Finds IN_PROGRESS attempts where started_at + duration has passed,
     evaluates any answers already saved, then marks them as TIMED_OUT.
     """
+    count = 0
     try:
         in_progress = ExamAttempt.objects.filter(
             status=ExamAttempt.Status.IN_PROGRESS,
         ).select_related("exam")
 
         now = timezone.now()
-        count = 0
 
         for attempt in in_progress:
             deadline = attempt.started_at + timedelta(minutes=attempt.exam.duration_minutes)
@@ -89,7 +50,7 @@ def auto_submit_timed_out_exams(self):
 
             with transaction.atomic():
                 # Score any answers that were saved before timeout
-                total_score = _score_attempt(attempt)
+                total_score = ExamService._score_timed_out_attempt(attempt)
 
                 attempt.status = ExamAttempt.Status.TIMED_OUT
                 attempt.submitted_at = deadline  # Use actual deadline, not current time
