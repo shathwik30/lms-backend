@@ -24,6 +24,10 @@ class SessionProgress(TimeStampedModel):
         constraints = [
             models.UniqueConstraint(fields=["student", "session"], name="unique_session_progress"),
         ]
+        indexes = [
+            models.Index(fields=["student", "updated_at"], name="idx_sp_student_date"),
+            models.Index(fields=["student", "is_completed"], name="idx_sp_student_done"),
+        ]
 
     def __str__(self):
         return f"{self.student} → {self.session.title}"
@@ -68,6 +72,9 @@ class LevelProgress(TimeStampedModel):
         ordering = ["-updated_at"]
         constraints = [
             models.UniqueConstraint(fields=["student", "level"], name="unique_level_progress"),
+        ]
+        indexes = [
+            models.Index(fields=["student", "status"], name="idx_lp_student_status"),
         ]
 
     def __str__(self):

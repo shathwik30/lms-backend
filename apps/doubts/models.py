@@ -57,6 +57,9 @@ class DoubtTicket(TimeStampedModel):
     class Meta:
         db_table = "doubt_tickets"
         ordering = ["-created_at"]
+        indexes = [
+            models.Index(fields=["student", "status"], name="idx_doubt_student_status"),
+        ]
 
     def __str__(self):
         return f"Doubt #{self.pk}: {self.title}"

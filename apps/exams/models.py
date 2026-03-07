@@ -141,6 +141,8 @@ class ExamAttempt(TimeStampedModel):
         indexes = [
             models.Index(fields=["student", "exam"], name="idx_attempt_student_exam"),
             models.Index(fields=["status", "is_passed", "is_disqualified"], name="idx_attempt_leaderboard"),
+            models.Index(fields=["student", "started_at"], name="idx_attempt_student_started"),
+            models.Index(fields=["status", "started_at"], name="idx_attempt_status_started"),
         ]
 
     def __str__(self):
