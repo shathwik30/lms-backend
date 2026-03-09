@@ -68,6 +68,27 @@ class ScopedSearchTests(APITestCase):
         self.data1 = self.factory.setup_full_level(order=1, num_sessions=2, num_questions=3)
         self.data2 = self.factory.setup_full_level(order=2, num_sessions=2, num_questions=2)
 
+        # Create weekly exams with week FK for week-scoped question search tests
+        self.weekly_exam1 = self.factory.create_exam(
+            self.data1["level"],
+            week=self.data1["week"],
+            course=self.data1["course"],
+            exam_type="weekly",
+            num_questions=3,
+        )
+        for _ in range(3):
+            self.factory.create_question(self.weekly_exam1)
+
+        self.weekly_exam2 = self.factory.create_exam(
+            self.data2["level"],
+            week=self.data2["week"],
+            course=self.data2["course"],
+            exam_type="weekly",
+            num_questions=2,
+        )
+        for _ in range(2):
+            self.factory.create_question(self.weekly_exam2)
+
     def test_search_scoped_by_level(self):
         level1 = self.data1["level"]
         response = self.client.get(f"/api/v1/search/?q=Session&level={level1.pk}")
@@ -118,10 +139,12 @@ class ScopedSearchTests(APITestCase):
         level1 = self.data1["level"]
         response = self.client.get(f"/api/v1/search/?q=question&level={level1.pk}")
         self.assertEqual(response.status_code, status.HTTP_200_OK)
-        self.assertEqual(response.data["questions_count"], 3)
+        # 3 from level_final exam + 3 from weekly exam = 6
+        self.assertEqual(response.data["questions_count"], 6)
 
     def test_questions_count_scoped_by_week(self):
         week1 = self.data1["week"]
         response = self.client.get(f"/api/v1/search/?q=question&week={week1.pk}")
         self.assertEqual(response.status_code, status.HTTP_200_OK)
+        # Only weekly exam questions have a week FK
         self.assertEqual(response.data["questions_count"], 3)

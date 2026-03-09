@@ -82,12 +82,11 @@ class TestFactory:
             session_type=session_type,
         )
 
-    def create_question(self, level, week=None, course=None, marks=4):
+    def create_question(self, exam, level=None, marks=4):
         q = Question.objects.create(
-            level=level,
-            week=week,
-            course=course,
-            text=f"Test question for {level.name}?",
+            exam=exam,
+            level=level or exam.level,
+            text=f"Test question for {(level or exam.level).name}?",
             difficulty="medium",
             marks=marks,
         )
@@ -175,8 +174,8 @@ class TestFactory:
         course = self.create_course(level)
         week = self.create_week(course, order=1)
         sessions = [self.create_session(week, order=i + 1) for i in range(num_sessions)]
-        questions_and_options = [self.create_question(level, week, course) for _ in range(num_questions)]
         exam = self.create_exam(level, num_questions=num_questions)
+        questions_and_options = [self.create_question(exam) for _ in range(num_questions)]
         return {
             "level": level,
             "course": course,

@@ -8,7 +8,6 @@ from django.db import IntegrityError
 from django.test import TestCase
 
 from apps.analytics.models import DailyRevenue, LevelAnalytics
-from apps.certificates.models import Certificate
 from apps.courses.models import Bookmark, Resource, Session
 from apps.doubts.models import DoubtReply, DoubtTicket
 from apps.exams.models import (
@@ -186,13 +185,15 @@ class ExamModelTests(TestCase):
 
     def test_question_str(self):
         level = self.factory.create_level()
-        q, _ = self.factory.create_question(level)
+        exam = self.factory.create_exam(level)
+        q, _ = self.factory.create_question(exam)
         self.assertIn("Q#", str(q))
         self.assertIn("medium", str(q))
 
     def test_option_str(self):
         level = self.factory.create_level()
-        q, _ = self.factory.create_question(level)
+        exam = self.factory.create_exam(level)
+        q, _ = self.factory.create_question(exam)
         option = q.options.first()
         self.assertIn("Option for Q#", str(option))
 
@@ -216,8 +217,8 @@ class ExamModelTests(TestCase):
     def test_attempt_question_str(self):
         _, profile = self.factory.create_student()
         level = self.factory.create_level()
-        q, _ = self.factory.create_question(level)
         exam = self.factory.create_exam(level)
+        q, _ = self.factory.create_question(exam)
         attempt = ExamAttempt.objects.create(student=profile, exam=exam, total_marks=20)
         aq = AttemptQuestion.objects.create(attempt=attempt, question=q, order=1)
         self.assertIn(f"Q#{q.pk}", str(aq))
@@ -226,8 +227,8 @@ class ExamModelTests(TestCase):
     def test_attempt_question_unique_constraint(self):
         _, profile = self.factory.create_student()
         level = self.factory.create_level()
-        q, _ = self.factory.create_question(level)
         exam = self.factory.create_exam(level)
+        q, _ = self.factory.create_question(exam)
         attempt = ExamAttempt.objects.create(student=profile, exam=exam, total_marks=20)
         AttemptQuestion.objects.create(attempt=attempt, question=q, order=1)
         with self.assertRaises(IntegrityError):
@@ -482,32 +483,6 @@ class NotificationModelTests(TestCase):
         self.assertEqual(Notification.NotificationType.PURCHASE, "purchase")
         self.assertEqual(Notification.NotificationType.EXAM_RESULT, "exam_result")
         self.assertEqual(Notification.NotificationType.DOUBT_REPLY, "doubt_reply")
-
-
-class CertificateModelTests(TestCase):
-    def setUp(self):
-        self.factory = TestFactory()
-
-    def test_certificate_str(self):
-        _, profile = self.factory.create_student()
-        level = self.factory.create_level()
-        cert = Certificate.objects.create(student=profile, level=level)
-        self.assertIn(profile.user.email, str(cert))
-        self.assertIn(level.name, str(cert))
-
-    def test_certificate_auto_generates_number(self):
-        _, profile = self.factory.create_student()
-        level = self.factory.create_level()
-        cert = Certificate.objects.create(student=profile, level=level)
-        self.assertTrue(cert.certificate_number.startswith("CERT-"))
-        self.assertTrue(len(cert.certificate_number) > 10)
-
-    def test_certificate_unique_per_student_level(self):
-        _, profile = self.factory.create_student()
-        level = self.factory.create_level()
-        Certificate.objects.create(student=profile, level=level)
-        with self.assertRaises(IntegrityError):
-            Certificate.objects.create(student=profile, level=level)
 
 
 class BannerModelTests(TestCase):

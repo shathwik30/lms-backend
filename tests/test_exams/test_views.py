@@ -343,12 +343,13 @@ class AdminExamAPITests(APITestCase):
         self.admin = self.factory.create_admin()
         self.admin_client = self.factory.get_auth_client(self.admin)
         self.level = self.factory.create_level(order=1)
+        self.exam = self.factory.create_exam(self.level)
 
     def test_admin_create_question(self):
         response = self.admin_client.post(
             "/api/v1/exams/admin/questions/",
             {
-                "level": self.level.pk,
+                "exam": self.exam.pk,
                 "text": "What is 2+2?",
                 "difficulty": "easy",
                 "marks": 4,
@@ -438,7 +439,18 @@ class MultiSelectMCQTests(APITestCase):
         # Create a multi-select MCQ question manually
         from apps.exams.models import Option, Question
 
+        self.exam = Exam.objects.create(
+            level=self.level,
+            exam_type=Exam.ExamType.LEVEL_FINAL,
+            title="Multi MCQ Exam",
+            duration_minutes=60,
+            total_marks=4,
+            passing_percentage=50,
+            num_questions=1,
+        )
+
         self.question = Question.objects.create(
+            exam=self.exam,
             level=self.level,
             text="Select all correct",
             difficulty="easy",
@@ -459,16 +471,6 @@ class MultiSelectMCQTests(APITestCase):
             question=self.question,
             text="C",
             is_correct=False,
-        )
-
-        self.exam = Exam.objects.create(
-            level=self.level,
-            exam_type=Exam.ExamType.LEVEL_FINAL,
-            title="Multi MCQ Exam",
-            duration_minutes=60,
-            total_marks=4,
-            passing_percentage=50,
-            num_questions=1,
         )
 
     def _start_and_get_attempt_id(self):
@@ -544,15 +546,6 @@ class FillInTheBlankTests(APITestCase):
 
         from apps.exams.models import Question
 
-        self.question = Question.objects.create(
-            level=self.level,
-            text="What is 6*7?",
-            difficulty="easy",
-            question_type="fill_blank",
-            marks=4,
-            correct_text_answer="42",
-        )
-
         self.exam = Exam.objects.create(
             level=self.level,
             exam_type=Exam.ExamType.LEVEL_FINAL,
@@ -561,6 +554,16 @@ class FillInTheBlankTests(APITestCase):
             total_marks=4,
             passing_percentage=50,
             num_questions=1,
+        )
+
+        self.question = Question.objects.create(
+            exam=self.exam,
+            level=self.level,
+            text="What is 6*7?",
+            difficulty="easy",
+            question_type="fill_blank",
+            marks=4,
+            correct_text_answer="42",
         )
 
     def _start_and_get_attempt_id(self):
@@ -660,7 +663,18 @@ class NegativeMarkingTests(APITestCase):
 
         from apps.exams.models import Option, Question
 
+        self.exam = Exam.objects.create(
+            level=self.level,
+            exam_type=Exam.ExamType.LEVEL_FINAL,
+            title="Negative Marking Exam",
+            duration_minutes=60,
+            total_marks=4,
+            passing_percentage=50,
+            num_questions=1,
+        )
+
         self.question = Question.objects.create(
+            exam=self.exam,
             level=self.level,
             text="Negative mark question?",
             difficulty="easy",
@@ -677,16 +691,6 @@ class NegativeMarkingTests(APITestCase):
             question=self.question,
             text="Wrong",
             is_correct=False,
-        )
-
-        self.exam = Exam.objects.create(
-            level=self.level,
-            exam_type=Exam.ExamType.LEVEL_FINAL,
-            title="Negative Marking Exam",
-            duration_minutes=60,
-            total_marks=4,
-            passing_percentage=50,
-            num_questions=1,
         )
 
     @override_settings(EMAIL_BACKEND="django.core.mail.backends.locmem.EmailBackend")
@@ -775,7 +779,18 @@ class QuestionExplanationTests(APITestCase):
 
         from apps.exams.models import Option, Question
 
+        self.exam = Exam.objects.create(
+            level=self.level,
+            exam_type=Exam.ExamType.LEVEL_FINAL,
+            title="Explanation Exam",
+            duration_minutes=60,
+            total_marks=4,
+            passing_percentage=50,
+            num_questions=1,
+        )
+
         self.question = Question.objects.create(
+            exam=self.exam,
             level=self.level,
             text="What is 2+2?",
             difficulty="easy",
@@ -792,16 +807,6 @@ class QuestionExplanationTests(APITestCase):
             question=self.question,
             text="5",
             is_correct=False,
-        )
-
-        self.exam = Exam.objects.create(
-            level=self.level,
-            exam_type=Exam.ExamType.LEVEL_FINAL,
-            title="Explanation Exam",
-            duration_minutes=60,
-            total_marks=4,
-            passing_percentage=50,
-            num_questions=1,
         )
 
     @override_settings(EMAIL_BACKEND="django.core.mail.backends.locmem.EmailBackend")
@@ -843,7 +848,20 @@ class ProctoringTests(APITestCase):
 
         from apps.exams.models import Option, Question
 
+        self.exam = Exam.objects.create(
+            level=self.level,
+            exam_type=Exam.ExamType.LEVEL_FINAL,
+            title="Proctored Exam",
+            duration_minutes=60,
+            total_marks=4,
+            passing_percentage=50,
+            num_questions=1,
+            is_proctored=True,
+            max_warnings=3,
+        )
+
         self.question = Question.objects.create(
+            exam=self.exam,
             level=self.level,
             text="Proctored question?",
             difficulty="easy",
@@ -859,18 +877,6 @@ class ProctoringTests(APITestCase):
             question=self.question,
             text="Wrong",
             is_correct=False,
-        )
-
-        self.exam = Exam.objects.create(
-            level=self.level,
-            exam_type=Exam.ExamType.LEVEL_FINAL,
-            title="Proctored Exam",
-            duration_minutes=60,
-            total_marks=4,
-            passing_percentage=50,
-            num_questions=1,
-            is_proctored=True,
-            max_warnings=3,
         )
 
     def _start_attempt(self):
@@ -988,7 +994,18 @@ class ExamDeadlineEnforcementTests(APITestCase):
 
         from apps.exams.models import Option, Question
 
+        self.exam = Exam.objects.create(
+            level=self.level,
+            exam_type=Exam.ExamType.LEVEL_FINAL,
+            title="Deadline Exam",
+            duration_minutes=30,
+            total_marks=4,
+            passing_percentage=50,
+            num_questions=1,
+        )
+
         self.question = Question.objects.create(
+            exam=self.exam,
             level=self.level,
             text="Deadline test question?",
             difficulty="easy",
@@ -1004,16 +1021,6 @@ class ExamDeadlineEnforcementTests(APITestCase):
             question=self.question,
             text="Wrong",
             is_correct=False,
-        )
-
-        self.exam = Exam.objects.create(
-            level=self.level,
-            exam_type=Exam.ExamType.LEVEL_FINAL,
-            title="Deadline Exam",
-            duration_minutes=30,
-            total_marks=4,
-            passing_percentage=50,
-            num_questions=1,
         )
 
     def _start_attempt(self):
@@ -1100,8 +1107,19 @@ class ExamAnswerValidationTests(APITestCase):
 
         from apps.exams.models import Option, Question
 
+        self.exam = Exam.objects.create(
+            level=self.level,
+            exam_type=Exam.ExamType.LEVEL_FINAL,
+            title="Validation Exam",
+            duration_minutes=60,
+            total_marks=4,
+            passing_percentage=50,
+            num_questions=1,
+        )
+
         # Create two questions — only one will be in the exam
         self.question1 = Question.objects.create(
+            exam=self.exam,
             level=self.level,
             text="Question 1?",
             difficulty="easy",
@@ -1120,6 +1138,7 @@ class ExamAnswerValidationTests(APITestCase):
         )
 
         self.question2 = Question.objects.create(
+            exam=self.exam,
             level=self.level,
             text="Question 2?",
             difficulty="easy",
@@ -1135,16 +1154,6 @@ class ExamAnswerValidationTests(APITestCase):
             question=self.question2,
             text="Wrong 2",
             is_correct=False,
-        )
-
-        self.exam = Exam.objects.create(
-            level=self.level,
-            exam_type=Exam.ExamType.LEVEL_FINAL,
-            title="Validation Exam",
-            duration_minutes=60,
-            total_marks=4,
-            passing_percentage=50,
-            num_questions=1,
         )
 
     def _start_attempt(self):
@@ -1238,7 +1247,18 @@ class ExamSerializerLimitTests(APITestCase):
 
         from apps.exams.models import Option, Question
 
+        self.exam = Exam.objects.create(
+            level=self.level,
+            exam_type=Exam.ExamType.LEVEL_FINAL,
+            title="Limit Exam",
+            duration_minutes=60,
+            total_marks=4,
+            passing_percentage=50,
+            num_questions=1,
+        )
+
         self.question = Question.objects.create(
+            exam=self.exam,
             level=self.level,
             text="Serializer limit test?",
             difficulty="easy",
@@ -1254,16 +1274,6 @@ class ExamSerializerLimitTests(APITestCase):
             question=self.question,
             text="Wrong",
             is_correct=False,
-        )
-
-        self.exam = Exam.objects.create(
-            level=self.level,
-            exam_type=Exam.ExamType.LEVEL_FINAL,
-            title="Limit Exam",
-            duration_minutes=60,
-            total_marks=4,
-            passing_percentage=50,
-            num_questions=1,
         )
 
     def _start_attempt(self):

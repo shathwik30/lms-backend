@@ -46,7 +46,7 @@ class SearchService:
         if level_id:
             questions_qs = questions_qs.filter(level_id=level_id)
         if week_id:
-            questions_qs = questions_qs.filter(week_id=week_id)
+            questions_qs = questions_qs.filter(exam__week_id=week_id)
         questions_count = questions_qs.count()
 
         return {

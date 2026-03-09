@@ -201,9 +201,9 @@ class AttemptViolationsView(APIView):
 class AdminQuestionListCreateView(generics.ListCreateAPIView):
     permission_classes = [IsAdmin]
     serializer_class = QuestionAdminSerializer
-    queryset = Question.objects.select_related("level", "week", "course").prefetch_related("options")
+    queryset = Question.objects.select_related("exam", "level").prefetch_related("options")
     pagination_class = LargePagination
-    filterset_fields = ["level", "week", "course", "difficulty", "question_type", "is_active"]
+    filterset_fields = ["exam", "level", "difficulty", "question_type", "is_active"]
 
 
 @extend_schema_view(

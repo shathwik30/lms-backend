@@ -55,11 +55,9 @@ class ReportViolationViewTests(TestCase):
     def test_report_violation_success_returns_violation_data(self):
         """Successful violation report returns violation data with warning counts."""
         level = self.factory.create_level(order=1)
-        course = self.factory.create_course(level)
-        week = self.factory.create_week(course, order=1)
-        for _ in range(5):
-            self.factory.create_question(level, week, course)
         exam = self.factory.create_exam(level, exam_type=Exam.ExamType.WEEKLY)
+        for _ in range(5):
+            self.factory.create_question(exam)
         exam.is_proctored = True
         exam.max_warnings = 5
         exam.save(update_fields=["is_proctored", "max_warnings"])
@@ -90,11 +88,9 @@ class ReportViolationViewTests(TestCase):
     def test_report_violation_non_proctored_exam_returns_400(self):
         """Reporting violation for non-proctored exam returns error."""
         level = self.factory.create_level(order=1)
-        course = self.factory.create_course(level)
-        week = self.factory.create_week(course, order=1)
-        for _ in range(5):
-            self.factory.create_question(level, week, course)
         exam = self.factory.create_exam(level, exam_type=Exam.ExamType.WEEKLY)
+        for _ in range(5):
+            self.factory.create_question(exam)
         # is_proctored defaults to False
 
         self.factory.create_purchase(self.profile, level)
@@ -131,11 +127,9 @@ class AttemptViolationsViewTests(TestCase):
     def test_attempt_violations_success(self):
         """Fetching violations for a valid attempt returns violation list."""
         level = self.factory.create_level(order=1)
-        course = self.factory.create_course(level)
-        week = self.factory.create_week(course, order=1)
-        for _ in range(5):
-            self.factory.create_question(level, week, course)
         exam = self.factory.create_exam(level, exam_type=Exam.ExamType.WEEKLY)
+        for _ in range(5):
+            self.factory.create_question(exam)
         exam.is_proctored = True
         exam.max_warnings = 5
         exam.save(update_fields=["is_proctored", "max_warnings"])

@@ -5,7 +5,6 @@ from unittest.mock import patch
 from django.test import TestCase
 from django.utils import timezone
 
-from apps.certificates.models import Certificate
 from apps.exams.models import (
     AttemptQuestion,
     Exam,
@@ -45,6 +44,8 @@ class StartExamOnboardingAlreadyAttemptedTests(TestCase):
             exam_type=Exam.ExamType.ONBOARDING,
             num_questions=1,
         )
+        # Pre-create a question in the exam pool
+        self.factory.create_question(self.exam)
 
     def test_onboarding_already_attempted_raises(self):
         self.profile.onboarding_exam_attempted = True
@@ -55,7 +56,6 @@ class StartExamOnboardingAlreadyAttemptedTests(TestCase):
 
     def test_onboarding_not_attempted_does_not_raise(self):
         """Sanity check: first attempt should succeed (not raise)."""
-        q, _ = self.factory.create_question(self.level)
         attempt, is_new = ExamService.start_exam(self.profile, self.exam)
         self.assertIsNotNone(attempt)
         self.assertTrue(is_new)
@@ -115,7 +115,7 @@ class StartExamLevelLockedTests(TestCase):
 
 
 class StartExamOnboardingQuestionPoolTests(TestCase):
-    """Coverage: start_exam line 64 — onboarding pulls from ALL levels."""
+    """Coverage: start_exam — onboarding pulls from its own exam pool."""
 
     def setUp(self):
         self.factory = TestFactory()
@@ -124,16 +124,16 @@ class StartExamOnboardingQuestionPoolTests(TestCase):
         self.level2 = self.factory.create_level(order=2)
         self.level3 = self.factory.create_level(order=3)
 
-        # Create questions across different levels
-        self.q1, _ = self.factory.create_question(self.level1, marks=4)
-        self.q2, _ = self.factory.create_question(self.level2, marks=4)
-        self.q3, _ = self.factory.create_question(self.level3, marks=4)
-
         self.exam = self.factory.create_exam(
             self.level1,
             exam_type=Exam.ExamType.ONBOARDING,
             num_questions=3,
         )
+
+        # Create questions across different levels, all in the same onboarding exam
+        self.q1, _ = self.factory.create_question(self.exam, level=self.level1, marks=4)
+        self.q2, _ = self.factory.create_question(self.exam, level=self.level2, marks=4)
+        self.q3, _ = self.factory.create_question(self.exam, level=self.level3, marks=4)
 
     def test_onboarding_pulls_questions_from_all_levels(self):
         attempt, is_new = ExamService.start_exam(self.profile, self.exam)
@@ -145,44 +145,38 @@ class StartExamOnboardingQuestionPoolTests(TestCase):
         self.assertEqual(question_ids, {self.q1.pk, self.q2.pk, self.q3.pk})
 
 
-class StartExamCourseScopedTests(TestCase):
-    """Coverage: start_exam lines 68-70 — course-scoped question filtering."""
+class StartExamPerExamPoolTests(TestCase):
+    """Coverage: start_exam — each exam pulls only from its own question pool."""
 
     def setUp(self):
         self.factory = TestFactory()
         self.user, self.profile = self.factory.create_student()
         self.data = self.factory.setup_full_level(order=1, num_questions=3)
         self.level = self.data["level"]
-        self.course = self.data["course"]
-        self.week = self.data["week"]
+        self.exam1 = self.data["exam"]
 
-        # Create a second course with its own questions
-        self.course2 = self.factory.create_course(self.level, title="Other Course")
-        self.week2 = self.factory.create_week(self.course2, order=1)
-        for _ in range(3):
-            self.factory.create_question(self.level, week=self.week2, course=self.course2)
-
-        # Create a course-scoped exam for course1
-        self.exam = self.factory.create_exam(
+        # Create a second exam with its own questions
+        self.exam2 = self.factory.create_exam(
             self.level,
-            course=self.course,
             exam_type=Exam.ExamType.WEEKLY,
             num_questions=3,
         )
+        for _ in range(3):
+            self.factory.create_question(self.exam2)
 
         _make_eligible(self.factory, self.profile, self.data)
 
-    def test_course_scoped_exam_only_pulls_course_questions(self):
-        attempt, is_new = ExamService.start_exam(self.profile, self.exam)
+    def test_exam_only_pulls_its_own_questions(self):
+        attempt, is_new = ExamService.start_exam(self.profile, self.exam1)
         self.assertTrue(is_new)
 
         question_ids = set(AttemptQuestion.objects.filter(attempt=attempt).values_list("question_id", flat=True))
-        # All selected questions must belong to course1
-        course1_question_ids = set(Question.objects.filter(course=self.course).values_list("id", flat=True))
-        self.assertTrue(question_ids.issubset(course1_question_ids))
-        # None from course2
-        course2_question_ids = set(Question.objects.filter(course=self.course2).values_list("id", flat=True))
-        self.assertFalse(question_ids & course2_question_ids)
+        # All selected questions must belong to exam1
+        exam1_question_ids = set(Question.objects.filter(exam=self.exam1).values_list("id", flat=True))
+        self.assertTrue(question_ids.issubset(exam1_question_ids))
+        # None from exam2
+        exam2_question_ids = set(Question.objects.filter(exam=self.exam2).values_list("id", flat=True))
+        self.assertFalse(question_ids & exam2_question_ids)
 
 
 class ProcessOnboardingResultTests(TestCase):
@@ -217,6 +211,7 @@ class ProcessOnboardingResultTests(TestCase):
         for level, marks, num_correct, num_total in level_scores:
             for i in range(num_total):
                 q = Question.objects.create(
+                    exam=self.exam,
                     level=level,
                     text=f"Q for {level.name} #{i}",
                     difficulty="medium",
@@ -370,6 +365,7 @@ class ScoreTimedOutAttemptMultiMcqTests(TestCase):
     def test_timed_out_multi_mcq_correct(self):
         """Multi-MCQ with all correct options selected scores full marks."""
         q = Question.objects.create(
+            exam=self.exam,
             level=self.level,
             text="Multi select Q",
             difficulty="medium",
@@ -404,6 +400,7 @@ class ScoreTimedOutAttemptMultiMcqTests(TestCase):
     def test_timed_out_multi_mcq_incorrect(self):
         """Multi-MCQ with wrong options selected gets negative marks."""
         q = Question.objects.create(
+            exam=self.exam,
             level=self.level,
             text="Multi select Q",
             difficulty="medium",
@@ -571,7 +568,9 @@ class EvaluateMultiMcqNoOptionsTests(TestCase):
         self.level = self.factory.create_level(order=1)
 
     def test_empty_option_ids_marks_none_zero(self):
+        exam = self.factory.create_exam(self.level, num_questions=1)
         q = Question.objects.create(
+            exam=exam,
             level=self.level,
             text="Multi MCQ Q",
             difficulty="medium",
@@ -581,8 +580,6 @@ class EvaluateMultiMcqNoOptionsTests(TestCase):
         )
         Option.objects.create(question=q, text="A", is_correct=True)
         Option.objects.create(question=q, text="B", is_correct=False)
-
-        exam = self.factory.create_exam(self.level, num_questions=1)
         attempt = ExamAttempt.objects.create(
             student=self.profile,
             exam=exam,
@@ -606,7 +603,9 @@ class EvaluateMultiMcqNoOptionsTests(TestCase):
         self.assertEqual(len(multi_mcq_updates), 0)
 
     def test_missing_option_ids_key_marks_none_zero(self):
+        exam = self.factory.create_exam(self.level, num_questions=1)
         q = Question.objects.create(
+            exam=exam,
             level=self.level,
             text="Multi MCQ Q",
             difficulty="medium",
@@ -614,8 +613,6 @@ class EvaluateMultiMcqNoOptionsTests(TestCase):
             marks=4,
         )
         Option.objects.create(question=q, text="A", is_correct=True)
-
-        exam = self.factory.create_exam(self.level, num_questions=1)
         attempt = ExamAttempt.objects.create(
             student=self.profile,
             exam=exam,
@@ -760,7 +757,7 @@ class UpdateLevelProgressFailAttemptsExhaustedTests(TestCase):
 
 
 class UpdateLevelProgressPassTests(TestCase):
-    """Coverage: _update_level_progress lines 401-426 — pass creates certificate."""
+    """Coverage: _update_level_progress — pass updates progress and profile."""
 
     def setUp(self):
         self.factory = TestFactory()
@@ -769,7 +766,7 @@ class UpdateLevelProgressPassTests(TestCase):
         self.level = self.data["level"]
         self.exam = self.data["exam"]
 
-    def test_pass_creates_certificate_and_updates_profile(self):
+    def test_pass_updates_progress_and_profile(self):
         LevelProgress.objects.create(
             student=self.profile,
             level=self.level,
@@ -795,12 +792,6 @@ class UpdateLevelProgressPassTests(TestCase):
         # Profile updated
         self.profile.refresh_from_db()
         self.assertEqual(self.profile.highest_cleared_level, self.level)
-
-        # Certificate created
-        cert = Certificate.objects.filter(student=self.profile, level=self.level).first()
-        self.assertIsNotNone(cert)
-        self.assertEqual(cert.score, Decimal("15"))
-        self.assertEqual(cert.total_marks, 20)
 
         # Notification created
         notification = Notification.objects.filter(
@@ -828,6 +819,7 @@ class SubmitExamOnboardingTests(TestCase):
         )
 
         self.q = Question.objects.create(
+            exam=self.exam,
             level=self.level,
             text="Onboarding Q",
             difficulty="easy",
@@ -1020,12 +1012,12 @@ class StartExamReturnsExistingAttemptTests(TestCase):
         self.factory = TestFactory()
         self.user, self.profile = self.factory.create_student()
         self.level = self.factory.create_level(order=1)
-        self.q, _ = self.factory.create_question(self.level)
         self.exam = self.factory.create_exam(
             self.level,
             exam_type=Exam.ExamType.ONBOARDING,
             num_questions=1,
         )
+        self.q, _ = self.factory.create_question(self.exam)
 
     def test_returns_existing_in_progress_attempt(self):
         attempt1, is_new1 = ExamService.start_exam(self.profile, self.exam)

@@ -23,9 +23,8 @@ class QuestionAdmin(admin.ModelAdmin, ExportCsvMixin):
     list_display = (
         "pk",
         "text_preview",
+        "exam",
         "level",
-        "week",
-        "course",
         "difficulty",
         "question_type",
         "marks",
@@ -34,9 +33,9 @@ class QuestionAdmin(admin.ModelAdmin, ExportCsvMixin):
         "is_active",
     )
     list_filter = (
-        "level",
-        "week",
-        "course",
+        "exam",
+        "exam__level",
+        "exam__exam_type",
         "difficulty",
         "question_type",
         "is_active",
@@ -71,6 +70,7 @@ class ExamAdmin(admin.ModelAdmin, ExportCsvMixin):
         "passing_percentage",
         "is_proctored",
         "max_warnings",
+        "question_count",
         "attempt_count",
         "is_active",
     )
@@ -79,6 +79,10 @@ class ExamAdmin(admin.ModelAdmin, ExportCsvMixin):
     search_fields = ("title",)
     list_per_page = 20
     actions = [make_active, make_inactive, "export_as_csv"]
+
+    @admin.display(description="Pool")
+    def question_count(self, obj):
+        return obj.questions.count()
 
     @admin.display(description="Attempts")
     def attempt_count(self, obj):

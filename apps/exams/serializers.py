@@ -34,9 +34,8 @@ class QuestionAdminSerializer(serializers.ModelSerializer):
         model = Question
         fields = [
             "id",
+            "exam",
             "level",
-            "week",
-            "course",
             "text",
             "image_url",
             "difficulty",
@@ -50,12 +49,19 @@ class QuestionAdminSerializer(serializers.ModelSerializer):
             "created_at",
         ]
         read_only_fields = ["id", "created_at"]
+        extra_kwargs = {"level": {"required": False}}
+
+    def create(self, validated_data):
+        if "level" not in validated_data or validated_data["level"] is None:
+            validated_data["level"] = validated_data["exam"].level
+        return super().create(validated_data)
 
 
 class ExamSerializer(serializers.ModelSerializer):
     level_name = serializers.CharField(source="level.name", read_only=True)
     week_name = serializers.CharField(source="week.name", default=None, read_only=True)
     course_title = serializers.CharField(source="course.title", default=None, read_only=True)
+    pool_size = serializers.SerializerMethodField()
 
     class Meta:
         model = Exam
@@ -73,12 +79,16 @@ class ExamSerializer(serializers.ModelSerializer):
             "total_marks",
             "passing_percentage",
             "num_questions",
+            "pool_size",
             "is_proctored",
             "max_warnings",
             "is_active",
             "created_at",
         ]
-        read_only_fields = ["id", "created_at"]
+        read_only_fields = ["id", "created_at", "pool_size"]
+
+    def get_pool_size(self, obj: Exam) -> int:
+        return obj.questions.filter(is_active=True).count()
 
 
 class AttemptQuestionSerializer(serializers.ModelSerializer):

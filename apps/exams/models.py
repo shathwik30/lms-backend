@@ -14,23 +14,14 @@ class Question(TimeStampedModel):
         MULTI_MCQ = "multi_mcq", "Multi-Select MCQ"
         FILL_BLANK = "fill_blank", "Fill in the Blank"
 
-    level = models.ForeignKey(
-        "levels.Level",
+    exam = models.ForeignKey(
+        "exams.Exam",
         on_delete=models.CASCADE,
         related_name="questions",
     )
-    week = models.ForeignKey(
-        "levels.Week",
-        null=True,
-        blank=True,
-        on_delete=models.SET_NULL,
-        related_name="questions",
-    )
-    course = models.ForeignKey(
-        "courses.Course",
-        null=True,
-        blank=True,
-        on_delete=models.SET_NULL,
+    level = models.ForeignKey(
+        "levels.Level",
+        on_delete=models.CASCADE,
         related_name="questions",
     )
     text = models.TextField()

@@ -57,15 +57,7 @@ class ExamService:
             if active_attempt:
                 return active_attempt, False
 
-            if exam.exam_type == Exam.ExamType.ONBOARDING:
-                # Pull questions from ALL levels
-                pool = Question.objects.filter(is_active=True)
-            else:
-                pool = Question.objects.filter(level=exam.level, is_active=True)
-                if exam.week:
-                    pool = pool.filter(week=exam.week)
-                if exam.course:
-                    pool = pool.filter(course=exam.course)
+            pool = exam.questions.filter(is_active=True)
 
             pool_ids_marks = list(pool.values_list("id", "marks"))
             if not pool_ids_marks:
@@ -397,17 +389,6 @@ class ExamService:
 
             profile.highest_cleared_level = level
             profile.save(update_fields=["highest_cleared_level"])
-
-            from apps.certificates.models import Certificate
-
-            Certificate.objects.get_or_create(
-                student=profile,
-                level=level,
-                defaults={
-                    "score": attempt.score,
-                    "total_marks": attempt.total_marks,
-                },
-            )
 
             NotificationService.create(
                 user=user,

@@ -7,7 +7,6 @@ from django.core.management.base import BaseCommand
 from django.utils import timezone
 
 from apps.analytics.models import DailyRevenue, LevelAnalytics
-from apps.certificates.models import Certificate
 from apps.courses.models import Course, Resource, Session
 from apps.doubts.models import DoubtReply, DoubtTicket
 from apps.exams.models import Exam, ExamAttempt, Option, Question
@@ -1021,9 +1020,6 @@ class Command(BaseCommand):
         # ── 13. Analytics ──
         self._create_analytics(levels, now)
 
-        # ── 14. Certificates ──
-        self._create_certificates(students, levels)
-
         self.stdout.write(self.style.SUCCESS("\nSeed complete!"))
         self.stdout.write(self.style.SUCCESS("  Admin login:    admin@lms.com / admin123"))
         self.stdout.write(self.style.SUCCESS("  Staff logins:   rajesh.kumar@lms.com / staff123"))
@@ -1039,7 +1035,6 @@ class Command(BaseCommand):
         models_to_flush = [
             "analytics.LevelAnalytics",
             "analytics.DailyRevenue",
-            "certificates.Certificate",
             "notifications.Notification",
             "feedback.SessionFeedback",
             "doubts.DoubtReply",
@@ -1226,13 +1221,56 @@ class Command(BaseCommand):
         q_count = 0
         exam_count = 0
 
+        # Create exams first, then assign questions to them
+        level_final_exams = {}
+        for level in levels:
+            exam, created = Exam.objects.get_or_create(
+                level=level,
+                exam_type=Exam.ExamType.LEVEL_FINAL,
+                defaults={
+                    "title": f"{level.name} Level — Final Examination",
+                    "duration_minutes": 90,
+                    "total_marks": 80,
+                    "passing_percentage": level.passing_percentage,
+                    "num_questions": 20,
+                    "is_proctored": True,
+                    "max_warnings": 3,
+                },
+            )
+            level_final_exams[level.pk] = exam
+            if created:
+                exam_count += 1
+
+        weekly_exams = {}
         for course in courses:
+            weeks = Week.objects.filter(course=course).order_by("order")
+            for week in weeks:
+                exam, created = Exam.objects.get_or_create(
+                    level=course.level,
+                    week=week,
+                    course=course,
+                    exam_type=Exam.ExamType.WEEKLY,
+                    defaults={
+                        "title": f"{week.name} — Weekly Quiz",
+                        "duration_minutes": 20,
+                        "total_marks": 20,
+                        "passing_percentage": Decimal("40.00"),
+                        "num_questions": 5,
+                    },
+                )
+                weekly_exams[(course.pk, week.pk)] = exam
+                if created:
+                    exam_count += 1
+
+        # Now create questions assigned to their respective exams
+        for course in courses:
+            level_exam = level_final_exams[course.level_id]
             course_questions = QUESTION_BANK.get(course.title, [])
             for q_data in course_questions:
                 text, difficulty, options_data, explanation = q_data
                 q, created = Question.objects.get_or_create(
+                    exam=level_exam,
                     level=course.level,
-                    course=course,
                     text=text,
                     defaults={
                         "difficulty": difficulty,
@@ -1247,10 +1285,10 @@ class Command(BaseCommand):
                     for opt_text, is_correct in options_data:
                         Option.objects.create(question=q, text=opt_text, is_correct=is_correct)
 
-            # Add some multi-select and fill-in-the-blank questions per course
+            # Add multi-select and fill-in-the-blank questions to the level final exam
             multi_q, created = Question.objects.get_or_create(
+                exam=level_exam,
                 level=course.level,
-                course=course,
                 text=f"Select ALL correct statements about {course.title.lower()}:",
                 defaults={
                     "difficulty": "hard",
@@ -1268,8 +1306,8 @@ class Command(BaseCommand):
                 Option.objects.create(question=multi_q, text="Statement D is incorrect", is_correct=False)
 
             fill_q, created = Question.objects.get_or_create(
+                exam=level_exam,
                 level=course.level,
-                course=course,
                 text=f"The SI unit commonly associated with a key quantity in {course.title.lower()} is ___.",
                 defaults={
                     "difficulty": "medium",
@@ -1282,47 +1320,39 @@ class Command(BaseCommand):
             if created:
                 q_count += 1
 
-        # Create exams: Level Final for each level, Weekly for first week of each course
-        for level in levels:
-            level_q_count = Question.objects.filter(level=level, is_active=True).count()
-            num_q = min(level_q_count, 20)
-            _, created = Exam.objects.get_or_create(
-                level=level,
-                exam_type=Exam.ExamType.LEVEL_FINAL,
-                defaults={
-                    "title": f"{level.name} Level — Final Examination",
-                    "duration_minutes": 90,
-                    "total_marks": num_q * 4,
-                    "passing_percentage": level.passing_percentage,
-                    "num_questions": num_q,
-                    "is_proctored": True,
-                    "max_warnings": 3,
-                },
-            )
-            if created:
-                exam_count += 1
-
-        for course in courses:
+            # Also add a few questions to weekly exams for this course
             weeks = Week.objects.filter(course=course).order_by("order")
             for week in weeks:
-                week_q_count = Question.objects.filter(level=course.level, course=course, is_active=True).count()
-                num_q = min(week_q_count, 5)
-                if num_q > 0:
-                    _, created = Exam.objects.get_or_create(
-                        level=course.level,
-                        week=week,
-                        course=course,
-                        exam_type=Exam.ExamType.WEEKLY,
-                        defaults={
-                            "title": f"{week.name} — Weekly Quiz",
-                            "duration_minutes": 20,
-                            "total_marks": num_q * 4,
-                            "passing_percentage": Decimal("40.00"),
-                            "num_questions": num_q,
-                        },
-                    )
-                    if created:
-                        exam_count += 1
+                weekly_exam = weekly_exams.get((course.pk, week.pk))
+                if weekly_exam:
+                    for i in range(min(5, len(course_questions))):
+                        text, difficulty, options_data, explanation = course_questions[i]
+                        wq, wcreated = Question.objects.get_or_create(
+                            exam=weekly_exam,
+                            level=course.level,
+                            text=f"[Weekly] {text}",
+                            defaults={
+                                "difficulty": difficulty,
+                                "marks": 4,
+                                "negative_marks": Decimal("1.00") if difficulty != "easy" else Decimal("0"),
+                                "explanation": explanation,
+                                "question_type": Question.QuestionType.MCQ,
+                            },
+                        )
+                        if wcreated:
+                            q_count += 1
+                            for opt_text, is_correct in options_data:
+                                Option.objects.create(question=wq, text=opt_text, is_correct=is_correct)
+
+        # Update level final exam total_marks based on actual question count
+        for level in levels:
+            exam = level_final_exams[level.pk]
+            actual_count = exam.questions.filter(is_active=True).count()
+            num_q = min(actual_count, 20)
+            if num_q != exam.num_questions or num_q * 4 != exam.total_marks:
+                exam.num_questions = num_q
+                exam.total_marks = num_q * 4
+                exam.save(update_fields=["num_questions", "total_marks"])
 
         self.stdout.write(self.style.SUCCESS(f"  [5/14] {q_count} questions, {exam_count} exams created"))
 
@@ -1902,34 +1932,3 @@ class Command(BaseCommand):
         self.stdout.write(
             self.style.SUCCESS(f"  [14/14] {rev_count} daily revenue, {la_count} level analytics records created")
         )
-
-    # ─── 14. Certificates ─────────────────────────────────────────────────
-
-    def _create_certificates(self, students, levels):
-        cert_count = 0
-        for _idx, (_user, profile) in enumerate(students[:15]):
-            # Students who passed level 1 get a certificate
-            Certificate.objects.get_or_create(
-                student=profile,
-                level=levels[0],
-                defaults={
-                    "score": Decimal(str(random.randint(60, 95))),
-                    "total_marks": 100,
-                },
-            )
-            cert_count += 1
-
-        # Students who passed level 2
-        for idx in range(3):
-            user, profile = students[idx]
-            Certificate.objects.get_or_create(
-                student=profile,
-                level=levels[1],
-                defaults={
-                    "score": Decimal(str(random.randint(55, 90))),
-                    "total_marks": 100,
-                },
-            )
-            cert_count += 1
-
-        self.stdout.write(self.style.SUCCESS(f"  [15/14] {cert_count} certificates created"))
