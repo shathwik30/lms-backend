@@ -180,10 +180,3 @@ class HealthCheckConstants:
     CACHE_KEY = "_health_check"
     CACHE_VALUE = "ok"
     CACHE_TIMEOUT = 5
-
-
-# ── Certificate ──
-
-
-class CertificateConstants:
-    NUMBER_PREFIX = "CERT-"

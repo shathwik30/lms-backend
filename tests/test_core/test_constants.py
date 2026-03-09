@@ -3,7 +3,6 @@
 from django.test import TestCase
 
 from core.constants import (
-    CertificateConstants,
     ErrorMessage,
     ExamConstants,
     HealthCheckConstants,
@@ -117,6 +116,3 @@ class ConstantValuesTests(TestCase):
     def test_health_status_enum(self):
         self.assertEqual(HealthStatus.HEALTHY, "healthy")
         self.assertEqual(HealthStatus.DEGRADED, "degraded")
-
-    def test_certificate_constants(self):
-        self.assertEqual(CertificateConstants.NUMBER_PREFIX, "CERT-")

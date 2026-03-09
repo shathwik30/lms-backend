@@ -40,7 +40,6 @@ urlpatterns = [
     path("api/v1/feedback/", include("apps.feedback.urls")),
     path("api/v1/analytics/", include("apps.analytics.urls")),
     path("api/v1/notifications/", include("apps.notifications.urls")),
-    path("api/v1/certificates/", include("apps.certificates.urls")),
     path("api/v1/home/", include("apps.home.urls")),
     path("api/v1/search/", include("apps.search.urls")),
     # API docs

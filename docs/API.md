@@ -898,30 +898,7 @@ Delete all notifications for the current user.
 
 ---
 
-## 11. Certificates
-
-### `GET /api/v1/certificates/`
-**Permission:** Student
-
-List the current student's earned certificates.
-
----
-
-### `GET /api/v1/certificates/<id>/`
-**Permission:** Student
-
-Get certificate details (certificate number, score, issue date).
-
----
-
-### Admin: `GET /api/v1/certificates/admin/`
-**Permission:** Admin
-
-List all certificates.
-
----
-
-## 12. Home
+## 11. Home
 
 ### `GET /api/v1/home/banners/`
 **Permission:** Public

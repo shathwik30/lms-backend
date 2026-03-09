@@ -47,7 +47,6 @@ LOCAL_APPS = [
     "apps.feedback",
     "apps.analytics",
     "apps.notifications",
-    "apps.certificates",
     "apps.home",
     "apps.search",
 ]
@@ -179,7 +178,6 @@ SPECTACULAR_SETTINGS = {
         {"name": "Feedback", "description": "Session feedback"},
         {"name": "Analytics", "description": "Revenue & level analytics (admin)"},
         {"name": "Notifications", "description": "User notifications"},
-        {"name": "Certificates", "description": "Level completion certificates"},
         {"name": "Home", "description": "Banners and featured content"},
         {"name": "Search", "description": "Global search"},
     ],

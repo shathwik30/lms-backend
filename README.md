@@ -32,7 +32,6 @@ apps/
   feedback/        Session feedback (ratings, difficulty, clarity)
   analytics/       Revenue & level analytics (admin)
   notifications/   User notifications
-  certificates/    Level completion certificates
   home/            Banners, featured courses
   search/          Global search across levels, courses, sessions, questions
 nginx/             Nginx reverse proxy configuration
@@ -53,7 +52,6 @@ docs/              API documentation
 - **Leaderboard** — Ranked by levels cleared and exam scores
 - **Activity Calendar** — Daily sessions watched and exams taken
 - **Doubt Tickets** — Q&A with admin replies and bonus marks
-- **Certificates** — Auto-generated on level completion
 - **Bookmarks** — Save sessions for later
 - **Notifications** — In-app notifications with preference controls
 - **Search** — Global search across levels, courses, sessions, questions
@@ -188,7 +186,6 @@ mypy apps/ core/
 | **Doubts** | Create/list tickets, reply, admin assign/status/bonus | Student / Admin |
 | **Feedback** | Submit session feedback (rating, difficulty, clarity) | Student |
 | **Notifications** | List, mark read, mark all read, clear all, unread count | Authenticated |
-| **Certificates** | List earned certificates, certificate details | Student |
 | **Home** | Banners, featured courses | Public |
 | **Search** | Global search (levels, courses, sessions, questions) | Authenticated |
 | **Analytics** | Revenue analytics, level analytics | Admin |
@@ -294,7 +291,6 @@ lms-backend/
 │   ├── feedback/               # 1 model: SessionFeedback
 │   ├── analytics/              # 2 models: RevenueAnalytics, LevelAnalytics
 │   ├── notifications/          # 1 model: Notification
-│   ├── certificates/           # 1 model: Certificate
 │   ├── home/                   # 1 model: Banner
 │   └── search/                 # No models (searches across existing models)
 └── docs/
