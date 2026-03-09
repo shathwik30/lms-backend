@@ -5,3 +5,21 @@ repos:
       - id: ruff
         args: [--fix, --exit-non-zero-on-fix]
       - id: ruff-format
+
+  - repo: local
+    hooks:
+      - id: mypy
+        name: mypy
+        entry: mypy apps/ core/
+        language: system
+        pass_filenames: false
+        always_run: true
+        types: [python]
+
+      - id: tests-coverage
+        name: tests with coverage
+        entry: bash -c 'tmpdir=$(mktemp -d) && COVERAGE_FILE="$tmpdir/.coverage" coverage run manage.py test tests --parallel && COVERAGE_FILE="$tmpdir/.coverage" coverage combine && COVERAGE_FILE="$tmpdir/.coverage" coverage report && rm -rf "$tmpdir"'
+        language: system
+        pass_filenames: false
+        always_run: true
+        stages: [pre-push]
