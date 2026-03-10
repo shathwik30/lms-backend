@@ -216,14 +216,14 @@ class AdminDoubtTests(APITestCase):
         self.assertEqual(ticket.status, DoubtTicket.Status.ANSWERED)
 
     def test_admin_assign(self):
-        response = self.admin_client.post(
+        response = self.admin_client.patch(
             f"/api/v1/doubts/admin/{self.doubt_id}/assign/",
             {"assigned_to": self.admin.pk},
         )
         self.assertEqual(response.status_code, status.HTTP_200_OK)
 
     def test_admin_assign_nonexistent_user_returns_404(self):
-        response = self.admin_client.post(
+        response = self.admin_client.patch(
             f"/api/v1/doubts/admin/{self.doubt_id}/assign/",
             {"assigned_to": 99999},
         )
@@ -231,7 +231,7 @@ class AdminDoubtTests(APITestCase):
 
     def test_admin_assign_student_returns_400(self):
         """Assigning a doubt to a student (non-staff) should fail."""
-        response = self.admin_client.post(
+        response = self.admin_client.patch(
             f"/api/v1/doubts/admin/{self.doubt_id}/assign/",
             {"assigned_to": self.user.pk},
         )
@@ -239,21 +239,21 @@ class AdminDoubtTests(APITestCase):
         self.assertIn("staff or admin", response.data["detail"])
 
     def test_admin_change_status(self):
-        response = self.admin_client.post(
+        response = self.admin_client.patch(
             f"/api/v1/doubts/admin/{self.doubt_id}/status/",
             {"status": "answered"},
         )
         self.assertEqual(response.status_code, status.HTTP_200_OK)
 
     def test_admin_change_status_invalid(self):
-        response = self.admin_client.post(
+        response = self.admin_client.patch(
             f"/api/v1/doubts/admin/{self.doubt_id}/status/",
             {"status": "invalid_status"},
         )
         self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
 
     def test_admin_bonus_marks(self):
-        response = self.admin_client.post(
+        response = self.admin_client.patch(
             f"/api/v1/doubts/admin/{self.doubt_id}/bonus/",
             {"bonus_marks": "2.50"},
         )

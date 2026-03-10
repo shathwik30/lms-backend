@@ -6,6 +6,7 @@ from rest_framework.response import Response
 from rest_framework.views import APIView
 
 from core.constants import ErrorMessage, ProgressConstants
+from core.pagination import SmallPagination
 from core.permissions import IsStudent
 from core.throttling import SafeScopedRateThrottle
 
@@ -25,7 +26,7 @@ class UpdateSessionProgressView(APIView):
     throttle_classes = [SafeScopedRateThrottle]
     throttle_scope = "progress_update"
 
-    @extend_schema(request=UpdateProgressSerializer, responses={200: SessionProgressSerializer})
+    @extend_schema(request=UpdateProgressSerializer, responses={200: SessionProgressSerializer}, tags=["Progress"])
     def post(self, request, session_pk):
         serializer = UpdateProgressSerializer(data=request.data)
         serializer.is_valid(raise_exception=True)
@@ -47,6 +48,7 @@ class UpdateSessionProgressView(APIView):
 class SessionProgressListView(generics.ListAPIView):
     permission_classes = [IsStudent]
     serializer_class = SessionProgressSerializer
+    pagination_class = SmallPagination
 
     def get_queryset(self):
         if getattr(self, "swagger_fake_view", False):
@@ -77,7 +79,7 @@ class LevelProgressListView(generics.ListAPIView):
 class CourseProgressView(APIView):
     permission_classes = [IsStudent]
 
-    @extend_schema(responses={200: CourseProgressSerializer})
+    @extend_schema(responses={200: CourseProgressSerializer}, tags=["Progress"])
     def get(self, request, course_pk):
         try:
             cp = CourseProgress.objects.select_related("course__level").get(
@@ -92,7 +94,7 @@ class CourseProgressView(APIView):
 class LevelCourseProgressView(APIView):
     permission_classes = [IsStudent]
 
-    @extend_schema(responses={200: CourseProgressSerializer(many=True)})
+    @extend_schema(responses={200: CourseProgressSerializer(many=True)}, tags=["Progress"])
     def get(self, request, level_pk):
         progress = CourseProgress.objects.filter(
             student=request.user.student_profile,
@@ -105,6 +107,7 @@ class DashboardView(APIView):
     permission_classes = [IsStudent]
 
     @extend_schema(
+        tags=["Progress"],
         responses={
             200: inline_serializer(
                 "DashboardResponse",
@@ -117,7 +120,7 @@ class DashboardView(APIView):
                     "is_onboarding_exam_attempted": drf_serializers.BooleanField(),
                 },
             )
-        }
+        },
     )
     def get(self, request):
         data = ProgressService.get_dashboard(request.user.student_profile)
@@ -137,6 +140,7 @@ class CalendarView(APIView):
     permission_classes = [IsStudent]
 
     @extend_schema(
+        tags=["Progress"],
         parameters=[
             OpenApiParameter(name="year", type=int, required=True),
             OpenApiParameter(name="month", type=int, required=True),
@@ -180,6 +184,7 @@ class LeaderboardView(APIView):
     permission_classes = [IsAuthenticated]
 
     @extend_schema(
+        tags=["Progress"],
         parameters=[
             OpenApiParameter(name="level", description="Filter by level ID", required=False, type=int),
             OpenApiParameter(

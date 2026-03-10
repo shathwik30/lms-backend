@@ -34,7 +34,7 @@ class FeaturedCoursesView(APIView):
 
     permission_classes = [AllowAny]
 
-    @extend_schema(responses={200: CourseSerializer(many=True)})
+    @extend_schema(responses={200: CourseSerializer(many=True)}, tags=["Home"])
     def get(self, request):
         courses = Course.objects.filter(is_active=True).select_related("level")[:10]
         return Response(CourseSerializer(courses, many=True).data)

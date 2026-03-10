@@ -32,6 +32,7 @@ class NotificationMarkReadView(APIView):
     permission_classes = [IsAuthenticated]
 
     @extend_schema(
+        tags=["Notifications"],
         request=None,
         responses={
             200: inline_serializer(
@@ -55,6 +56,7 @@ class NotificationMarkAllReadView(APIView):
     permission_classes = [IsAuthenticated]
 
     @extend_schema(
+        tags=["Notifications"],
         request=None,
         responses={
             200: inline_serializer(
@@ -75,6 +77,7 @@ class NotificationDeleteAllView(APIView):
     permission_classes = [IsAuthenticated]
 
     @extend_schema(
+        tags=["Notifications"],
         request=None,
         responses={
             200: inline_serializer(
@@ -95,6 +98,7 @@ class UnreadCountView(APIView):
     permission_classes = [IsAuthenticated]
 
     @extend_schema(
+        tags=["Notifications"],
         responses={
             200: inline_serializer(
                 "UnreadCountResponse",
@@ -107,3 +111,14 @@ class UnreadCountView(APIView):
     def get(self, request):
         count = NotificationService.unread_count(request.user)
         return Response({"unread_count": count})
+
+
+class NotificationDeleteView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    @extend_schema(responses={204: None}, tags=["Notifications"], summary="Delete a notification")
+    def delete(self, request, pk):
+        success, error = NotificationService.delete_one(request.user, pk)
+        if not success:
+            return Response({"detail": error}, status=status.HTTP_404_NOT_FOUND)
+        return Response(status=status.HTTP_204_NO_CONTENT)

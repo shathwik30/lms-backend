@@ -7,7 +7,7 @@ from rest_framework.response import Response
 from rest_framework.views import APIView
 
 from core.constants import ErrorMessage
-from core.pagination import LargePagination
+from core.pagination import LargePagination, SmallPagination
 from core.permissions import IsAdmin, IsStudent
 from core.throttling import SafeScopedRateThrottle
 
@@ -33,6 +33,7 @@ class InitiatePaymentView(APIView):
     throttle_scope = "payment"
 
     @extend_schema(
+        tags=["Payments"],
         request=InitiatePaymentSerializer,
         responses={
             201: inline_serializer(
@@ -70,7 +71,7 @@ class InitiatePaymentView(APIView):
 class VerifyPaymentView(APIView):
     permission_classes = [IsStudent]
 
-    @extend_schema(request=VerifyPaymentSerializer, responses={201: PurchaseSerializer})
+    @extend_schema(request=VerifyPaymentSerializer, responses={201: PurchaseSerializer}, tags=["Payments"])
     def post(self, request):
         serializer = VerifyPaymentSerializer(data=request.data)
         serializer.is_valid(raise_exception=True)
@@ -93,6 +94,8 @@ class VerifyPaymentView(APIView):
 class PurchaseHistoryView(generics.ListAPIView):
     permission_classes = [IsStudent]
     serializer_class = PurchaseSerializer
+    pagination_class = SmallPagination
+    filterset_fields = ["level", "status"]
 
     def get_queryset(self):
         if getattr(self, "swagger_fake_view", False):
@@ -108,6 +111,8 @@ class PurchaseHistoryView(generics.ListAPIView):
 class TransactionHistoryView(generics.ListAPIView):
     permission_classes = [IsStudent]
     serializer_class = PaymentTransactionSerializer
+    pagination_class = SmallPagination
+    filterset_fields = ["status"]
 
     def get_queryset(self):
         if getattr(self, "swagger_fake_view", False):
@@ -123,7 +128,7 @@ class TransactionHistoryView(generics.ListAPIView):
 class AdminExtendValidityView(APIView):
     permission_classes = [IsAdmin]
 
-    @extend_schema(request=AdminExtendValiditySerializer, responses={200: PurchaseSerializer})
+    @extend_schema(request=AdminExtendValiditySerializer, responses={200: PurchaseSerializer}, tags=["Payments"])
     def post(self, request):
         serializer = AdminExtendValiditySerializer(data=request.data)
         serializer.is_valid(raise_exception=True)

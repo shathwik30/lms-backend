@@ -72,7 +72,7 @@ class AdminAssignDoubtViewTests(TestCase):
 
     def test_ticket_not_found_returns_404(self):
         """Assigning a non-existent ticket returns 404."""
-        response = self.admin_client.post(
+        response = self.admin_client.patch(
             "/api/v1/doubts/admin/99999/assign/",
             data={"assigned_to": self.admin.pk},
             format="json",
@@ -90,7 +90,7 @@ class AdminAssignDoubtViewTests(TestCase):
             status=DoubtTicket.Status.OPEN,
         )
 
-        response = self.admin_client.post(
+        response = self.admin_client.patch(
             f"/api/v1/doubts/admin/{ticket.pk}/assign/",
             data={"assigned_to": self.admin.pk},
             format="json",
@@ -111,7 +111,7 @@ class AdminAssignDoubtViewTests(TestCase):
             status=DoubtTicket.Status.OPEN,
         )
 
-        response = self.admin_client.post(
+        response = self.admin_client.patch(
             f"/api/v1/doubts/admin/{ticket.pk}/assign/",
             data={"assigned_to": self.student_user.pk},
             format="json",
@@ -129,7 +129,7 @@ class AdminAssignDoubtViewTests(TestCase):
             status=DoubtTicket.Status.OPEN,
         )
 
-        response = self.admin_client.post(
+        response = self.admin_client.patch(
             f"/api/v1/doubts/admin/{ticket.pk}/assign/",
             data={"assigned_to": 99999},
             format="json",
@@ -149,7 +149,7 @@ class AdminDoubtStatusViewTests(TestCase):
 
     def test_ticket_not_found_returns_404(self):
         """Updating status of a non-existent ticket returns 404."""
-        response = self.admin_client.post(
+        response = self.admin_client.patch(
             "/api/v1/doubts/admin/99999/status/",
             data={"status": DoubtTicket.Status.CLOSED},
             format="json",
@@ -167,7 +167,7 @@ class AdminDoubtStatusViewTests(TestCase):
             status=DoubtTicket.Status.OPEN,
         )
 
-        response = self.admin_client.post(
+        response = self.admin_client.patch(
             f"/api/v1/doubts/admin/{ticket.pk}/status/",
             data={"status": DoubtTicket.Status.ANSWERED},
             format="json",
@@ -189,7 +189,7 @@ class AdminBonusMarksViewTests(TestCase):
 
     def test_ticket_not_found_returns_404(self):
         """Setting bonus marks on a non-existent ticket returns 404."""
-        response = self.admin_client.post(
+        response = self.admin_client.patch(
             "/api/v1/doubts/admin/99999/bonus/",
             data={"bonus_marks": 5},
             format="json",
@@ -207,7 +207,7 @@ class AdminBonusMarksViewTests(TestCase):
             status=DoubtTicket.Status.ANSWERED,
         )
 
-        response = self.admin_client.post(
+        response = self.admin_client.patch(
             f"/api/v1/doubts/admin/{ticket.pk}/bonus/",
             data={"bonus_marks": "7.50"},
             format="json",
@@ -228,7 +228,7 @@ class AdminBonusMarksViewTests(TestCase):
             bonus_marks=10,
         )
 
-        response = self.admin_client.post(
+        response = self.admin_client.patch(
             f"/api/v1/doubts/admin/{ticket.pk}/bonus/",
             data={"bonus_marks": 0},
             format="json",

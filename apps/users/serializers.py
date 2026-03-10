@@ -143,3 +143,31 @@ class IssueReportSerializer(serializers.ModelSerializer):
         model = IssueReport
         fields = ["id", "category", "subject", "description", "screenshot", "is_resolved", "created_at"]
         read_only_fields = ["id", "is_resolved", "created_at"]
+
+
+class AdminIssueReportSerializer(serializers.ModelSerializer):
+    user_email = serializers.EmailField(source="user.email", read_only=True)
+
+    class Meta:
+        model = IssueReport
+        fields = [
+            "id",
+            "user",
+            "user_email",
+            "category",
+            "subject",
+            "description",
+            "screenshot",
+            "is_resolved",
+            "created_at",
+        ]
+        read_only_fields = [
+            "id",
+            "user",
+            "user_email",
+            "category",
+            "subject",
+            "description",
+            "screenshot",
+            "created_at",
+        ]

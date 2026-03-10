@@ -4,7 +4,7 @@ from rest_framework.response import Response
 from rest_framework.views import APIView
 
 from core.constants import ErrorMessage
-from core.pagination import LargePagination
+from core.pagination import LargePagination, SmallPagination
 from core.permissions import IsAdmin, IsStudent
 from core.throttling import SafeScopedRateThrottle
 
@@ -18,7 +18,7 @@ class SubmitFeedbackView(APIView):
     throttle_classes = [SafeScopedRateThrottle]
     throttle_scope = "feedback"
 
-    @extend_schema(request=SessionFeedbackSerializer, responses={201: SessionFeedbackSerializer})
+    @extend_schema(request=SessionFeedbackSerializer, responses={201: SessionFeedbackSerializer}, tags=["Feedback"])
     def post(self, request, session_pk):
         serializer = SessionFeedbackSerializer(data=request.data)
         serializer.is_valid(raise_exception=True)
@@ -44,6 +44,8 @@ class SubmitFeedbackView(APIView):
 class StudentFeedbackListView(generics.ListAPIView):
     permission_classes = [IsStudent]
     serializer_class = SessionFeedbackSerializer
+    pagination_class = SmallPagination
+    filterset_fields = ["session", "overall_rating"]
 
     def get_queryset(self):
         if getattr(self, "swagger_fake_view", False):

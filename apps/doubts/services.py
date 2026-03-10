@@ -39,6 +39,12 @@ class DoubtService:
                 raise PermissionDenied(ErrorMessage.PURCHASE_REQUIRED_FOR_DOUBT)
 
     @staticmethod
+    def validate_reply_allowed(ticket: DoubtTicket) -> str | None:
+        if ticket.status == DoubtTicket.Status.CLOSED:
+            return ErrorMessage.TICKET_CLOSED
+        return None
+
+    @staticmethod
     def admin_reply(ticket: DoubtTicket, author: UserModel, reply: DoubtReply) -> None:
         if ticket.status == DoubtTicket.Status.OPEN:
             ticket.status = DoubtTicket.Status.IN_REVIEW

@@ -73,7 +73,7 @@ class StudentDoubtDetailView(generics.RetrieveAPIView):
 class StudentDoubtReplyView(APIView):
     permission_classes = [IsStudent]
 
-    @extend_schema(request=DoubtReplySerializer, responses={201: DoubtReplySerializer})
+    @extend_schema(request=DoubtReplySerializer, responses={201: DoubtReplySerializer}, tags=["Doubts"])
     def post(self, request, pk):
         try:
             ticket = DoubtTicket.objects.get(
@@ -83,11 +83,9 @@ class StudentDoubtReplyView(APIView):
         except DoubtTicket.DoesNotExist:
             return Response({"detail": ErrorMessage.NOT_FOUND}, status=status.HTTP_404_NOT_FOUND)
 
-        if ticket.status == DoubtTicket.Status.CLOSED:
-            return Response(
-                {"detail": ErrorMessage.TICKET_CLOSED},
-                status=status.HTTP_400_BAD_REQUEST,
-            )
+        error = DoubtService.validate_reply_allowed(ticket)
+        if error:
+            return Response({"detail": error}, status=status.HTTP_400_BAD_REQUEST)
 
         serializer = DoubtReplySerializer(data=request.data)
         serializer.is_valid(raise_exception=True)
@@ -125,18 +123,16 @@ class AdminDoubtDetailView(generics.RetrieveAPIView):
 class AdminDoubtReplyView(APIView):
     permission_classes = [IsAdmin]
 
-    @extend_schema(request=DoubtReplySerializer, responses={201: DoubtReplySerializer})
+    @extend_schema(request=DoubtReplySerializer, responses={201: DoubtReplySerializer}, tags=["Doubts"])
     def post(self, request, pk):
         try:
             ticket = DoubtTicket.objects.get(pk=pk)
         except DoubtTicket.DoesNotExist:
             return Response({"detail": ErrorMessage.NOT_FOUND}, status=status.HTTP_404_NOT_FOUND)
 
-        if ticket.status == DoubtTicket.Status.CLOSED:
-            return Response(
-                {"detail": ErrorMessage.TICKET_CLOSED},
-                status=status.HTTP_400_BAD_REQUEST,
-            )
+        error = DoubtService.validate_reply_allowed(ticket)
+        if error:
+            return Response({"detail": error}, status=status.HTTP_400_BAD_REQUEST)
 
         serializer = DoubtReplySerializer(data=request.data)
         serializer.is_valid(raise_exception=True)
@@ -150,8 +146,8 @@ class AdminDoubtReplyView(APIView):
 class AdminAssignDoubtView(APIView):
     permission_classes = [IsAdmin]
 
-    @extend_schema(request=AdminAssignDoubtSerializer, responses={200: DoubtTicketDetailSerializer})
-    def post(self, request, pk):
+    @extend_schema(request=AdminAssignDoubtSerializer, responses={200: DoubtTicketDetailSerializer}, tags=["Doubts"])
+    def patch(self, request, pk):
         try:
             ticket = DoubtTicket.objects.get(pk=pk)
         except DoubtTicket.DoesNotExist:
@@ -178,8 +174,9 @@ class AdminDoubtStatusView(APIView):
     @extend_schema(
         request=UpdateDoubtStatusSerializer,
         responses={200: DoubtTicketDetailSerializer},
+        tags=["Doubts"],
     )
-    def post(self, request, pk):
+    def patch(self, request, pk):
         try:
             ticket = DoubtTicket.objects.get(pk=pk)
         except DoubtTicket.DoesNotExist:
@@ -201,8 +198,8 @@ class AdminDoubtStatusView(APIView):
 class AdminBonusMarksView(APIView):
     permission_classes = [IsAdmin]
 
-    @extend_schema(request=AdminBonusMarksSerializer, responses={200: DoubtTicketDetailSerializer})
-    def post(self, request, pk):
+    @extend_schema(request=AdminBonusMarksSerializer, responses={200: DoubtTicketDetailSerializer}, tags=["Doubts"])
+    def patch(self, request, pk):
         try:
             ticket = DoubtTicket.objects.get(pk=pk)
         except DoubtTicket.DoesNotExist:

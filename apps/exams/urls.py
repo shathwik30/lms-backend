@@ -24,4 +24,5 @@ urlpatterns = [
     path("admin/", views.AdminExamListCreateView.as_view(), name="admin-exam-list"),
     path("admin/<int:pk>/", views.AdminExamDetailView.as_view(), name="admin-exam-detail"),
     path("admin/attempts/", views.AdminAttemptListView.as_view(), name="admin-attempt-list"),
+    path("admin/options/<int:pk>/", views.AdminOptionDetailView.as_view(), name="admin-option-detail"),
 ]

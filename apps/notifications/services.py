@@ -49,6 +49,17 @@ class NotificationService:
         return count
 
     @staticmethod
+    def delete_one(user: User, notification_id: int) -> tuple[bool, str | None]:
+        try:
+            notification = Notification.objects.get(pk=notification_id, user=user)
+        except Notification.DoesNotExist:
+            from core.constants import ErrorMessage
+
+            return False, ErrorMessage.NOT_FOUND
+        notification.delete()
+        return True, None
+
+    @staticmethod
     def unread_count(user: User) -> int:
         return Notification.objects.filter(
             user=user,

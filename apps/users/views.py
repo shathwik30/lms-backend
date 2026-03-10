@@ -7,12 +7,13 @@ from rest_framework.views import APIView
 
 from apps.levels.models import Level
 from core.constants import ErrorMessage, SuccessMessage
-from core.pagination import LargePagination
+from core.pagination import LargePagination, SmallPagination
 from core.permissions import IsAdmin
 from core.throttling import SafeScopedRateThrottle
 
-from .models import StudentProfile, UserPreference
+from .models import IssueReport, StudentProfile, UserPreference
 from .serializers import (
+    AdminIssueReportSerializer,
     AdminStudentUpdateSerializer,
     ChangePasswordSerializer,
     GoogleAuthSerializer,
@@ -57,6 +58,7 @@ class LoginView(APIView):
     throttle_scope = "login"
 
     @extend_schema(
+        tags=["Auth"],
         request=LoginSerializer,
         responses={
             200: inline_serializer(
@@ -96,6 +98,7 @@ class GoogleAuthView(APIView):
     throttle_scope = "login"
 
     @extend_schema(
+        tags=["Auth"],
         request=GoogleAuthSerializer,
         responses={
             200: inline_serializer(
@@ -140,6 +143,7 @@ class MeView(APIView):
     permission_classes = [IsAuthenticated]
 
     @extend_schema(
+        tags=["Auth"],
         responses={
             200: inline_serializer(
                 "MeResponse",
@@ -153,7 +157,7 @@ class MeView(APIView):
                     "profile": StudentProfileSerializer(required=False),
                 },
             )
-        }
+        },
     )
     def get(self, request):
         user = request.user
@@ -162,7 +166,7 @@ class MeView(APIView):
             data["profile"] = StudentProfileSerializer(user.student_profile).data
         return Response(data)
 
-    @extend_schema(request=UpdateProfileSerializer, responses={200: UserSerializer})
+    @extend_schema(request=UpdateProfileSerializer, responses={200: UserSerializer}, tags=["Auth"])
     def patch(self, request):
         serializer = UpdateProfileSerializer(
             data=request.data,
@@ -176,6 +180,7 @@ class MeView(APIView):
         request=None,
         responses={200: UserSerializer},
         description="Remove the current profile picture.",
+        tags=["Auth"],
     )
     def delete(self, request):
         user = ProfileService.remove_profile_picture(request.user)
@@ -186,6 +191,7 @@ class LogoutView(APIView):
     permission_classes = [IsAuthenticated]
 
     @extend_schema(
+        tags=["Auth"],
         request=inline_serializer(
             "LogoutRequest",
             fields={
@@ -218,6 +224,7 @@ class ChangePasswordView(APIView):
     permission_classes = [IsAuthenticated]
 
     @extend_schema(
+        tags=["Auth"],
         request=ChangePasswordSerializer,
         responses={
             200: inline_serializer(
@@ -274,7 +281,7 @@ class AdminStudentListView(generics.ListAPIView):
 class AdminStudentDetailView(APIView):
     permission_classes = [IsAdmin]
 
-    @extend_schema(responses={200: StudentProfileSerializer})
+    @extend_schema(responses={200: StudentProfileSerializer}, tags=["Admin - Users"])
     def get(self, request, pk):
         try:
             profile = StudentProfile.objects.select_related(
@@ -286,7 +293,9 @@ class AdminStudentDetailView(APIView):
             return Response({"detail": ErrorMessage.NOT_FOUND}, status=status.HTTP_404_NOT_FOUND)
         return Response(StudentProfileSerializer(profile).data)
 
-    @extend_schema(request=AdminStudentUpdateSerializer, responses={200: StudentProfileSerializer})
+    @extend_schema(
+        request=AdminStudentUpdateSerializer, responses={200: StudentProfileSerializer}, tags=["Admin - Users"]
+    )
     def patch(self, request, pk):
         try:
             profile = StudentProfile.objects.get(pk=pk)
@@ -323,6 +332,7 @@ class PasswordResetRequestView(APIView):
     throttle_scope = "login"
 
     @extend_schema(
+        tags=["Auth"],
         request=PasswordResetRequestSerializer,
         responses={
             200: inline_serializer(
@@ -346,6 +356,7 @@ class PasswordResetConfirmView(APIView):
     throttle_scope = "login"
 
     @extend_schema(
+        tags=["Auth"],
         request=PasswordResetConfirmSerializer,
         responses={
             200: inline_serializer(
@@ -380,6 +391,7 @@ class SendOTPView(APIView):
     throttle_scope = "login"
 
     @extend_schema(
+        tags=["Auth"],
         request=SendOTPSerializer,
         responses={
             200: inline_serializer(
@@ -411,6 +423,7 @@ class VerifyOTPView(APIView):
     throttle_scope = "login"
 
     @extend_schema(
+        tags=["Auth"],
         request=VerifyOTPSerializer,
         responses={
             200: inline_serializer(
@@ -447,18 +460,17 @@ class VerifyOTPView(APIView):
 class UserPreferenceView(APIView):
     permission_classes = [IsAuthenticated]
 
-    @extend_schema(responses={200: UserPreferenceSerializer})
+    @extend_schema(responses={200: UserPreferenceSerializer}, tags=["Users"])
     def get(self, request):
         prefs, _ = UserPreference.objects.get_or_create(user=request.user)
         return Response(UserPreferenceSerializer(prefs).data)
 
-    @extend_schema(request=UserPreferenceSerializer, responses={200: UserPreferenceSerializer})
+    @extend_schema(request=UserPreferenceSerializer, responses={200: UserPreferenceSerializer}, tags=["Users"])
     def patch(self, request):
-        prefs, _ = UserPreference.objects.get_or_create(user=request.user)
-        serializer = UserPreferenceSerializer(prefs, data=request.data, partial=True)
+        serializer = UserPreferenceSerializer(data=request.data, partial=True)
         serializer.is_valid(raise_exception=True)
-        serializer.save()
-        return Response(serializer.data)
+        prefs = ProfileService.update_preferences(request.user, serializer.validated_data)
+        return Response(UserPreferenceSerializer(prefs).data)
 
 
 # ── Onboarding ──
@@ -468,6 +480,7 @@ class CompleteOnboardingView(APIView):
     permission_classes = [IsAuthenticated]
 
     @extend_schema(
+        tags=["Auth"],
         request=None,
         responses={
             200: inline_serializer(
@@ -497,7 +510,7 @@ class CompleteOnboardingView(APIView):
 class ReportIssueView(APIView):
     permission_classes = [IsAuthenticated]
 
-    @extend_schema(request=IssueReportSerializer, responses={201: IssueReportSerializer})
+    @extend_schema(request=IssueReportSerializer, responses={201: IssueReportSerializer}, tags=["Users"])
     def post(self, request):
         serializer = IssueReportSerializer(data=request.data)
         serializer.is_valid(raise_exception=True)
@@ -511,6 +524,8 @@ class ReportIssueView(APIView):
 class IssueReportListView(generics.ListAPIView):
     permission_classes = [IsAuthenticated]
     serializer_class = IssueReportSerializer
+    pagination_class = SmallPagination
+    filterset_fields = ["category", "is_resolved"]
 
     def get_queryset(self):
         if getattr(self, "swagger_fake_view", False):
@@ -520,3 +535,36 @@ class IssueReportListView(generics.ListAPIView):
         from .models import IssueReport
 
         return IssueReport.objects.filter(user=self.request.user)  # type: ignore[misc]
+
+
+@extend_schema_view(
+    list=extend_schema(tags=["Admin - Users"], summary="List all issue reports"),
+)
+class AdminIssueReportListView(generics.ListAPIView):
+    permission_classes = [IsAdmin]
+    serializer_class = AdminIssueReportSerializer
+    queryset = IssueReport.objects.select_related("user")
+    pagination_class = LargePagination
+    filterset_fields = ["category", "is_resolved"]
+    search_fields = ["subject", "user__email"]
+
+
+class AdminIssueReportUpdateView(APIView):
+    permission_classes = [IsAdmin]
+
+    @extend_schema(
+        request=AdminIssueReportSerializer,
+        responses={200: AdminIssueReportSerializer},
+        tags=["Admin - Users"],
+        summary="Update an issue report (admin)",
+    )
+    def patch(self, request, pk):
+        try:
+            report = IssueReport.objects.select_related("user").get(pk=pk)
+        except IssueReport.DoesNotExist:
+            return Response({"detail": ErrorMessage.NOT_FOUND}, status=status.HTTP_404_NOT_FOUND)
+
+        serializer = AdminIssueReportSerializer(report, data=request.data, partial=True)
+        serializer.is_valid(raise_exception=True)
+        serializer.save()
+        return Response(AdminIssueReportSerializer(report).data)

@@ -6,7 +6,7 @@ from rest_framework.views import APIView
 
 from core.constants import ErrorMessage, SuccessMessage
 from core.exceptions import PurchaseRequired, SessionNotAccessible
-from core.pagination import SmallPagination
+from core.pagination import LargePagination, SmallPagination
 from core.permissions import IsAdmin, IsStudent
 
 from .models import Bookmark, Course, Session
@@ -24,7 +24,7 @@ from .services import CourseAccessService
 class LevelCourseView(APIView):
     permission_classes = [IsAuthenticated]
 
-    @extend_schema(responses={200: CourseSerializer(many=True)})
+    @extend_schema(responses={200: CourseSerializer(many=True)}, tags=["Courses"])
     def get(self, request, level_pk):
         courses = Course.objects.filter(level_id=level_pk, is_active=True).select_related("level")
         return Response(CourseSerializer(courses, many=True).data)
@@ -63,7 +63,7 @@ class CourseSessionsView(generics.ListAPIView):
 class SessionDetailView(APIView):
     permission_classes = [IsStudent]
 
-    @extend_schema(responses={200: SessionDetailSerializer})
+    @extend_schema(responses={200: SessionDetailSerializer}, tags=["Courses"])
     def get(self, request, pk):
         try:
             session = Session.objects.select_related("week__course__level").get(pk=pk, is_active=True)
@@ -132,7 +132,7 @@ class BookmarkListCreateView(generics.ListCreateAPIView):
 class BookmarkDeleteView(APIView):
     permission_classes = [IsStudent]
 
-    @extend_schema(responses={204: None})
+    @extend_schema(responses={204: None}, tags=["Courses"])
     def delete(self, request, pk):
         try:
             bookmark = Bookmark.objects.get(
@@ -156,6 +156,7 @@ class AdminCourseListCreateView(generics.ListCreateAPIView):
     permission_classes = [IsAdmin]
     serializer_class = CourseSerializer
     queryset = Course.objects.select_related("level")
+    pagination_class = LargePagination
     filterset_fields = ["level", "is_active"]
 
 

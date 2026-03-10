@@ -11,6 +11,7 @@ from django.utils.http import urlsafe_base64_decode, urlsafe_base64_encode
 from rest_framework_simplejwt.tokens import RefreshToken
 
 from apps.users.models import User as UserModel
+from apps.users.models import UserPreference
 from core.constants import ErrorMessage, SuccessMessage
 
 logger = logging.getLogger(__name__)
@@ -179,6 +180,14 @@ class ProfileService:
             user.save(update_fields=["profile_picture"])
             old_file.delete(save=False)
         return user
+
+    @staticmethod
+    def update_preferences(user: UserModel, validated_data: dict) -> UserPreference:
+        prefs, _ = UserPreference.objects.get_or_create(user=user)
+        for field, value in validated_data.items():
+            setattr(prefs, field, value)
+        prefs.save(update_fields=list(validated_data.keys()))
+        return prefs
 
     @staticmethod
     def complete_onboarding(user: UserModel) -> tuple[bool, str | None]:

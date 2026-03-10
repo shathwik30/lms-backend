@@ -19,6 +19,7 @@ class SearchView(APIView):
     throttle_scope = "search"
 
     @extend_schema(
+        tags=["Search"],
         parameters=[
             OpenApiParameter(name="q", description="Search query", required=True, type=str),
             OpenApiParameter(name="level", description="Filter by level ID", required=False, type=int),

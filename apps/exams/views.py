@@ -4,7 +4,7 @@ from rest_framework.response import Response
 from rest_framework.views import APIView
 
 from core.constants import ErrorMessage
-from core.pagination import LargePagination
+from core.pagination import LargePagination, SmallPagination
 from core.permissions import IsAdmin, IsStudent
 from core.throttling import SafeScopedRateThrottle
 
@@ -28,7 +28,7 @@ from .services import ExamService
 class ExamDetailView(APIView):
     permission_classes = [IsStudent]
 
-    @extend_schema(responses={200: ExamSerializer})
+    @extend_schema(responses={200: ExamSerializer}, tags=["Exams"])
     def get(self, request, pk):
         profile = request.user.student_profile
         exam, eligible = ExamService.get_exam_with_eligibility(profile, pk)
@@ -43,7 +43,7 @@ class ExamDetailView(APIView):
 class ExamStartView(APIView):
     permission_classes = [IsStudent]
 
-    @extend_schema(request=None, responses={201: ExamAttemptDetailSerializer})
+    @extend_schema(request=None, responses={201: ExamAttemptDetailSerializer}, tags=["Exams"])
     def post(self, request, pk):
         try:
             exam = Exam.objects.select_related("level", "week", "course").get(pk=pk, is_active=True)
@@ -67,7 +67,7 @@ class ExamSubmitView(APIView):
     throttle_classes = [SafeScopedRateThrottle]
     throttle_scope = "exam_submit"
 
-    @extend_schema(request=SubmitExamSerializer, responses={200: ExamAttemptSerializer})
+    @extend_schema(request=SubmitExamSerializer, responses={200: ExamAttemptSerializer}, tags=["Exams"])
     def post(self, request, pk):
         try:
             attempt = ExamAttempt.objects.select_related("exam__level").get(
@@ -94,7 +94,7 @@ class ExamSubmitView(APIView):
 class AttemptResultView(APIView):
     permission_classes = [IsStudent]
 
-    @extend_schema(responses={200: ExamAttemptDetailSerializer})
+    @extend_schema(responses={200: ExamAttemptDetailSerializer}, tags=["Exams"])
     def get(self, request, pk):
         try:
             attempt = ExamAttempt.objects.get(
@@ -122,6 +122,8 @@ class AttemptResultView(APIView):
 class StudentAttemptListView(generics.ListAPIView):
     permission_classes = [IsStudent]
     serializer_class = ExamAttemptSerializer
+    pagination_class = SmallPagination
+    filterset_fields = ["exam", "status", "is_passed"]
 
     def get_queryset(self):
         if getattr(self, "swagger_fake_view", False):
@@ -137,7 +139,7 @@ class StudentAttemptListView(generics.ListAPIView):
 class ReportViolationView(APIView):
     permission_classes = [IsStudent]
 
-    @extend_schema(request=ReportViolationSerializer, responses={201: ProctoringViolationSerializer})
+    @extend_schema(request=ReportViolationSerializer, responses={201: ProctoringViolationSerializer}, tags=["Exams"])
     def post(self, request, pk):
         try:
             attempt = ExamAttempt.objects.select_related("exam").get(
@@ -170,7 +172,7 @@ class ReportViolationView(APIView):
 class AttemptViolationsView(APIView):
     permission_classes = [IsStudent]
 
-    @extend_schema(responses={200: ProctoringViolationSerializer(many=True)})
+    @extend_schema(responses={200: ProctoringViolationSerializer(many=True)}, tags=["Exams"])
     def get(self, request, pk):
         try:
             attempt = ExamAttempt.objects.select_related("exam").get(
@@ -244,6 +246,7 @@ class AdminExamListCreateView(generics.ListCreateAPIView):
     permission_classes = [IsAdmin]
     serializer_class = ExamSerializer
     queryset = Exam.objects.select_related("level", "week", "course")
+    pagination_class = LargePagination
     filterset_fields = ["level", "exam_type", "is_active"]
 
 
@@ -268,3 +271,15 @@ class AdminAttemptListView(generics.ListAPIView):
     queryset = ExamAttempt.objects.select_related("exam", "student__user")
     pagination_class = LargePagination
     filterset_fields = ["exam", "status", "is_passed", "is_disqualified", "exam__level"]
+
+
+@extend_schema_view(
+    retrieve=extend_schema(tags=["Exams"], summary="Get option details (admin)"),
+    update=extend_schema(tags=["Exams"], summary="Update an option"),
+    partial_update=extend_schema(tags=["Exams"], summary="Partially update an option"),
+    destroy=extend_schema(tags=["Exams"], summary="Delete an option"),
+)
+class AdminOptionDetailView(generics.RetrieveUpdateDestroyAPIView):
+    permission_classes = [IsAdmin]
+    serializer_class = OptionAdminSerializer
+    queryset = Option.objects.all()
