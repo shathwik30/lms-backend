@@ -120,8 +120,8 @@ jobs:
 
       - name: Run tests with coverage
         run: |
-          coverage run --source=apps,core manage.py test --verbosity=2
-          coverage report --fail-under=80
+          coverage run --source=apps,core manage.py test tests --verbosity=2
+          coverage report --fail-under=88
           coverage xml
 
       - name: Upload coverage report

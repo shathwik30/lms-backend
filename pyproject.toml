@@ -46,7 +46,6 @@ django_settings_module = "config.settings.development"
 [tool.coverage.run]
 source = ["apps", "core"]
 omit = ["*/migrations/*", "*/tests/*", "tests/*"]
-concurrency = ["multiprocessing"]
 
 [tool.coverage.report]
 fail_under = 88
