@@ -1,20 +1,6 @@
 from rest_framework import serializers
 
-from .models import Bookmark, Course, Resource, Session
-
-
-class ResourceSerializer(serializers.ModelSerializer):
-    class Meta:
-        model = Resource
-        fields = ["id", "title", "file_url", "resource_type", "session", "week"]
-        read_only_fields = ["id"]
-
-    def validate(self, attrs):
-        session = attrs.get("session", getattr(self.instance, "session", None) if self.instance else None)
-        week = attrs.get("week", getattr(self.instance, "week", None) if self.instance else None)
-        if not session and not week:
-            raise serializers.ValidationError("A resource must be linked to a session or a week.")
-        return attrs
+from .models import Bookmark, Course, Session
 
 
 class SessionListSerializer(serializers.ModelSerializer):
@@ -34,8 +20,6 @@ class SessionListSerializer(serializers.ModelSerializer):
 
 
 class SessionDetailSerializer(serializers.ModelSerializer):
-    resources = ResourceSerializer(many=True, read_only=True)
-
     class Meta:
         model = Session
         fields = [
@@ -44,12 +28,13 @@ class SessionDetailSerializer(serializers.ModelSerializer):
             "title",
             "description",
             "video_url",
+            "file_url",
+            "resource_type",
             "duration_seconds",
             "order",
             "session_type",
             "exam",
             "is_active",
-            "resources",
         ]
         read_only_fields = ["id"]
 

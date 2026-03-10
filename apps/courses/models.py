@@ -50,6 +50,10 @@ class Session(TimeStampedModel):
         PRACTICE_EXAM = "practice_exam", "Practice Exam"
         PROCTORED_EXAM = "proctored_exam", "Proctored Exam"
 
+    class ResourceType(models.TextChoices):
+        PDF = "pdf", "PDF"
+        NOTE = "note", "Note"
+
     week = models.ForeignKey(
         "levels.Week",
         on_delete=models.CASCADE,
@@ -58,6 +62,13 @@ class Session(TimeStampedModel):
     title = models.CharField(max_length=200)
     description = models.TextField(blank=True)
     video_url = models.URLField(max_length=500, blank=True)
+    file_url = models.URLField(max_length=500, blank=True)
+    resource_type = models.CharField(
+        max_length=10,
+        choices=ResourceType.choices,
+        blank=True,
+        default="",
+    )
     duration_seconds = models.PositiveIntegerField(default=0)
     order = models.PositiveIntegerField()
     is_active = models.BooleanField(default=True, db_index=True)
@@ -78,43 +89,6 @@ class Session(TimeStampedModel):
     class Meta:
         db_table = "sessions"
         ordering = ["order"]
-
-    def __str__(self):
-        return self.title
-
-
-class Resource(TimeStampedModel):
-    class ResourceType(models.TextChoices):
-        PDF = "pdf", "PDF"
-        NOTE = "note", "Note"
-
-    session = models.ForeignKey(
-        Session,
-        null=True,
-        blank=True,
-        on_delete=models.CASCADE,
-        related_name="resources",
-    )
-    week = models.ForeignKey(
-        "levels.Week",
-        null=True,
-        blank=True,
-        on_delete=models.CASCADE,
-        related_name="resources",
-    )
-    title = models.CharField(max_length=200)
-    file_url = models.URLField(max_length=500)
-    resource_type = models.CharField(max_length=10, choices=ResourceType.choices, db_index=True)
-
-    class Meta:
-        db_table = "resources"
-        ordering = ["-created_at"]
-        constraints = [
-            models.CheckConstraint(
-                check=models.Q(session__isnull=False) | models.Q(week__isnull=False),
-                name="resource_must_have_session_or_week",
-            ),
-        ]
 
     def __str__(self):
         return self.title

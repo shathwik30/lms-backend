@@ -7,7 +7,7 @@ from django.core.management.base import BaseCommand
 from django.utils import timezone
 
 from apps.analytics.models import DailyRevenue, LevelAnalytics
-from apps.courses.models import Course, Resource, Session
+from apps.courses.models import Course, Session
 from apps.doubts.models import DoubtReply, DoubtTicket
 from apps.exams.models import Exam, ExamAttempt, Option, Question
 from apps.feedback.models import SessionFeedback
@@ -1164,13 +1164,6 @@ class Command(BaseCommand):
                             },
                         )
                         all_sessions.append(session)
-                        if created:
-                            Resource.objects.create(
-                                session=session,
-                                title=f"{w_name} — Lecture {s_order} Notes",
-                                file_url=f"https://cdn.example.com/notes/{level.order}/{course.pk}/{week.pk}/{s_order}.pdf",
-                                resource_type=Resource.ResourceType.PDF,
-                            )
 
                     # Resource session
                     s_order += 1
@@ -1183,16 +1176,11 @@ class Command(BaseCommand):
                             "description": f"Downloadable formula sheet for {w_name}.",
                             "session_type": Session.SessionType.RESOURCE,
                             "duration_seconds": 0,
+                            "file_url": f"https://cdn.example.com/resources/{level.order}/{course.pk}/{week.pk}/formula-sheet.pdf",
+                            "resource_type": Session.ResourceType.PDF,
                         },
                     )
                     all_sessions.append(session)
-                    if created:
-                        Resource.objects.create(
-                            session=session,
-                            title=f"{w_name} — Formula Sheet",
-                            file_url=f"https://cdn.example.com/resources/{level.order}/{course.pk}/{week.pk}/formula-sheet.pdf",
-                            resource_type=Resource.ResourceType.PDF,
-                        )
 
                     # Practice exam session (last session in week)
                     s_order += 1

@@ -8,7 +8,7 @@ from django.db import IntegrityError
 from django.test import TestCase
 
 from apps.analytics.models import DailyRevenue, LevelAnalytics
-from apps.courses.models import Bookmark, Resource, Session
+from apps.courses.models import Bookmark, Session
 from apps.doubts.models import DoubtReply, DoubtTicket
 from apps.exams.models import (
     AttemptQuestion,
@@ -157,26 +157,19 @@ class CourseModelTests(TestCase):
         with self.assertRaises(IntegrityError):
             Bookmark.objects.create(student=profile, session=session)
 
-    def test_resource_str(self):
+    def test_resource_session_str(self):
         level = self.factory.create_level()
         course = self.factory.create_course(level)
         week = self.factory.create_week(course)
-        session = self.factory.create_session(week)
-        resource = Resource.objects.create(
-            session=session,
+        session = Session.objects.create(
+            week=week,
             title="Notes PDF",
+            session_type=Session.SessionType.RESOURCE,
             file_url="https://example.com/notes.pdf",
-            resource_type=Resource.ResourceType.PDF,
+            resource_type=Session.ResourceType.PDF,
+            order=1,
         )
-        self.assertEqual(str(resource), "Notes PDF")
-
-    def test_resource_check_constraint_rejects_orphan(self):
-        with self.assertRaises(IntegrityError):
-            Resource.objects.create(
-                title="Orphan",
-                file_url="https://example.com/orphan.pdf",
-                resource_type=Resource.ResourceType.PDF,
-            )
+        self.assertEqual(str(session), "Notes PDF")
 
 
 class ExamModelTests(TestCase):

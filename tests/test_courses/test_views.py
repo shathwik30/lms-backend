@@ -1,9 +1,7 @@
-from django.db import IntegrityError
-from django.test import TestCase
 from rest_framework import status
 from rest_framework.test import APITestCase
 
-from apps.courses.models import Resource
+from apps.courses.models import Session
 from core.test_utils import TestFactory
 
 
@@ -30,6 +28,25 @@ class CourseAccessTests(APITestCase):
         response = self.client.get(f"/api/v1/courses/sessions/{session.pk}/")
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         self.assertIn("video_url", response.data)
+
+    def test_session_detail_resource_fields(self):
+        """Resource sessions include file_url and resource_type in detail."""
+        level = self.factory.create_level(order=99)
+        course = self.factory.create_course(level)
+        week = self.factory.create_week(course)
+        self.factory.create_purchase(self.profile, level)
+        session = Session.objects.create(
+            week=week,
+            title="Notes PDF",
+            session_type=Session.SessionType.RESOURCE,
+            file_url="https://example.com/notes.pdf",
+            resource_type=Session.ResourceType.PDF,
+            order=1,
+        )
+        response = self.client.get(f"/api/v1/courses/sessions/{session.pk}/")
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(response.data["file_url"], "https://example.com/notes.pdf")
+        self.assertEqual(response.data["resource_type"], "pdf")
 
     def test_course_sessions_requires_purchase(self):
         response = self.client.get(f"/api/v1/courses/{self.data['course'].pk}/sessions/")
@@ -107,119 +124,79 @@ class AdminCourseAPITests(APITestCase):
         )
         self.assertEqual(response.status_code, status.HTTP_201_CREATED)
 
-    def test_admin_create_resource_for_session(self):
-        session = self.factory.create_session(self.week, order=1)
+    def test_admin_create_resource_session(self):
+        """Admin can create a resource session with file_url and resource_type."""
         response = self.admin_client.post(
-            "/api/v1/courses/admin/resources/",
+            "/api/v1/courses/admin/sessions/",
             {
+                "week": self.week.pk,
                 "title": "Notes PDF",
+                "session_type": "resource",
                 "file_url": "https://example.com/notes.pdf",
                 "resource_type": "pdf",
-                "session": session.pk,
+                "order": 1,
             },
         )
         self.assertEqual(response.status_code, status.HTTP_201_CREATED)
+        self.assertEqual(response.data["file_url"], "https://example.com/notes.pdf")
+        self.assertEqual(response.data["resource_type"], "pdf")
 
-    def test_admin_create_resource_for_week(self):
-        response = self.admin_client.post(
-            "/api/v1/courses/admin/resources/",
-            {
-                "title": "Week Notes",
-                "file_url": "https://example.com/week.pdf",
-                "resource_type": "note",
-                "week": self.week.pk,
-            },
-        )
-        self.assertEqual(response.status_code, status.HTTP_201_CREATED)
-
-    def test_admin_create_resource_orphan_rejected(self):
-        response = self.admin_client.post(
-            "/api/v1/courses/admin/resources/",
-            {
-                "title": "Orphan",
-                "file_url": "https://example.com/orphan.pdf",
-                "resource_type": "pdf",
-            },
-        )
-        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
-
-    def test_admin_list_resources(self):
-        session = self.factory.create_session(self.week, order=1)
-        Resource.objects.create(
-            title="R1",
-            file_url="https://example.com/r1.pdf",
-            resource_type="pdf",
-            session=session,
-        )
-        response = self.admin_client.get("/api/v1/courses/admin/resources/")
-        self.assertEqual(response.status_code, status.HTTP_200_OK)
-        self.assertEqual(response.data["count"], 1)
-
-    def test_admin_update_resource(self):
-        session = self.factory.create_session(self.week, order=1)
-        resource = Resource.objects.create(
-            title="Old",
+    def test_admin_update_resource_session(self):
+        """Admin can update file_url on a resource session."""
+        session = Session.objects.create(
+            week=self.week,
+            title="Old Notes",
+            session_type=Session.SessionType.RESOURCE,
             file_url="https://example.com/old.pdf",
-            resource_type="pdf",
-            session=session,
+            resource_type=Session.ResourceType.PDF,
+            order=1,
         )
         response = self.admin_client.patch(
-            f"/api/v1/courses/admin/resources/{resource.pk}/",
-            {"title": "Updated"},
+            f"/api/v1/courses/admin/sessions/{session.pk}/",
+            {"title": "Updated Notes", "file_url": "https://example.com/new.pdf"},
         )
         self.assertEqual(response.status_code, status.HTTP_200_OK)
-        resource.refresh_from_db()
-        self.assertEqual(resource.title, "Updated")
+        session.refresh_from_db()
+        self.assertEqual(session.title, "Updated Notes")
+        self.assertEqual(session.file_url, "https://example.com/new.pdf")
 
-    def test_admin_delete_resource(self):
-        session = self.factory.create_session(self.week, order=1)
-        resource = Resource.objects.create(
-            title="Delete Me",
-            file_url="https://example.com/del.pdf",
-            resource_type="pdf",
-            session=session,
+    def test_admin_list_sessions_filter_by_type(self):
+        """Admin can filter sessions by session_type including resource."""
+        Session.objects.create(
+            week=self.week,
+            title="Video 1",
+            session_type=Session.SessionType.VIDEO,
+            order=1,
         )
-        response = self.admin_client.delete(f"/api/v1/courses/admin/resources/{resource.pk}/")
+        Session.objects.create(
+            week=self.week,
+            title="Notes PDF",
+            session_type=Session.SessionType.RESOURCE,
+            file_url="https://example.com/notes.pdf",
+            resource_type=Session.ResourceType.PDF,
+            order=2,
+        )
+        response = self.admin_client.get("/api/v1/courses/admin/sessions/?session_type=resource")
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(response.data["count"], 1)
+        self.assertEqual(response.data["results"][0]["session_type"], "resource")
+
+    def test_admin_delete_resource_session(self):
+        """Admin can delete a resource session."""
+        session = Session.objects.create(
+            week=self.week,
+            title="Delete Me",
+            session_type=Session.SessionType.RESOURCE,
+            file_url="https://example.com/del.pdf",
+            resource_type=Session.ResourceType.PDF,
+            order=1,
+        )
+        response = self.admin_client.delete(f"/api/v1/courses/admin/sessions/{session.pk}/")
         self.assertEqual(response.status_code, status.HTTP_204_NO_CONTENT)
-        self.assertFalse(Resource.objects.filter(pk=resource.pk).exists())
+        self.assertFalse(Session.objects.filter(pk=session.pk).exists())
 
     def test_student_cannot_admin_courses(self):
         user, _ = self.factory.create_student()
         student_client = self.factory.get_auth_client(user)
         response = student_client.get("/api/v1/courses/admin/")
         self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
-
-
-class ResourceModelTests(TestCase):
-    def setUp(self):
-        self.factory = TestFactory()
-        self.level = self.factory.create_level(order=1)
-        self.course = self.factory.create_course(self.level)
-        self.week = self.factory.create_week(self.course)
-
-    def test_resource_constraint_rejects_orphan(self):
-        with self.assertRaises(IntegrityError):
-            Resource.objects.create(
-                title="Orphan",
-                file_url="https://example.com/orphan.pdf",
-                resource_type="pdf",
-            )
-
-    def test_resource_constraint_accepts_session(self):
-        session = self.factory.create_session(self.week, order=1)
-        resource = Resource.objects.create(
-            title="OK",
-            file_url="https://example.com/ok.pdf",
-            resource_type="pdf",
-            session=session,
-        )
-        self.assertIsNotNone(resource.pk)
-
-    def test_resource_constraint_accepts_week(self):
-        resource = Resource.objects.create(
-            title="OK",
-            file_url="https://example.com/ok.pdf",
-            resource_type="pdf",
-            week=self.week,
-        )
-        self.assertIsNotNone(resource.pk)

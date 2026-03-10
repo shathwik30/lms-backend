@@ -21,6 +21,4 @@ urlpatterns = [
     path("admin/weeks/<int:pk>/", AdminWeekDetailView.as_view(), name="admin-week-detail"),
     path("admin/sessions/", views.AdminSessionListCreateView.as_view(), name="admin-session-list"),
     path("admin/sessions/<int:pk>/", views.AdminSessionDetailView.as_view(), name="admin-session-detail"),
-    path("admin/resources/", views.AdminResourceListCreateView.as_view(), name="admin-resource-list"),
-    path("admin/resources/<int:pk>/", views.AdminResourceDetailView.as_view(), name="admin-resource-detail"),
 ]

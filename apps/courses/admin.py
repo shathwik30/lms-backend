@@ -4,7 +4,7 @@ from django.db.models import Count
 from apps.levels.models import Week
 from core.admin import ExportCsvMixin, make_active, make_inactive
 
-from .models import Course, Resource, Session
+from .models import Course, Session
 
 
 class WeekInline(admin.TabularInline):
@@ -39,12 +39,6 @@ class CourseAdmin(admin.ModelAdmin, ExportCsvMixin):
         return getattr(obj, "_week_count", obj.weeks.count())
 
 
-class ResourceInline(admin.TabularInline):
-    model = Resource
-    fk_name = "session"
-    extra = 1
-
-
 @admin.register(Session)
 class SessionAdmin(admin.ModelAdmin, ExportCsvMixin):
     list_display = (
@@ -65,7 +59,6 @@ class SessionAdmin(admin.ModelAdmin, ExportCsvMixin):
         "week__order",
         "order",
     )
-    inlines = [ResourceInline]
     list_per_page = 30
     actions = [make_active, make_inactive, "export_as_csv"]
 
@@ -75,18 +68,3 @@ class SessionAdmin(admin.ModelAdmin, ExportCsvMixin):
             return "—"
         mins, secs = divmod(obj.duration_seconds, 60)
         return f"{mins}m {secs}s"
-
-
-@admin.register(Resource)
-class ResourceAdmin(admin.ModelAdmin, ExportCsvMixin):
-    list_display = (
-        "title",
-        "resource_type",
-        "session",
-        "week",
-        "created_at",
-    )
-    list_filter = ("resource_type",)
-    search_fields = ("title",)
-    list_per_page = 30
-    actions = ["export_as_csv"]

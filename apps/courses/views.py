@@ -9,11 +9,10 @@ from core.exceptions import PurchaseRequired, SessionNotAccessible
 from core.pagination import SmallPagination
 from core.permissions import IsAdmin, IsStudent
 
-from .models import Bookmark, Course, Resource, Session
+from .models import Bookmark, Course, Session
 from .serializers import (
     BookmarkSerializer,
     CourseSerializer,
-    ResourceSerializer,
     SessionDetailSerializer,
     SessionListSerializer,
 )
@@ -63,11 +62,7 @@ class SessionDetailView(APIView):
     @extend_schema(responses={200: SessionDetailSerializer})
     def get(self, request, pk):
         try:
-            session = (
-                Session.objects.select_related("week__course__level")
-                .prefetch_related("resources")
-                .get(pk=pk, is_active=True)
-            )
+            session = Session.objects.select_related("week__course__level").get(pk=pk, is_active=True)
         except Session.DoesNotExist:
             return Response({"detail": ErrorMessage.NOT_FOUND}, status=status.HTTP_404_NOT_FOUND)
 
@@ -193,26 +188,3 @@ class AdminSessionDetailView(generics.RetrieveUpdateDestroyAPIView):
     permission_classes = [IsAdmin]
     serializer_class = SessionDetailSerializer
     queryset = Session.objects.all()
-
-
-@extend_schema_view(
-    list=extend_schema(tags=["Courses"], summary="List resources (admin)"),
-    create=extend_schema(tags=["Courses"], summary="Create a resource"),
-)
-class AdminResourceListCreateView(generics.ListCreateAPIView):
-    permission_classes = [IsAdmin]
-    serializer_class = ResourceSerializer
-    queryset = Resource.objects.all()
-    filterset_fields = ["session", "week", "resource_type"]
-
-
-@extend_schema_view(
-    retrieve=extend_schema(tags=["Courses"], summary="Get resource details (admin)"),
-    update=extend_schema(tags=["Courses"], summary="Update a resource"),
-    partial_update=extend_schema(tags=["Courses"], summary="Partially update a resource"),
-    destroy=extend_schema(tags=["Courses"], summary="Delete a resource"),
-)
-class AdminResourceDetailView(generics.RetrieveUpdateDestroyAPIView):
-    permission_classes = [IsAdmin]
-    serializer_class = ResourceSerializer
-    queryset = Resource.objects.all()
