@@ -49,11 +49,52 @@ class FeedbackTests(APITestCase):
         )
         self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
 
-    def test_missing_required_rating_rejected(self):
+    def test_submit_feedback_with_only_rating(self):
+        """difficulty_rating and clarity_rating are optional, only rating is required."""
         session = self.data["sessions"][0]
         response = self.client.post(
             f"/api/v1/feedback/sessions/{session.pk}/",
             {"rating": 5},
+        )
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED)
+        self.assertIsNone(response.data["difficulty_rating"])
+        self.assertIsNone(response.data["clarity_rating"])
+
+    def test_missing_required_rating_rejected(self):
+        """Submitting without the required rating field should return 400."""
+        session = self.data["sessions"][0]
+        response = self.client.post(
+            f"/api/v1/feedback/sessions/{session.pk}/",
+            {"difficulty_rating": 3, "clarity_rating": 4},
+        )
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+
+    def test_submit_feedback_with_partial_optional_ratings(self):
+        """Submitting with only one optional rating should succeed."""
+        session = self.data["sessions"][0]
+        response = self.client.post(
+            f"/api/v1/feedback/sessions/{session.pk}/",
+            {"rating": 4, "difficulty_rating": 2},
+        )
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED)
+        self.assertEqual(response.data["difficulty_rating"], 2)
+        self.assertIsNone(response.data["clarity_rating"])
+
+    def test_invalid_difficulty_rating_rejected(self):
+        """difficulty_rating outside 1-5 should be rejected."""
+        session = self.data["sessions"][0]
+        response = self.client.post(
+            f"/api/v1/feedback/sessions/{session.pk}/",
+            {"rating": 5, "difficulty_rating": 0},
+        )
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+
+    def test_invalid_clarity_rating_rejected(self):
+        """clarity_rating outside 1-5 should be rejected."""
+        session = self.data["sessions"][0]
+        response = self.client.post(
+            f"/api/v1/feedback/sessions/{session.pk}/",
+            {"rating": 5, "clarity_rating": 6},
         )
         self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
 

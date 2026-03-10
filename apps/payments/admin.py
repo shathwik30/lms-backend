@@ -18,6 +18,7 @@ class PurchaseAdmin(admin.ModelAdmin, ExportCsvMixin):
         "expires_at",
         "extended_by_days",
     )
+    list_select_related = ("student__user", "level")
     list_filter = ("status", "level")
     search_fields = (
         "student__user__email",
@@ -66,6 +67,7 @@ class PaymentTransactionAdmin(
         "status_badge",
         "created_at",
     )
+    list_select_related = ("student__user", "level")
     list_filter = ("status",)
     search_fields = (
         "gateway_order_id",

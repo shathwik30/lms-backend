@@ -30,6 +30,7 @@ class SessionDetailSerializer(serializers.ModelSerializer):
             "video_url",
             "file_url",
             "resource_type",
+            "markdown_content",
             "duration_seconds",
             "order",
             "session_type",

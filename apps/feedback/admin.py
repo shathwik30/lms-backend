@@ -19,10 +19,9 @@ class SessionFeedbackAdmin(
         "comment_preview",
         "created_at",
     )
+    list_select_related = ("student__user", "session")
     list_filter = (
         "rating",
-        "difficulty_rating",
-        "clarity_rating",
         "session__week__course__level",
     )
     search_fields = (

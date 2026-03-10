@@ -22,10 +22,14 @@ class SessionFeedback(TimeStampedModel):
     difficulty_rating = models.PositiveSmallIntegerField(
         validators=[MinValueValidator(1), MaxValueValidator(5)],
         db_index=True,
+        null=True,
+        blank=True,
     )
     clarity_rating = models.PositiveSmallIntegerField(
         validators=[MinValueValidator(1), MaxValueValidator(5)],
         db_index=True,
+        null=True,
+        blank=True,
     )
     comment = models.TextField(blank=True)
 

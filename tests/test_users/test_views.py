@@ -315,6 +315,66 @@ class UpdateProfileAPITests(APITestCase):
         self.assertEqual(response.data["email"], "profile@test.com")
 
 
+class UpdateGenderAPITests(APITestCase):
+    def setUp(self):
+        self.factory = TestFactory()
+        self.user, self.profile = self.factory.create_student(
+            email="gender@test.com",
+            password="testpass123",
+        )
+        self.client = self.factory.get_auth_client(self.user)
+
+    def test_update_gender(self):
+        response = self.client.patch("/api/v1/auth/me/", {"gender": "male"})
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.profile.refresh_from_db()
+        self.assertEqual(self.profile.gender, "male")
+
+    def test_update_gender_prefer_not_to_say(self):
+        response = self.client.patch("/api/v1/auth/me/", {"gender": "prefer_not_to_say"})
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.profile.refresh_from_db()
+        self.assertEqual(self.profile.gender, "prefer_not_to_say")
+
+    def test_invalid_gender_rejected(self):
+        response = self.client.patch("/api/v1/auth/me/", {"gender": "invalid"})
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+
+    def test_gender_in_profile_response(self):
+        """GET /api/v1/auth/me/ should include gender in the profile."""
+        self.profile.gender = "female"
+        self.profile.save(update_fields=["gender"])
+        response = self.client.get("/api/v1/auth/me/")
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(response.data["profile"]["gender"], "female")
+
+    def test_gender_default_is_null(self):
+        """New profile should have gender=null."""
+        response = self.client.get("/api/v1/auth/me/")
+        self.assertIsNone(response.data["profile"]["gender"])
+
+    def test_update_gender_with_other_fields(self):
+        """Updating gender alongside user fields should work."""
+        response = self.client.patch(
+            "/api/v1/auth/me/",
+            {"full_name": "New Name", "gender": "other"},
+        )
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.user.refresh_from_db()
+        self.profile.refresh_from_db()
+        self.assertEqual(self.user.full_name, "New Name")
+        self.assertEqual(self.profile.gender, "other")
+
+    def test_update_only_user_fields_without_gender(self):
+        """Updating only user fields should not affect gender."""
+        self.profile.gender = "male"
+        self.profile.save(update_fields=["gender"])
+        response = self.client.patch("/api/v1/auth/me/", {"full_name": "Another Name"})
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.profile.refresh_from_db()
+        self.assertEqual(self.profile.gender, "male")
+
+
 class ChangePasswordAPITests(APITestCase):
     def setUp(self):
         self.factory = TestFactory()

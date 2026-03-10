@@ -157,11 +157,18 @@ class PasswordResetService:
 class ProfileService:
     @staticmethod
     def update_profile(user: UserModel, validated_data: dict) -> UserModel:
-        for field, value in validated_data.items():
-            if field == "phone" and not value:
-                value = None
-            setattr(user, field, value)
-        user.save(update_fields=list(validated_data.keys()))
+        gender = validated_data.pop("gender", None)
+        if gender is not None and hasattr(user, "student_profile"):
+            profile = user.student_profile
+            profile.gender = gender
+            profile.save(update_fields=["gender"])
+
+        if validated_data:
+            for field, value in validated_data.items():
+                if field == "phone" and not value:
+                    value = None
+                setattr(user, field, value)
+            user.save(update_fields=list(validated_data.keys()))
         return user
 
     @staticmethod

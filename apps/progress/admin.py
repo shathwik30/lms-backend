@@ -19,6 +19,7 @@ class SessionProgressAdmin(
         "is_exam_passed",
         "completed_at",
     )
+    list_select_related = ("student__user", "session")
     list_filter = ("is_completed", "is_exam_passed")
     search_fields = (
         "student__user__email",
@@ -58,6 +59,7 @@ class CourseProgressAdmin(admin.ModelAdmin, ExportCsvMixin):
         "started_at",
         "completed_at",
     )
+    list_select_related = ("student__user", "course")
     list_filter = ("status", "course__level")
     search_fields = (
         "student__user__email",
@@ -81,6 +83,7 @@ class LevelProgressAdmin(
         "started_at",
         "completed_at",
     )
+    list_select_related = ("student__user", "level")
     list_filter = ("status", "level")
     search_fields = (
         "student__user__email",

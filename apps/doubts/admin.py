@@ -1,4 +1,5 @@
 from django.contrib import admin
+from django.db.models import Count
 from django.utils.html import format_html
 
 from core.admin import ExportCsvMixin
@@ -28,6 +29,7 @@ class DoubtTicketAdmin(
         "bonus_marks",
         "created_at",
     )
+    list_select_related = ("student__user", "assigned_to")
     list_filter = (
         "status",
         "context_type",
@@ -70,9 +72,12 @@ class DoubtTicketAdmin(
             obj.get_status_display(),
         )
 
+    def get_queryset(self, request):
+        return super().get_queryset(request).annotate(_reply_count=Count("replies"))
+
     @admin.display(description="Replies")
     def reply_count(self, obj):
-        return obj.replies.count()
+        return getattr(obj, "_reply_count", obj.replies.count())
 
     @admin.action(
         description="Mark selected as closed",

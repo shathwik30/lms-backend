@@ -47,6 +47,7 @@ class StudentProfileSerializer(serializers.ModelSerializer):
             "current_level_name",
             "highest_cleared_level",
             "highest_cleared_level_name",
+            "gender",
             "onboarding_completed",
             "onboarding_exam_attempted",
             "created_at",
@@ -65,6 +66,10 @@ class UpdateProfileSerializer(serializers.Serializer):
     full_name = serializers.CharField(max_length=150, required=False)
     phone = serializers.CharField(max_length=15, required=False, allow_blank=True)
     profile_picture = serializers.ImageField(required=False, allow_empty_file=False)
+    gender = serializers.ChoiceField(
+        choices=StudentProfile.Gender.choices,
+        required=False,
+    )
 
     def validate_profile_picture(self, value):
         if value and value.size > self.MAX_PROFILE_PICTURE_SIZE:

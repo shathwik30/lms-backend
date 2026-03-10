@@ -1,4 +1,5 @@
 from django.contrib import admin
+from django.db.models import Count
 from django.utils.html import format_html
 
 from core.admin import ExportCsvMixin, make_active, make_inactive
@@ -32,6 +33,7 @@ class QuestionAdmin(admin.ModelAdmin, ExportCsvMixin):
         "option_count",
         "is_active",
     )
+    list_select_related = ("exam", "level")
     list_filter = (
         "exam",
         "exam__level",
@@ -46,6 +48,9 @@ class QuestionAdmin(admin.ModelAdmin, ExportCsvMixin):
     list_per_page = 30
     actions = [make_active, make_inactive, "export_as_csv"]
 
+    def get_queryset(self, request):
+        return super().get_queryset(request).annotate(_option_count=Count("options"))
+
     @admin.display(description="Text")
     def text_preview(self, obj):
         if len(obj.text) > 80:
@@ -54,7 +59,7 @@ class QuestionAdmin(admin.ModelAdmin, ExportCsvMixin):
 
     @admin.display(description="Options")
     def option_count(self, obj):
-        return obj.options.count()
+        return getattr(obj, "_option_count", obj.options.count())
 
 
 @admin.register(Exam)
@@ -74,19 +79,30 @@ class ExamAdmin(admin.ModelAdmin, ExportCsvMixin):
         "attempt_count",
         "is_active",
     )
+    list_select_related = ("level", "week", "course")
     list_filter = ("level", "course", "exam_type", "is_proctored", "is_active")
     list_editable = ("is_active",)
     search_fields = ("title",)
     list_per_page = 20
     actions = [make_active, make_inactive, "export_as_csv"]
 
+    def get_queryset(self, request):
+        return (
+            super()
+            .get_queryset(request)
+            .annotate(
+                _question_count=Count("questions", distinct=True),
+                _attempt_count=Count("attempts", distinct=True),
+            )
+        )
+
     @admin.display(description="Pool")
     def question_count(self, obj):
-        return obj.questions.count()
+        return getattr(obj, "_question_count", obj.questions.count())
 
     @admin.display(description="Attempts")
     def attempt_count(self, obj):
-        return obj.attempts.count()
+        return getattr(obj, "_attempt_count", obj.attempts.count())
 
 
 class AttemptQuestionInline(admin.TabularInline):
@@ -121,6 +137,7 @@ class ExamAttemptAdmin(admin.ModelAdmin, ExportCsvMixin):
         "started_at",
         "submitted_at",
     )
+    list_select_related = ("student__user", "exam")
     list_filter = (
         "status",
         "is_passed",
@@ -172,6 +189,7 @@ class ExamAttemptAdmin(admin.ModelAdmin, ExportCsvMixin):
 @admin.register(ProctoringViolation)
 class ProctoringViolationAdmin(admin.ModelAdmin, ExportCsvMixin):
     list_display = ("attempt", "violation_type", "warning_number", "created_at")
+    list_select_related = ("attempt__student__user", "attempt__exam")
     list_filter = ("violation_type",)
     search_fields = ("attempt__student__user__email",)
     readonly_fields = ("attempt", "violation_type", "warning_number", "details", "created_at")

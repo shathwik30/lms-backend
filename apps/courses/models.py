@@ -53,6 +53,7 @@ class Session(TimeStampedModel):
     class ResourceType(models.TextChoices):
         PDF = "pdf", "PDF"
         NOTE = "note", "Note"
+        MARKDOWN = "markdown", "Markdown"
 
     week = models.ForeignKey(
         "levels.Week",
@@ -69,6 +70,7 @@ class Session(TimeStampedModel):
         blank=True,
         default="",
     )
+    markdown_content = models.TextField(blank=True, default="")
     duration_seconds = models.PositiveIntegerField(default=0)
     order = models.PositiveIntegerField()
     is_active = models.BooleanField(default=True, db_index=True)

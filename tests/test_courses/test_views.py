@@ -195,6 +195,59 @@ class AdminCourseAPITests(APITestCase):
         self.assertEqual(response.status_code, status.HTTP_204_NO_CONTENT)
         self.assertFalse(Session.objects.filter(pk=session.pk).exists())
 
+    def test_admin_create_markdown_resource_session(self):
+        """Admin can create a markdown resource session with markdown_content."""
+        response = self.admin_client.post(
+            "/api/v1/courses/admin/sessions/",
+            {
+                "week": self.week.pk,
+                "title": "Markdown Notes",
+                "session_type": "resource",
+                "resource_type": "markdown",
+                "markdown_content": "# Hello\n\nThis is **markdown** content.",
+                "order": 1,
+            },
+        )
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED)
+        self.assertEqual(response.data["resource_type"], "markdown")
+        self.assertEqual(response.data["markdown_content"], "# Hello\n\nThis is **markdown** content.")
+
+    def test_admin_update_markdown_content(self):
+        """Admin can update markdown_content on a markdown session."""
+        session = Session.objects.create(
+            week=self.week,
+            title="MD Notes",
+            session_type=Session.SessionType.RESOURCE,
+            resource_type=Session.ResourceType.MARKDOWN,
+            markdown_content="# Old Content",
+            order=1,
+        )
+        response = self.admin_client.patch(
+            f"/api/v1/courses/admin/sessions/{session.pk}/",
+            {"markdown_content": "# Updated Content\n\nNew text."},
+        )
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        session.refresh_from_db()
+        self.assertEqual(session.markdown_content, "# Updated Content\n\nNew text.")
+
+    def test_student_can_view_markdown_session(self):
+        """Student with purchase can view markdown_content in session detail."""
+        user, profile = self.factory.create_student(email="mdviewer@test.com")
+        self.factory.create_purchase(profile, self.level)
+        session = Session.objects.create(
+            week=self.week,
+            title="Markdown Session",
+            session_type=Session.SessionType.RESOURCE,
+            resource_type=Session.ResourceType.MARKDOWN,
+            markdown_content="# Study Notes\n\n- Point 1\n- Point 2",
+            order=1,
+        )
+        client = self.factory.get_auth_client(user)
+        response = client.get(f"/api/v1/courses/sessions/{session.pk}/")
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(response.data["resource_type"], "markdown")
+        self.assertEqual(response.data["markdown_content"], "# Study Notes\n\n- Point 1\n- Point 2")
+
     def test_student_cannot_admin_courses(self):
         user, _ = self.factory.create_student()
         student_client = self.factory.get_auth_client(user)

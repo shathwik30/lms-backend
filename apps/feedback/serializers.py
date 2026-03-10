@@ -19,3 +19,7 @@ class SessionFeedbackSerializer(serializers.ModelSerializer):
             "created_at",
         ]
         read_only_fields = ["id", "session", "session_title", "created_at"]
+        extra_kwargs = {
+            "difficulty_rating": {"required": False},
+            "clarity_rating": {"required": False},
+        }

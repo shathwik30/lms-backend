@@ -50,10 +50,14 @@ class CourseSessionsView(generics.ListAPIView):
             course = Course.objects.get(pk=course_id)
         except Course.DoesNotExist as exc:
             raise PurchaseRequired() from exc
-        return Session.objects.filter(
-            week__course=course,
-            is_active=True,
-        ).select_related("week")
+        return (
+            Session.objects.filter(
+                week__course=course,
+                is_active=True,
+            )
+            .select_related("week")
+            .defer("markdown_content")
+        )
 
 
 class SessionDetailView(APIView):
@@ -174,8 +178,14 @@ class AdminCourseDetailView(generics.RetrieveUpdateDestroyAPIView):
 class AdminSessionListCreateView(generics.ListCreateAPIView):
     permission_classes = [IsAdmin]
     serializer_class = SessionDetailSerializer
-    queryset = Session.objects.select_related("week__course__level")
     filterset_fields = ["week", "is_active", "session_type"]
+
+    def get_queryset(self):
+        if getattr(self, "swagger_fake_view", False):
+            return Session.objects.none()
+        if self.request.method == "GET":
+            return Session.objects.select_related("week__course__level").defer("markdown_content")
+        return Session.objects.select_related("week__course__level")
 
 
 @extend_schema_view(

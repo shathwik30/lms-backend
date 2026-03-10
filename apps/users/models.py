@@ -49,6 +49,12 @@ class User(AbstractBaseUser, PermissionsMixin, TimeStampedModel):
 
 
 class StudentProfile(TimeStampedModel):
+    class Gender(models.TextChoices):
+        MALE = "male", "Male"
+        FEMALE = "female", "Female"
+        OTHER = "other", "Other"
+        PREFER_NOT_TO_SAY = "prefer_not_to_say", "Prefer not to say"
+
     user = models.OneToOneField(User, on_delete=models.CASCADE, related_name="student_profile")
     current_level = models.ForeignKey(
         "levels.Level",
@@ -63,6 +69,12 @@ class StudentProfile(TimeStampedModel):
         blank=True,
         on_delete=models.SET_NULL,
         related_name="cleared_students",
+    )
+    gender = models.CharField(
+        max_length=20,
+        choices=Gender.choices,
+        null=True,
+        blank=True,
     )
     onboarding_completed = models.BooleanField(default=False)
     onboarding_exam_attempted = models.BooleanField(default=False)
