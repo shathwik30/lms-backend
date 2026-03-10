@@ -28,9 +28,9 @@ class InitiatePaymentSerializer(serializers.Serializer):
 
 
 class VerifyPaymentSerializer(serializers.Serializer):
-    gateway_order_id = serializers.CharField()
-    gateway_payment_id = serializers.CharField()
-    gateway_signature = serializers.CharField()
+    razorpay_order_id = serializers.CharField()
+    razorpay_payment_id = serializers.CharField()
+    razorpay_signature = serializers.CharField()
 
 
 class PaymentTransactionSerializer(serializers.ModelSerializer):
@@ -38,8 +38,8 @@ class PaymentTransactionSerializer(serializers.ModelSerializer):
         model = PaymentTransaction
         fields = [
             "id",
-            "gateway_order_id",
-            "gateway_payment_id",
+            "razorpay_order_id",
+            "razorpay_payment_id",
             "amount",
             "status",
             "created_at",

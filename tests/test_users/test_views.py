@@ -780,13 +780,13 @@ class CompleteOnboardingAPITests(APITestCase):
         self.client = self.factory.get_auth_client(self.user)
 
     def test_complete_onboarding_marks_true(self):
-        """POST should set onboarding_completed=True on the student profile."""
-        self.assertFalse(self.profile.onboarding_completed)
+        """POST should set is_onboarding_completed=True on the student profile."""
+        self.assertFalse(self.profile.is_onboarding_completed)
         response = self.client.post("/api/v1/auth/onboarding/complete/")
         self.assertEqual(response.status_code, status.HTTP_200_OK)
-        self.assertTrue(response.data["onboarding_completed"])
+        self.assertTrue(response.data["is_onboarding_completed"])
         self.profile.refresh_from_db()
-        self.assertTrue(self.profile.onboarding_completed)
+        self.assertTrue(self.profile.is_onboarding_completed)
 
     def test_non_student_gets_400(self):
         """An admin (non-student) user should receive 400."""
@@ -861,21 +861,21 @@ class OnboardingCompletedInProfileTests(APITestCase):
         )
         self.client = self.factory.get_auth_client(self.user)
 
-    def test_me_includes_onboarding_completed_in_profile(self):
-        """GET /api/v1/auth/me/ should include onboarding_completed in the profile."""
+    def test_me_includes_is_onboarding_completed_in_profile(self):
+        """GET /api/v1/auth/me/ should include is_onboarding_completed in the profile."""
         response = self.client.get("/api/v1/auth/me/")
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         self.assertIn("profile", response.data)
-        self.assertIn("onboarding_completed", response.data["profile"])
-        self.assertFalse(response.data["profile"]["onboarding_completed"])
+        self.assertIn("is_onboarding_completed", response.data["profile"])
+        self.assertFalse(response.data["profile"]["is_onboarding_completed"])
 
-    def test_me_reflects_onboarding_completed_after_completion(self):
+    def test_me_reflects_is_onboarding_completed_after_completion(self):
         """After completing onboarding, GET /api/v1/auth/me/ should show True."""
-        self.profile.onboarding_completed = True
-        self.profile.save(update_fields=["onboarding_completed"])
+        self.profile.is_onboarding_completed = True
+        self.profile.save(update_fields=["is_onboarding_completed"])
         response = self.client.get("/api/v1/auth/me/")
         self.assertEqual(response.status_code, status.HTTP_200_OK)
-        self.assertTrue(response.data["profile"]["onboarding_completed"])
+        self.assertTrue(response.data["profile"]["is_onboarding_completed"])
 
 
 # ── Avatar Upload Tests ──

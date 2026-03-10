@@ -61,5 +61,5 @@ class AdminFeedbackListView(generics.ListAPIView):
     serializer_class = SessionFeedbackSerializer
     queryset = SessionFeedback.objects.select_related("student__user", "session")
     pagination_class = LargePagination
-    filterset_fields = ["session", "rating", "difficulty_rating", "clarity_rating"]
+    filterset_fields = ["session", "overall_rating", "difficulty_rating", "clarity_rating"]
     search_fields = ["student__user__email"]

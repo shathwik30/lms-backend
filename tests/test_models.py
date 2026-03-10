@@ -287,7 +287,7 @@ class PaymentModelTests(TestCase):
         txn = PaymentTransaction.objects.create(
             student=profile,
             level=level,
-            gateway_order_id="order_123",
+            razorpay_order_id="order_123",
             amount=Decimal("999.00"),
         )
         self.assertIn("order_123", str(txn))
@@ -409,7 +409,7 @@ class FeedbackModelTests(TestCase):
         feedback = SessionFeedback.objects.create(
             student=profile,
             session=session,
-            rating=5,
+            overall_rating=5,
             difficulty_rating=3,
             clarity_rating=4,
         )
@@ -424,7 +424,7 @@ class FeedbackModelTests(TestCase):
         SessionFeedback.objects.create(
             student=profile,
             session=session,
-            rating=5,
+            overall_rating=5,
             difficulty_rating=3,
             clarity_rating=4,
         )
@@ -432,7 +432,7 @@ class FeedbackModelTests(TestCase):
             SessionFeedback.objects.create(
                 student=profile,
                 session=session,
-                rating=3,
+                overall_rating=3,
                 difficulty_rating=2,
                 clarity_rating=3,
             )

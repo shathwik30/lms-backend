@@ -375,7 +375,7 @@ class ComputedFieldTests(AdminSiteTestMixin, TestCase):
         fb = SessionFeedback.objects.create(
             student=self.profile,
             session=self.data["sessions"][0],
-            rating=4,
+            overall_rating=4,
             difficulty_rating=3,
             clarity_rating=5,
         )
@@ -389,7 +389,7 @@ class ComputedFieldTests(AdminSiteTestMixin, TestCase):
         fb = SessionFeedback.objects.create(
             student=self.profile,
             session=self.data["sessions"][0],
-            rating=4,
+            overall_rating=4,
             difficulty_rating=3,
             clarity_rating=5,
             comment="X" * 80,

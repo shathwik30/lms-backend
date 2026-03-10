@@ -35,7 +35,7 @@ class ExamService:
     @staticmethod
     def start_exam(student_profile: StudentProfile, exam: Exam) -> tuple[ExamAttempt | None, bool | None]:
         if exam.exam_type == Exam.ExamType.ONBOARDING:
-            if student_profile.onboarding_exam_attempted:
+            if student_profile.is_onboarding_exam_attempted:
                 raise OnboardingAlreadyAttempted()
         elif not EligibilityService.can_attempt_exam(student_profile, exam):
             if exam.exam_type == Exam.ExamType.LEVEL_FINAL:
@@ -59,11 +59,11 @@ class ExamService:
 
             pool = exam.questions.filter(is_active=True)
 
-            pool_ids_marks = list(pool.values_list("id", "marks"))
-            if not pool_ids_marks:
+            question_pool = list(pool.values_list("id", "marks"))
+            if not question_pool:
                 return None, None
 
-            count = min(exam.num_questions, len(pool_ids_marks))
+            count = min(exam.num_questions, len(question_pool))
             if count < exam.num_questions:
                 logger.warning(
                     "Exam %d: only %d questions available, required %d",
@@ -71,18 +71,18 @@ class ExamService:
                     count,
                     exam.num_questions,
                 )
-            selected_pairs = random.sample(pool_ids_marks, count)
+            selected_questions = random.sample(question_pool, count)
 
             attempt = ExamAttempt.objects.create(
                 student=student_profile,
                 exam=exam,
-                total_marks=sum(marks for _, marks in selected_pairs),
+                total_marks=sum(marks for _, marks in selected_questions),
             )
 
-            random.shuffle(selected_pairs)
+            random.shuffle(selected_questions)
             attempt_questions = [
                 AttemptQuestion(attempt=attempt, question_id=qid, order=i + 1)
-                for i, (qid, _) in enumerate(selected_pairs)
+                for i, (qid, _) in enumerate(selected_questions)
             ]
             AttemptQuestion.objects.bulk_create(attempt_questions)
 
@@ -117,31 +117,31 @@ class ExamService:
         )
         multi_mcq_updates: list[tuple[AttemptQuestion, list[int]]] = []
 
-        for aq in attempt_questions:
-            answer = answers_map.get(aq.question_id)
+        for attempt_question in attempt_questions:
+            answer = answers_map.get(attempt_question.question_id)
 
             if not answer:
-                aq.is_correct = None
-                aq.marks_awarded = 0
+                attempt_question.is_correct = None
+                attempt_question.marks_awarded = 0
                 continue
 
-            q_type = aq.question.question_type
+            q_type = attempt_question.question.question_type
             if q_type == Question.QuestionType.MCQ:
-                cls._evaluate_mcq(aq, answer)
+                cls._evaluate_mcq(attempt_question, answer)
             elif q_type == Question.QuestionType.MULTI_MCQ:
-                cls._evaluate_multi_mcq(aq, answer, multi_mcq_updates)
+                cls._evaluate_multi_mcq(attempt_question, answer, multi_mcq_updates)
             elif q_type == Question.QuestionType.FILL_BLANK:
-                cls._evaluate_fill_blank(aq, answer)
+                cls._evaluate_fill_blank(attempt_question, answer)
 
-            total_score += aq.marks_awarded
+            total_score += attempt_question.marks_awarded
 
         AttemptQuestion.objects.bulk_update(
             attempt_questions,
             ["selected_option_id", "text_answer", "is_correct", "marks_awarded"],
         )
 
-        for aq, option_ids in multi_mcq_updates:
-            aq.selected_options.set(option_ids)
+        for attempt_question, option_ids in multi_mcq_updates:
+            attempt_question.selected_options.set(option_ids)
 
         attempt.score = total_score
         attempt.submitted_at = timezone.now()
@@ -174,28 +174,28 @@ class ExamService:
         from apps.levels.models import Level
 
         profile = user.student_profile
-        profile.onboarding_exam_attempted = True
+        profile.is_onboarding_exam_attempted = True
 
         # Group questions by level, score per-level
         attempt_questions = list(attempt.attempt_questions.select_related("question__level"))
 
         level_scores: dict[int, dict] = {}
-        for aq in attempt_questions:
-            level_id = aq.question.level_id
+        for attempt_question in attempt_questions:
+            level_id = attempt_question.question.level_id
             if level_id not in level_scores:
                 level_scores[level_id] = {"scored": Decimal(0), "total": Decimal(0)}
-            level_scores[level_id]["total"] += aq.question.marks
-            if aq.marks_awarded > 0:
-                level_scores[level_id]["scored"] += aq.marks_awarded
+            level_scores[level_id]["total"] += attempt_question.question.marks
+            if attempt_question.marks_awarded > 0:
+                level_scores[level_id]["scored"] += attempt_question.marks_awarded
 
         levels = Level.objects.filter(id__in=level_scores.keys(), is_active=True).order_by("order")
 
         highest_cleared = None
         for level in levels:
-            data = level_scores.get(level.id)
-            if not data or data["total"] == 0:
+            score_data = level_scores.get(level.id)
+            if not score_data or score_data["total"] == 0:
                 continue
-            percentage = (data["scored"] / data["total"]) * 100
+            percentage = (score_data["scored"] / score_data["total"]) * 100
             if percentage >= level.passing_percentage:
                 LevelProgress.objects.update_or_create(
                     student=profile,
@@ -224,7 +224,7 @@ class ExamService:
             if first_level:
                 profile.current_level = first_level
 
-        profile.save(update_fields=["onboarding_exam_attempted", "highest_cleared_level", "current_level"])
+        profile.save(update_fields=["is_onboarding_exam_attempted", "highest_cleared_level", "current_level"])
 
         NotificationService.create(
             user=user,
@@ -250,29 +250,44 @@ class ExamService:
             )
         )
 
-        for aq in attempt_questions:
-            if aq.selected_option_id:
-                option = next((o for o in aq.question.options.all() if o.pk == aq.selected_option_id), None)
+        for attempt_question in attempt_questions:
+            if attempt_question.selected_option_id:
+                option = next(
+                    (o for o in attempt_question.question.options.all() if o.pk == attempt_question.selected_option_id),
+                    None,
+                )
                 if option:
-                    aq.is_correct = option.is_correct
-                    aq.marks_awarded = aq.question.marks if option.is_correct else -aq.question.negative_marks
+                    attempt_question.is_correct = option.is_correct
+                    attempt_question.marks_awarded = (
+                        attempt_question.question.marks
+                        if option.is_correct
+                        else -attempt_question.question.negative_marks
+                    )
                 else:
-                    aq.is_correct = False
-                    aq.marks_awarded = -aq.question.negative_marks
-            elif any(True for _ in aq.selected_options.all()):
-                correct_ids = {o.id for o in aq.question.options.all() if o.is_correct}
-                selected_ids = {o.id for o in aq.selected_options.all()}
-                aq.is_correct = selected_ids == correct_ids
-                aq.marks_awarded = aq.question.marks if aq.is_correct else -aq.question.negative_marks
-            elif aq.text_answer:
-                correct = (aq.question.correct_text_answer or "").strip()
-                aq.is_correct = aq.text_answer.strip().lower() == correct.lower()
-                aq.marks_awarded = aq.question.marks if aq.is_correct else -aq.question.negative_marks
+                    attempt_question.is_correct = False
+                    attempt_question.marks_awarded = -attempt_question.question.negative_marks
+            elif any(True for _ in attempt_question.selected_options.all()):
+                correct_ids = {o.id for o in attempt_question.question.options.all() if o.is_correct}
+                selected_ids = {o.id for o in attempt_question.selected_options.all()}
+                attempt_question.is_correct = selected_ids == correct_ids
+                attempt_question.marks_awarded = (
+                    attempt_question.question.marks
+                    if attempt_question.is_correct
+                    else -attempt_question.question.negative_marks
+                )
+            elif attempt_question.text_answer:
+                correct = (attempt_question.question.correct_text_answer or "").strip()
+                attempt_question.is_correct = attempt_question.text_answer.strip().lower() == correct.lower()
+                attempt_question.marks_awarded = (
+                    attempt_question.question.marks
+                    if attempt_question.is_correct
+                    else -attempt_question.question.negative_marks
+                )
             else:
-                aq.is_correct = None
-                aq.marks_awarded = 0
+                attempt_question.is_correct = None
+                attempt_question.marks_awarded = 0
 
-            total_score += aq.marks_awarded
+            total_score += attempt_question.marks_awarded
 
         AttemptQuestion.objects.bulk_update(attempt_questions, ["is_correct", "marks_awarded"])
         return total_score
@@ -321,56 +336,56 @@ class ExamService:
         }, None
 
     @staticmethod
-    def _evaluate_mcq(aq: AttemptQuestion, answer: dict) -> None:
+    def _evaluate_mcq(attempt_question: AttemptQuestion, answer: dict) -> None:
         selected_option_id = answer.get("option_id")
         if selected_option_id:
-            option = next((o for o in aq.question.options.all() if o.pk == selected_option_id), None)
+            option = next((o for o in attempt_question.question.options.all() if o.pk == selected_option_id), None)
             if option:
-                aq.selected_option_id = selected_option_id
-                aq.is_correct = option.is_correct
+                attempt_question.selected_option_id = selected_option_id
+                attempt_question.is_correct = option.is_correct
                 if option.is_correct:
-                    aq.marks_awarded = aq.question.marks
+                    attempt_question.marks_awarded = attempt_question.question.marks
                 else:
-                    aq.marks_awarded = -aq.question.negative_marks
+                    attempt_question.marks_awarded = -attempt_question.question.negative_marks
             else:
-                aq.is_correct = False
-                aq.marks_awarded = -aq.question.negative_marks
+                attempt_question.is_correct = False
+                attempt_question.marks_awarded = -attempt_question.question.negative_marks
         else:
-            aq.is_correct = None
-            aq.marks_awarded = 0
+            attempt_question.is_correct = None
+            attempt_question.marks_awarded = 0
 
     @staticmethod
-    def _evaluate_multi_mcq(aq: AttemptQuestion, answer: dict, multi_mcq_updates: list) -> None:
+    def _evaluate_multi_mcq(attempt_question: AttemptQuestion, answer: dict, multi_mcq_updates: list) -> None:
         option_ids = answer.get("option_ids", [])
         if option_ids:
-            all_options = list(aq.question.options.all())
+            all_options = list(attempt_question.question.options.all())
             correct_ids = {o.id for o in all_options if o.is_correct}
             selected_ids = set(option_ids)
             valid_ids = {o.id for o in all_options if o.id in selected_ids}
-            aq.is_correct = valid_ids == correct_ids
-            if aq.is_correct:
-                aq.marks_awarded = aq.question.marks
+            attempt_question.is_correct = valid_ids == correct_ids
+            if attempt_question.is_correct:
+                attempt_question.marks_awarded = attempt_question.question.marks
             else:
-                aq.marks_awarded = -aq.question.negative_marks
-            multi_mcq_updates.append((aq, list(valid_ids)))
+                attempt_question.marks_awarded = -attempt_question.question.negative_marks
+            multi_mcq_updates.append((attempt_question, list(valid_ids)))
         else:
-            aq.is_correct = None
-            aq.marks_awarded = 0
+            attempt_question.is_correct = None
+            attempt_question.marks_awarded = 0
 
     @staticmethod
-    def _evaluate_fill_blank(aq: AttemptQuestion, answer: dict) -> None:
+    def _evaluate_fill_blank(attempt_question: AttemptQuestion, answer: dict) -> None:
         text_answer = answer.get("text_answer", "").strip()
-        aq.text_answer = text_answer
+        attempt_question.text_answer = text_answer
         if text_answer:
-            correct = aq.question.correct_text_answer.strip()
-            aq.is_correct = text_answer.lower() == correct.lower()
-            if aq.is_correct:
-                aq.marks_awarded = aq.question.marks
+            correct = attempt_question.question.correct_text_answer.strip()
+            attempt_question.is_correct = text_answer.lower() == correct.lower()
+            if attempt_question.is_correct:
+                attempt_question.marks_awarded = attempt_question.question.marks
             else:
-                aq.marks_awarded = -aq.question.negative_marks
+                attempt_question.marks_awarded = -attempt_question.question.negative_marks
         else:
-            aq.is_correct = None
-            aq.marks_awarded = 0
+            attempt_question.is_correct = None
+            attempt_question.marks_awarded = 0
 
     @staticmethod
     def _update_level_progress(user: UserModel, attempt: ExamAttempt) -> None:

@@ -46,7 +46,7 @@ class ProgressTrackingTests(APITestCase):
         SessionFeedback.objects.create(
             student=self.profile,
             session=session,
-            rating=5,
+            overall_rating=5,
             difficulty_rating=3,
             clarity_rating=4,
         )
@@ -74,7 +74,7 @@ class ProgressTrackingTests(APITestCase):
         SessionFeedback.objects.create(
             student=self.profile,
             session=session,
-            rating=5,
+            overall_rating=5,
             difficulty_rating=3,
             clarity_rating=4,
         )
@@ -125,7 +125,7 @@ class ProgressTrackingTests(APITestCase):
             SessionFeedback.objects.create(
                 student=self.profile,
                 session=s,
-                rating=5,
+                overall_rating=5,
                 difficulty_rating=3,
                 clarity_rating=4,
             )
@@ -187,13 +187,13 @@ class DashboardTests(APITestCase):
         self.assertEqual(response.data["next_action"], NextAction.TAKE_ONBOARDING_EXAM)
 
     def test_dashboard_after_onboarding_no_purchase(self):
-        self.profile.onboarding_exam_attempted = True
+        self.profile.is_onboarding_exam_attempted = True
         self.profile.save()
         response = self.client.get("/api/v1/progress/dashboard/")
         self.assertEqual(response.data["next_action"], NextAction.PURCHASE_LEVEL)
 
     def test_dashboard_after_pass(self):
-        self.profile.onboarding_exam_attempted = True
+        self.profile.is_onboarding_exam_attempted = True
         self.profile.save()
         self.factory.pass_level(self.profile, self.data1["level"])
         response = self.client.get("/api/v1/progress/dashboard/")
@@ -201,7 +201,7 @@ class DashboardTests(APITestCase):
         self.assertEqual(response.data["current_level"]["order"], 2)
 
     def test_dashboard_all_complete(self):
-        self.profile.onboarding_exam_attempted = True
+        self.profile.is_onboarding_exam_attempted = True
         self.profile.save()
         self.factory.pass_level(self.profile, self.data1["level"])
         self.factory.pass_level(self.profile, self.data2["level"])
@@ -209,7 +209,7 @@ class DashboardTests(APITestCase):
         self.assertEqual(response.data["next_action"], NextAction.ALL_COMPLETE)
 
     def test_dashboard_in_progress(self):
-        self.profile.onboarding_exam_attempted = True
+        self.profile.is_onboarding_exam_attempted = True
         self.profile.save()
         self.factory.create_purchase(self.profile, self.data1["level"])
         LevelProgress.objects.create(

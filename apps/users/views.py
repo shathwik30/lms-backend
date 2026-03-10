@@ -474,7 +474,7 @@ class CompleteOnboardingView(APIView):
                 "OnboardingResponse",
                 fields={
                     "detail": drf_serializers.CharField(),
-                    "onboarding_completed": drf_serializers.BooleanField(),
+                    "is_onboarding_completed": drf_serializers.BooleanField(),
                 },
             )
         },
@@ -486,7 +486,7 @@ class CompleteOnboardingView(APIView):
         return Response(
             {
                 "detail": SuccessMessage.ONBOARDING_COMPLETED,
-                "onboarding_completed": True,
+                "is_onboarding_completed": True,
             }
         )
 

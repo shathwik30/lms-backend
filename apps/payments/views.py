@@ -39,7 +39,7 @@ class InitiatePaymentView(APIView):
                 "InitiatePaymentResponse",
                 fields={
                     "transaction_id": drf_serializers.IntegerField(),
-                    "gateway_order_id": drf_serializers.CharField(),
+                    "razorpay_order_id": drf_serializers.CharField(),
                     "amount": drf_serializers.CharField(),
                     "currency": drf_serializers.CharField(),
                     "level_id": drf_serializers.IntegerField(),

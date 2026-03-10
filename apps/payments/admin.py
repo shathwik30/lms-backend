@@ -60,7 +60,7 @@ class PaymentTransactionAdmin(
     ExportCsvMixin,
 ):
     list_display = (
-        "gateway_order_id",
+        "razorpay_order_id",
         "student",
         "level",
         "amount",
@@ -70,14 +70,14 @@ class PaymentTransactionAdmin(
     list_select_related = ("student__user", "level")
     list_filter = ("status",)
     search_fields = (
-        "gateway_order_id",
-        "gateway_payment_id",
+        "razorpay_order_id",
+        "razorpay_payment_id",
         "student__user__email",
     )
     readonly_fields = (
         "created_at",
-        "gateway_order_id",
-        "gateway_payment_id",
+        "razorpay_order_id",
+        "razorpay_payment_id",
     )
     date_hierarchy = "created_at"
     list_per_page = 30

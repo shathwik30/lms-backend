@@ -50,11 +50,11 @@ class TestFactory:
         client.credentials(HTTP_AUTHORIZATION=f"Bearer {token.access_token}")
         return client
 
-    def create_level(self, order=1, name=None, passing_pct=50, price=999, validity_days=365):
+    def create_level(self, order=1, name=None, passing_percentage=50, price=999, validity_days=365):
         return Level.objects.create(
             name=name or f"Level {order}",
             order=order,
-            passing_percentage=passing_pct,
+            passing_percentage=passing_percentage,
             price=price,
             validity_days=validity_days,
         )
@@ -72,12 +72,12 @@ class TestFactory:
             order=order,
         )
 
-    def create_session(self, week, order=1, duration=2700, session_type=Session.SessionType.VIDEO):
+    def create_session(self, week, order=1, duration_seconds=2700, session_type=Session.SessionType.VIDEO):
         return Session.objects.create(
             week=week,
             title=f"Session {order}",
             video_url="https://example.com/video.mp4" if session_type == Session.SessionType.VIDEO else "",
-            duration_seconds=duration,
+            duration_seconds=duration_seconds,
             order=order,
             session_type=session_type,
         )
@@ -104,7 +104,7 @@ class TestFactory:
         exam_type=Exam.ExamType.LEVEL_FINAL,
         num_questions=5,
         duration=60,
-        passing_pct=50,
+        passing_percentage=50,
     ):
         return Exam.objects.create(
             level=level,
@@ -114,7 +114,7 @@ class TestFactory:
             title=f"{level.name} {exam_type} Exam",
             duration_minutes=duration,
             total_marks=num_questions * 4,
-            passing_percentage=passing_pct,
+            passing_percentage=passing_percentage,
             num_questions=num_questions,
         )
 
@@ -150,7 +150,7 @@ class TestFactory:
             SessionFeedback.objects.create(
                 student=profile,
                 session=session,
-                rating=4,
+                overall_rating=4,
                 difficulty_rating=3,
                 clarity_rating=5,
             )

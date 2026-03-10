@@ -80,17 +80,17 @@ def aggregate_daily_analytics(self):
         }
 
         for level in active_levels:
-            astats = attempt_stats.get(level.id, {})
-            pstats = purchase_stats.get(level.id, {})
+            level_attempt_stats = attempt_stats.get(level.id, {})
+            level_purchase_stats = purchase_stats.get(level.id, {})
             LevelAnalytics.objects.update_or_create(
                 level=level,
                 date=yesterday,
                 defaults={
-                    "total_attempts": astats.get("total_attempts", 0),
-                    "total_passes": astats.get("total_passes", 0),
-                    "total_failures": astats.get("total_failures", 0),
-                    "total_purchases": pstats.get("total_purchases", 0),
-                    "revenue": pstats.get("revenue") or 0,
+                    "total_attempts": level_attempt_stats.get("total_attempts", 0),
+                    "total_passes": level_attempt_stats.get("total_passes", 0),
+                    "total_failures": level_attempt_stats.get("total_failures", 0),
+                    "total_purchases": level_purchase_stats.get("total_purchases", 0),
+                    "revenue": level_purchase_stats.get("revenue") or 0,
                 },
             )
 

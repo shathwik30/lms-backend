@@ -227,7 +227,7 @@ class GetNextActionGapTests(TestCase):
         Should return ALL_COMPLETE.
         """
         level1 = self.factory.create_level(order=1)
-        self.profile.onboarding_exam_attempted = True
+        self.profile.is_onboarding_exam_attempted = True
         self.profile.save()
         self.factory.pass_level(self.profile, level1)
 
@@ -240,7 +240,7 @@ class GetNextActionGapTests(TestCase):
         After onboarding, no highest_cleared_level and no active levels exist.
         Should return NO_LEVELS.
         """
-        self.profile.onboarding_exam_attempted = True
+        self.profile.is_onboarding_exam_attempted = True
         self.profile.save()
         # No levels created at all
         result = EligibilityService.get_next_action(self.profile)
@@ -264,7 +264,7 @@ class GetNextActionGapTests(TestCase):
         level1 = self.factory.create_level(order=1)
         level2 = self.factory.create_level(order=2)
         level3 = self.factory.create_level(order=3)
-        self.profile.onboarding_exam_attempted = True
+        self.profile.is_onboarding_exam_attempted = True
         self.profile.save()
         self.factory.pass_level(self.profile, level1)
         self.factory.pass_level(self.profile, level2)

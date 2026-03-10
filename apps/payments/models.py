@@ -79,8 +79,8 @@ class PaymentTransaction(TimeStampedModel):
         on_delete=models.SET_NULL,
         related_name="transactions",
     )
-    gateway_order_id = models.CharField(max_length=200, unique=True)
-    gateway_payment_id = models.CharField(max_length=200, blank=True, db_index=True)
+    razorpay_order_id = models.CharField(max_length=200, unique=True)
+    razorpay_payment_id = models.CharField(max_length=200, blank=True, db_index=True)
     amount = models.DecimalField(max_digits=10, decimal_places=2)
     status = models.CharField(
         max_length=10,
@@ -94,4 +94,4 @@ class PaymentTransaction(TimeStampedModel):
         ordering = ["-created_at"]
 
     def __str__(self):
-        return f"Txn {self.gateway_order_id} ({self.status})"
+        return f"Txn {self.razorpay_order_id} ({self.status})"

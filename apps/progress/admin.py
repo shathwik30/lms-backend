@@ -34,17 +34,17 @@ class SessionProgressAdmin(
         total = obj.session.duration_seconds
         if total == 0:
             return "—"
-        pct = min(100, obj.watched_seconds / total * 100)
-        if pct >= 90:
+        watched_percentage = min(100, obj.watched_seconds / total * 100)
+        if watched_percentage >= 90:
             color = "#27ae60"
-        elif pct >= 50:
+        elif watched_percentage >= 50:
             color = "#f39c12"
         else:
             color = "#e74c3c"
         return format_html(
             '<span style="color:{};">{}%</span> ({}/{}s)',
             color,
-            f"{pct:.0f}",
+            f"{watched_percentage:.0f}",
             obj.watched_seconds,
             total,
         )

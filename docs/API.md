@@ -174,7 +174,7 @@ Get current user profile. Includes student profile data for student accounts.
     "current_level_name": "Level 1",
     "highest_cleared_level": null,
     "highest_cleared_level_name": null,
-    "onboarding_completed": false,
+    "is_onboarding_completed": false,
     "created_at": "2024-01-01T00:00:00Z"
   }
 }
@@ -809,7 +809,7 @@ Submit mandatory session feedback (required for session completion). The student
 
 ```json
 {
-  "rating": 5,
+  "overall_rating": 5,
   "difficulty_rating": 3,
   "clarity_rating": 4,
   "comment": "Great session!"

@@ -114,7 +114,7 @@ class DashboardView(APIView):
                     "course_progress": CourseProgressSerializer(many=True),
                     "next_action": drf_serializers.CharField(),
                     "message": drf_serializers.CharField(),
-                    "onboarding_exam_attempted": drf_serializers.BooleanField(),
+                    "is_onboarding_exam_attempted": drf_serializers.BooleanField(),
                 },
             )
         }
@@ -128,7 +128,7 @@ class DashboardView(APIView):
                 "course_progress": CourseProgressSerializer(data["course_progress"], many=True).data,
                 "next_action": data["next_action"],
                 "message": data["message"],
-                "onboarding_exam_attempted": data["onboarding_exam_attempted"],
+                "is_onboarding_exam_attempted": data["is_onboarding_exam_attempted"],
             }
         )
 

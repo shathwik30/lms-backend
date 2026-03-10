@@ -13,7 +13,7 @@ class SessionFeedbackAdmin(
     list_display = (
         "student",
         "session",
-        "rating",
+        "overall_rating",
         "difficulty_rating",
         "clarity_rating",
         "comment_preview",
@@ -21,7 +21,7 @@ class SessionFeedbackAdmin(
     )
     list_select_related = ("student__user", "session")
     list_filter = (
-        "rating",
+        "overall_rating",
         "session__week__course__level",
     )
     search_fields = (

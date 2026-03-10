@@ -12,7 +12,7 @@ class SessionFeedbackSerializer(serializers.ModelSerializer):
             "id",
             "session",
             "session_title",
-            "rating",
+            "overall_rating",
             "difficulty_rating",
             "clarity_rating",
             "comment",

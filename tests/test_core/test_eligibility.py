@@ -156,7 +156,7 @@ class EligibilityServiceTests(TestCase):
             exam_type=Exam.ExamType.ONBOARDING,
             num_questions=5,
         )
-        self.profile.onboarding_exam_attempted = True
+        self.profile.is_onboarding_exam_attempted = True
         self.profile.save()
         self.assertFalse(EligibilityService.can_attempt_exam(self.profile, onboarding_exam))
 
@@ -179,14 +179,14 @@ class EligibilityServiceTests(TestCase):
         self.assertEqual(result["action"], NextAction.TAKE_ONBOARDING_EXAM)
 
     def test_next_action_after_onboarding_no_purchase(self):
-        self.profile.onboarding_exam_attempted = True
+        self.profile.is_onboarding_exam_attempted = True
         self.profile.save()
         result = EligibilityService.get_next_action(self.profile)
         self.assertEqual(result["action"], NextAction.PURCHASE_LEVEL)
         self.assertEqual(result["level"]["order"], 1)
 
     def test_next_action_after_pass_level1(self):
-        self.profile.onboarding_exam_attempted = True
+        self.profile.is_onboarding_exam_attempted = True
         self.profile.save()
         self.factory.pass_level(self.profile, self.data1["level"])
         result = EligibilityService.get_next_action(self.profile)
@@ -194,7 +194,7 @@ class EligibilityServiceTests(TestCase):
         self.assertEqual(result["level"]["order"], 2)
 
     def test_next_action_in_progress(self):
-        self.profile.onboarding_exam_attempted = True
+        self.profile.is_onboarding_exam_attempted = True
         self.profile.save()
         self.factory.create_purchase(self.profile, self.data1["level"])
         LevelProgress.objects.create(
@@ -206,7 +206,7 @@ class EligibilityServiceTests(TestCase):
         self.assertEqual(result["action"], NextAction.COMPLETE_COURSES)
 
     def test_next_action_syllabus_complete(self):
-        self.profile.onboarding_exam_attempted = True
+        self.profile.is_onboarding_exam_attempted = True
         self.profile.save()
         self.factory.create_purchase(self.profile, self.data1["level"])
         for s in self.data1["sessions"]:
@@ -220,7 +220,7 @@ class EligibilityServiceTests(TestCase):
         self.assertEqual(result["action"], NextAction.TAKE_FINAL_EXAM)
 
     def test_next_action_all_cleared(self):
-        self.profile.onboarding_exam_attempted = True
+        self.profile.is_onboarding_exam_attempted = True
         self.profile.save()
         self.factory.pass_level(self.profile, self.data1["level"])
         self.factory.pass_level(self.profile, self.data2["level"])
@@ -235,7 +235,7 @@ class EligibilityServiceTests(TestCase):
         self.assertEqual(result["action"], NextAction.NO_LEVELS)
 
     def test_next_action_redo_level_after_exhausted_attempts(self):
-        self.profile.onboarding_exam_attempted = True
+        self.profile.is_onboarding_exam_attempted = True
         self.profile.save()
         self.factory.create_purchase(self.profile, self.data1["level"])
         LevelProgress.objects.create(

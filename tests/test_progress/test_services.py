@@ -123,7 +123,7 @@ class CompleteExamSessionTests(TestCase):
     def test_pass_exam_marks_completed(self):
         """Passing an exam session marks it completed with timestamp."""
         session = self.factory.create_session(self.week, order=1, session_type=Session.SessionType.PRACTICE_EXAM)
-        progress, error = ProgressService.complete_exam_session(self.profile, session, passed=True)
+        progress, error = ProgressService.complete_exam_session(self.profile, session, is_passed=True)
         self.assertIsNotNone(progress)
         self.assertIsNone(error)
         self.assertTrue(progress.is_completed)
@@ -138,7 +138,7 @@ class CompleteExamSessionTests(TestCase):
             level=self.level,
             status=LevelProgress.Status.IN_PROGRESS,
         )
-        ProgressService.complete_exam_session(self.profile, session, passed=True)
+        ProgressService.complete_exam_session(self.profile, session, is_passed=True)
         cp = CourseProgress.objects.filter(student=self.profile, course=self.course).first()
         self.assertIsNotNone(cp)
         self.assertEqual(cp.status, CourseProgress.Status.COMPLETED)
@@ -150,7 +150,7 @@ class CompleteExamSessionTests(TestCase):
         # Complete s1 first
         self.factory.complete_session(self.profile, s1)
         # Fail s2 (practice exam, not proctored)
-        ProgressService.complete_exam_session(self.profile, s2, passed=False)
+        ProgressService.complete_exam_session(self.profile, s2, is_passed=False)
         # s1 progress should still exist
         self.assertTrue(SessionProgress.objects.filter(student=self.profile, session=s1, is_completed=True).exists())
 
@@ -162,16 +162,16 @@ class CompleteExamSessionTests(TestCase):
         self.factory.complete_session(self.profile, s1)
         self.assertTrue(SessionProgress.objects.filter(student=self.profile, session=s1).exists())
         # Fail s2 (proctored exam)
-        ProgressService.complete_exam_session(self.profile, s2, passed=False)
+        ProgressService.complete_exam_session(self.profile, s2, is_passed=False)
         # s1 progress should be deleted (week reset)
         self.assertFalse(SessionProgress.objects.filter(student=self.profile, session=s1).exists())
         # s2 progress should also be deleted
         self.assertFalse(SessionProgress.objects.filter(student=self.profile, session=s2).exists())
 
     def test_fail_exam_sets_is_exam_passed_false(self):
-        """Failing an exam sets is_exam_passed=False but not is_completed."""
+        """Failing an exam sets is_exam_is_passed=False but not is_completed."""
         session = self.factory.create_session(self.week, order=1, session_type=Session.SessionType.PRACTICE_EXAM)
-        progress, error = ProgressService.complete_exam_session(self.profile, session, passed=False)
+        progress, error = ProgressService.complete_exam_session(self.profile, session, is_passed=False)
         self.assertIsNotNone(progress)
         self.assertIsNone(error)
         self.assertFalse(progress.is_exam_passed)

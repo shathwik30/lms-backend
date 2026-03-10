@@ -43,8 +43,8 @@ class PaymentAPITests(APITestCase):
             },
         )
         self.assertEqual(response.status_code, status.HTTP_201_CREATED)
-        self.assertIn("gateway_order_id", response.data)
-        self.assertTrue(response.data["gateway_order_id"].startswith("dev_order_"))
+        self.assertIn("razorpay_order_id", response.data)
+        self.assertTrue(response.data["razorpay_order_id"].startswith("dev_order_"))
 
     def test_verify_payment_dev_mode(self):
         init_resp = self.client.post(
@@ -53,14 +53,14 @@ class PaymentAPITests(APITestCase):
                 "level_id": self.data["level"].pk,
             },
         )
-        order_id = init_resp.data["gateway_order_id"]
+        order_id = init_resp.data["razorpay_order_id"]
 
         response = self.client.post(
             "/api/v1/payments/verify/",
             {
-                "gateway_order_id": order_id,
-                "gateway_payment_id": "dev_pay_123",
-                "gateway_signature": "dev_sig_123",
+                "razorpay_order_id": order_id,
+                "razorpay_payment_id": "dev_pay_123",
+                "razorpay_signature": "dev_sig_123",
             },
         )
         self.assertEqual(response.status_code, status.HTTP_201_CREATED)
@@ -78,9 +78,9 @@ class PaymentAPITests(APITestCase):
         self.client.post(
             "/api/v1/payments/verify/",
             {
-                "gateway_order_id": init_resp.data["gateway_order_id"],
-                "gateway_payment_id": "dev_pay_email",
-                "gateway_signature": "dev_sig_email",
+                "razorpay_order_id": init_resp.data["razorpay_order_id"],
+                "razorpay_payment_id": "dev_pay_email",
+                "razorpay_signature": "dev_sig_email",
             },
         )
         self.assertEqual(len(mail.outbox), 1)
@@ -97,9 +97,9 @@ class PaymentAPITests(APITestCase):
         self.client.post(
             "/api/v1/payments/verify/",
             {
-                "gateway_order_id": init_resp.data["gateway_order_id"],
-                "gateway_payment_id": "dev_pay_456",
-                "gateway_signature": "dev_sig_456",
+                "razorpay_order_id": init_resp.data["razorpay_order_id"],
+                "razorpay_payment_id": "dev_pay_456",
+                "razorpay_signature": "dev_sig_456",
             },
         )
         progress = LevelProgress.objects.get(student=self.profile, level=self.data["level"])
@@ -116,9 +116,9 @@ class PaymentAPITests(APITestCase):
         self.client.post(
             "/api/v1/payments/verify/",
             {
-                "gateway_order_id": init_resp.data["gateway_order_id"],
-                "gateway_payment_id": "dev_pay_789",
-                "gateway_signature": "dev_sig_789",
+                "razorpay_order_id": init_resp.data["razorpay_order_id"],
+                "razorpay_payment_id": "dev_pay_789",
+                "razorpay_signature": "dev_sig_789",
             },
         )
         self.profile.refresh_from_db()
@@ -140,9 +140,9 @@ class PaymentAPITests(APITestCase):
         self.client.post(
             "/api/v1/payments/verify/",
             {
-                "gateway_order_id": init_resp.data["gateway_order_id"],
-                "gateway_payment_id": "dev_pay_nodg",
-                "gateway_signature": "dev_sig_nodg",
+                "razorpay_order_id": init_resp.data["razorpay_order_id"],
+                "razorpay_payment_id": "dev_pay_nodg",
+                "razorpay_signature": "dev_sig_nodg",
             },
         )
         progress = LevelProgress.objects.get(student=self.profile, level=self.data["level"])
@@ -152,9 +152,9 @@ class PaymentAPITests(APITestCase):
         response = self.client.post(
             "/api/v1/payments/verify/",
             {
-                "gateway_order_id": "nonexistent_order",
-                "gateway_payment_id": "pay_123",
-                "gateway_signature": "sig_123",
+                "razorpay_order_id": "nonexistent_order",
+                "razorpay_payment_id": "pay_123",
+                "razorpay_signature": "sig_123",
             },
         )
         self.assertEqual(response.status_code, status.HTTP_404_NOT_FOUND)
@@ -167,21 +167,21 @@ class PaymentAPITests(APITestCase):
                 "level_id": self.data["level"].pk,
             },
         )
-        order_id = init_resp.data["gateway_order_id"]
+        order_id = init_resp.data["razorpay_order_id"]
         self.client.post(
             "/api/v1/payments/verify/",
             {
-                "gateway_order_id": order_id,
-                "gateway_payment_id": "dev_pay_1",
-                "gateway_signature": "dev_sig_1",
+                "razorpay_order_id": order_id,
+                "razorpay_payment_id": "dev_pay_1",
+                "razorpay_signature": "dev_sig_1",
             },
         )
         response = self.client.post(
             "/api/v1/payments/verify/",
             {
-                "gateway_order_id": order_id,
-                "gateway_payment_id": "dev_pay_2",
-                "gateway_signature": "dev_sig_2",
+                "razorpay_order_id": order_id,
+                "razorpay_payment_id": "dev_pay_2",
+                "razorpay_signature": "dev_sig_2",
             },
         )
         self.assertEqual(response.status_code, status.HTTP_404_NOT_FOUND)
@@ -336,19 +336,19 @@ class PaymentAmountVerificationTests(APITestCase):
                 "level_id": self.data["level"].pk,
             },
         )
-        order_id = init_resp.data["gateway_order_id"]
+        order_id = init_resp.data["razorpay_order_id"]
 
         # Tamper with the transaction amount to simulate mismatch
-        txn = PaymentTransaction.objects.get(gateway_order_id=order_id)
+        txn = PaymentTransaction.objects.get(razorpay_order_id=order_id)
         txn.amount = self.data["level"].price + 100
         txn.save(update_fields=["amount"])
 
         response = self.client.post(
             "/api/v1/payments/verify/",
             {
-                "gateway_order_id": order_id,
-                "gateway_payment_id": "dev_pay_mismatch",
-                "gateway_signature": "dev_sig_mismatch",
+                "razorpay_order_id": order_id,
+                "razorpay_payment_id": "dev_pay_mismatch",
+                "razorpay_signature": "dev_sig_mismatch",
             },
         )
         self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
@@ -366,14 +366,14 @@ class PaymentAmountVerificationTests(APITestCase):
                 "level_id": self.data["level"].pk,
             },
         )
-        order_id = init_resp.data["gateway_order_id"]
+        order_id = init_resp.data["razorpay_order_id"]
 
         response = self.client.post(
             "/api/v1/payments/verify/",
             {
-                "gateway_order_id": order_id,
-                "gateway_payment_id": "dev_pay_match",
-                "gateway_signature": "dev_sig_match",
+                "razorpay_order_id": order_id,
+                "razorpay_payment_id": "dev_pay_match",
+                "razorpay_signature": "dev_sig_match",
             },
         )
         self.assertEqual(response.status_code, status.HTTP_201_CREATED)
@@ -386,7 +386,7 @@ class PaymentAmountVerificationTests(APITestCase):
                 "level_id": self.data["level"].pk,
             },
         )
-        order_id = init_resp.data["gateway_order_id"]
+        order_id = init_resp.data["razorpay_order_id"]
 
         # Change the level price after initiation
         level = self.data["level"]
@@ -396,9 +396,9 @@ class PaymentAmountVerificationTests(APITestCase):
         response = self.client.post(
             "/api/v1/payments/verify/",
             {
-                "gateway_order_id": order_id,
-                "gateway_payment_id": "dev_pay_pricechange",
-                "gateway_signature": "dev_sig_pricechange",
+                "razorpay_order_id": order_id,
+                "razorpay_payment_id": "dev_pay_pricechange",
+                "razorpay_signature": "dev_sig_pricechange",
             },
         )
         self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
@@ -424,14 +424,14 @@ class PaymentDataIsolationTests(APITestCase):
                 "level_id": self.data["level"].pk,
             },
         )
-        order_id = init_resp.data["gateway_order_id"]
+        order_id = init_resp.data["razorpay_order_id"]
 
         response = self.client_b.post(
             "/api/v1/payments/verify/",
             {
-                "gateway_order_id": order_id,
-                "gateway_payment_id": "dev_pay_steal",
-                "gateway_signature": "dev_sig_steal",
+                "razorpay_order_id": order_id,
+                "razorpay_payment_id": "dev_pay_steal",
+                "razorpay_signature": "dev_sig_steal",
             },
         )
         self.assertEqual(response.status_code, status.HTTP_404_NOT_FOUND)
@@ -492,19 +492,19 @@ class PaymentEdgeCaseTests(APITestCase):
                 "level_id": self.data["level"].pk,
             },
         )
-        order_id = init_resp.data["gateway_order_id"]
+        order_id = init_resp.data["razorpay_order_id"]
 
         # Manually mark transaction as FAILED
-        txn = PaymentTransaction.objects.get(gateway_order_id=order_id)
+        txn = PaymentTransaction.objects.get(razorpay_order_id=order_id)
         txn.status = PaymentTransaction.Status.FAILED
         txn.save(update_fields=["status"])
 
         response = self.client.post(
             "/api/v1/payments/verify/",
             {
-                "gateway_order_id": order_id,
-                "gateway_payment_id": "dev_pay_failed",
-                "gateway_signature": "dev_sig_failed",
+                "razorpay_order_id": order_id,
+                "razorpay_payment_id": "dev_pay_failed",
+                "razorpay_signature": "dev_sig_failed",
             },
         )
         self.assertEqual(response.status_code, status.HTTP_404_NOT_FOUND)
@@ -517,15 +517,15 @@ class PaymentEdgeCaseTests(APITestCase):
                 "level_id": self.data["level"].pk,
             },
         )
-        order_id = init_resp.data["gateway_order_id"]
+        order_id = init_resp.data["razorpay_order_id"]
 
         # First verify succeeds
         first_resp = self.client.post(
             "/api/v1/payments/verify/",
             {
-                "gateway_order_id": order_id,
-                "gateway_payment_id": "dev_pay_first",
-                "gateway_signature": "dev_sig_first",
+                "razorpay_order_id": order_id,
+                "razorpay_payment_id": "dev_pay_first",
+                "razorpay_signature": "dev_sig_first",
             },
         )
         self.assertEqual(first_resp.status_code, status.HTTP_201_CREATED)
@@ -534,9 +534,9 @@ class PaymentEdgeCaseTests(APITestCase):
         second_resp = self.client.post(
             "/api/v1/payments/verify/",
             {
-                "gateway_order_id": order_id,
-                "gateway_payment_id": "dev_pay_second",
-                "gateway_signature": "dev_sig_second",
+                "razorpay_order_id": order_id,
+                "razorpay_payment_id": "dev_pay_second",
+                "razorpay_signature": "dev_sig_second",
             },
         )
         self.assertEqual(second_resp.status_code, status.HTTP_404_NOT_FOUND)

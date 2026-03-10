@@ -15,7 +15,7 @@ class SessionFeedback(TimeStampedModel):
         on_delete=models.CASCADE,
         related_name="feedbacks",
     )
-    rating = models.PositiveSmallIntegerField(
+    overall_rating = models.PositiveSmallIntegerField(
         validators=[MinValueValidator(1), MaxValueValidator(5)],
         db_index=True,
     )

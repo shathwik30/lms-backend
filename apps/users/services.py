@@ -49,7 +49,7 @@ class AuthService:
         from google.oauth2 import id_token
 
         try:
-            idinfo = id_token.verify_oauth2_token(
+            token_info = id_token.verify_oauth2_token(
                 id_token_str,
                 google_requests.Request(),
                 settings.GOOGLE_CLIENT_ID,
@@ -57,12 +57,12 @@ class AuthService:
         except ValueError:
             return None, None, ErrorMessage.INVALID_GOOGLE_TOKEN
 
-        email = idinfo.get("email")
-        if not email or not idinfo.get("email_verified"):
+        email = token_info.get("email")
+        if not email or not token_info.get("email_verified"):
             return None, None, ErrorMessage.GOOGLE_EMAIL_NOT_VERIFIED
 
-        google_id = idinfo["sub"]
-        full_name = idinfo.get("name", email.split("@")[0])
+        google_id = token_info["sub"]
+        full_name = token_info.get("name", email.split("@")[0])
 
         created = False
 
@@ -185,6 +185,6 @@ class ProfileService:
         if not user.is_student or not hasattr(user, "student_profile"):
             return False, ErrorMessage.ONLY_STUDENTS_ONBOARDING
         profile = user.student_profile
-        profile.onboarding_completed = True
-        profile.save(update_fields=["onboarding_completed"])
+        profile.is_onboarding_completed = True
+        profile.save(update_fields=["is_onboarding_completed"])
         return True, None

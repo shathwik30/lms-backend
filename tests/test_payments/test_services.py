@@ -55,7 +55,7 @@ class PaymentServiceInitiateTests(TestCase):
         self.assertIsNone(error)
         self.assertIsNotNone(result)
         self.assertIn("transaction_id", result)
-        self.assertIn("gateway_order_id", result)
+        self.assertIn("razorpay_order_id", result)
         # level.price is a DecimalField so str() yields e.g. "999.00"
         self.level1.refresh_from_db()
         self.assertEqual(result["amount"], str(self.level1.price))
@@ -72,13 +72,13 @@ class PaymentServiceVerifyTests(TestCase):
         self.course = self.factory.create_course(self.level)
 
     def test_verify_payment_transaction_not_found(self):
-        """Invalid gateway_order_id returns TRANSACTION_NOT_FOUND."""
+        """Invalid razorpay_order_id returns TRANSACTION_NOT_FOUND."""
         from apps.payments.services import PaymentService
 
         data = {
-            "gateway_order_id": "nonexistent_order",
-            "gateway_payment_id": "pay_123",
-            "gateway_signature": "sig_123",
+            "razorpay_order_id": "nonexistent_order",
+            "razorpay_payment_id": "pay_123",
+            "razorpay_signature": "sig_123",
         }
         result, error = PaymentService.verify_payment(self.user, data)
         self.assertIsNone(result)
@@ -91,15 +91,15 @@ class PaymentServiceVerifyTests(TestCase):
         PaymentTransaction.objects.create(
             student=self.profile,
             level=None,
-            gateway_order_id="order_no_level",
+            razorpay_order_id="order_no_level",
             amount=Decimal("999.00"),
             status=PaymentTransaction.Status.PENDING,
         )
 
         data = {
-            "gateway_order_id": "order_no_level",
-            "gateway_payment_id": "pay_456",
-            "gateway_signature": "sig_456",
+            "razorpay_order_id": "order_no_level",
+            "razorpay_payment_id": "pay_456",
+            "razorpay_signature": "sig_456",
         }
         result, error = PaymentService.verify_payment(self.user, data)
         self.assertIsNone(result)
@@ -112,15 +112,15 @@ class PaymentServiceVerifyTests(TestCase):
         txn = PaymentTransaction.objects.create(
             student=self.profile,
             level=self.level,
-            gateway_order_id="order_mismatch",
+            razorpay_order_id="order_mismatch",
             amount=Decimal("500.00"),  # Doesn't match level.price of 999.00
             status=PaymentTransaction.Status.PENDING,
         )
 
         data = {
-            "gateway_order_id": "order_mismatch",
-            "gateway_payment_id": "pay_789",
-            "gateway_signature": "sig_789",
+            "razorpay_order_id": "order_mismatch",
+            "razorpay_payment_id": "pay_789",
+            "razorpay_signature": "sig_789",
         }
         result, error = PaymentService.verify_payment(self.user, data)
         self.assertIsNone(result)
@@ -137,15 +137,15 @@ class PaymentServiceVerifyTests(TestCase):
         txn = PaymentTransaction.objects.create(
             student=self.profile,
             level=self.level,
-            gateway_order_id="order_success",
+            razorpay_order_id="order_success",
             amount=self.level.price,
             status=PaymentTransaction.Status.PENDING,
         )
 
         data = {
-            "gateway_order_id": "order_success",
-            "gateway_payment_id": "pay_success",
-            "gateway_signature": "sig_success",
+            "razorpay_order_id": "order_success",
+            "razorpay_payment_id": "pay_success",
+            "razorpay_signature": "sig_success",
         }
         purchase, error = PaymentService.verify_payment(self.user, data)
         self.assertIsNone(error)
@@ -157,7 +157,7 @@ class PaymentServiceVerifyTests(TestCase):
         # Transaction updated
         txn.refresh_from_db()
         self.assertEqual(txn.status, PaymentTransaction.Status.SUCCESS)
-        self.assertEqual(txn.gateway_payment_id, "pay_success")
+        self.assertEqual(txn.razorpay_payment_id, "pay_success")
         self.assertEqual(txn.purchase, purchase)
 
         # LevelProgress created
@@ -192,15 +192,15 @@ class PaymentServiceVerifyTests(TestCase):
         PaymentTransaction.objects.create(
             student=self.profile,
             level=self.level,
-            gateway_order_id="order_existing_lp",
+            razorpay_order_id="order_existing_lp",
             amount=self.level.price,
             status=PaymentTransaction.Status.PENDING,
         )
 
         data = {
-            "gateway_order_id": "order_existing_lp",
-            "gateway_payment_id": "pay_existing_lp",
-            "gateway_signature": "sig_existing_lp",
+            "razorpay_order_id": "order_existing_lp",
+            "razorpay_payment_id": "pay_existing_lp",
+            "razorpay_signature": "sig_existing_lp",
         }
         purchase, error = PaymentService.verify_payment(self.user, data)
         self.assertIsNone(error)

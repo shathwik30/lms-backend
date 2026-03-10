@@ -91,7 +91,7 @@ class EligibilityService:
     @classmethod
     def can_attempt_exam(cls, student: StudentProfile, exam: Exam) -> bool:
         if exam.exam_type == Exam.ExamType.ONBOARDING:
-            return not student.onboarding_exam_attempted
+            return not student.is_onboarding_exam_attempted
 
         level = exam.level
 
@@ -160,7 +160,7 @@ class EligibilityService:
     @classmethod
     def get_next_action(cls, student: StudentProfile) -> dict[str, Any]:
         # Check onboarding status
-        if not student.onboarding_exam_attempted:
+        if not student.is_onboarding_exam_attempted:
             first_level = Level.objects.filter(is_active=True).order_by("order").first()
             if not first_level:
                 return {

@@ -35,12 +35,12 @@ class PaymentService:
         if not EligibilityService.can_purchase_level(profile, level):
             raise LevelLocked()
 
-        existing = Purchase.objects.filter(
+        existing_purchase = Purchase.objects.filter(
             student=profile,
             level=level,
             status=Purchase.Status.ACTIVE,
         ).first()
-        if existing and existing.is_valid:
+        if existing_purchase and existing_purchase.is_valid:
             return None, ErrorMessage.ACTIVE_LEVEL_PURCHASE_EXISTS
 
         receipt = f"level_{level.id}_student_{profile.id}"
@@ -58,23 +58,23 @@ class PaymentService:
                         "level_name": level.name,
                     },
                 )
-                gateway_order_id = order_data["order_id"]
+                razorpay_order_id = order_data["order_id"]
             except Exception as e:
                 logger.error("Razorpay order creation failed: %s", e)
                 return None, ErrorMessage.PAYMENT_GATEWAY_ERROR
         else:
-            gateway_order_id = f"dev_order_{timezone.now().strftime('%Y%m%d%H%M%S')}_{profile.pk}"
+            razorpay_order_id = f"dev_order_{timezone.now().strftime('%Y%m%d%H%M%S')}_{profile.pk}"
 
         txn = PaymentTransaction.objects.create(
             student=profile,
             level=level,
-            gateway_order_id=gateway_order_id,
+            razorpay_order_id=razorpay_order_id,
             amount=level.price,
         )
 
         return {
             "transaction_id": txn.id,
-            "gateway_order_id": gateway_order_id,
+            "razorpay_order_id": razorpay_order_id,
             "amount": str(level.price),
             "currency": PaymentConstants.DEFAULT_CURRENCY,
             "level_id": level.id,
@@ -88,7 +88,7 @@ class PaymentService:
 
         try:
             txn = PaymentTransaction.objects.select_related("level").get(
-                gateway_order_id=data["gateway_order_id"],
+                razorpay_order_id=data["razorpay_order_id"],
                 student=profile,
                 status=PaymentTransaction.Status.PENDING,
             )
@@ -99,9 +99,9 @@ class PaymentService:
             from core.services.razorpay import RazorpayService
 
             is_valid = RazorpayService.verify_payment(
-                order_id=data["gateway_order_id"],
-                payment_id=data["gateway_payment_id"],
-                signature=data["gateway_signature"],
+                order_id=data["razorpay_order_id"],
+                payment_id=data["razorpay_payment_id"],
+                signature=data["razorpay_signature"],
             )
             if not is_valid:
                 txn.status = PaymentTransaction.Status.FAILED
@@ -126,10 +126,10 @@ class PaymentService:
                 amount_paid=txn.amount,
                 expires_at=timezone.now() + timedelta(days=level.validity_days),
             )
-            txn.gateway_payment_id = data["gateway_payment_id"]
+            txn.razorpay_payment_id = data["razorpay_payment_id"]
             txn.status = PaymentTransaction.Status.SUCCESS
             txn.purchase = purchase
-            txn.save(update_fields=["gateway_payment_id", "status", "purchase"])
+            txn.save(update_fields=["razorpay_payment_id", "status", "purchase"])
 
             # Create/update LevelProgress
             existing_progress = LevelProgress.objects.filter(

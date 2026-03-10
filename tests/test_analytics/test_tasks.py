@@ -34,11 +34,11 @@ class AggregateDailyAnalyticsTests(TestCase):
             student=self.profile,
             level=self.data["level"],
             amount=Decimal("999.00"),
-            gateway_order_id="order_1",
+            razorpay_order_id="order_1",
             status=PaymentTransaction.Status.SUCCESS,
         )
         # Backdate to yesterday
-        PaymentTransaction.objects.filter(gateway_order_id="order_1").update(
+        PaymentTransaction.objects.filter(razorpay_order_id="order_1").update(
             created_at=timezone.now() - timedelta(days=1),
         )
 
@@ -52,10 +52,10 @@ class AggregateDailyAnalyticsTests(TestCase):
             student=self.profile,
             level=self.data["level"],
             amount=Decimal("999.00"),
-            gateway_order_id="order_f",
+            razorpay_order_id="order_f",
             status=PaymentTransaction.Status.FAILED,
         )
-        PaymentTransaction.objects.filter(gateway_order_id="order_f").update(
+        PaymentTransaction.objects.filter(razorpay_order_id="order_f").update(
             created_at=timezone.now() - timedelta(days=1),
         )
 
@@ -120,7 +120,7 @@ class AggregateDailyAnalyticsTests(TestCase):
             student=self.profile,
             level=self.data["level"],
             amount=Decimal("999.00"),
-            gateway_order_id="order_today",
+            razorpay_order_id="order_today",
             status=PaymentTransaction.Status.SUCCESS,
         )
 

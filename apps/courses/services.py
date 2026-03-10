@@ -61,7 +61,7 @@ class CourseAccessService:
             return None
 
         # Single query: get completed session IDs
-        completed_ids = set(
+        completed_session_ids = set(
             SessionProgress.objects.filter(
                 student=profile,
                 session_id__in=all_sessions,
@@ -71,7 +71,7 @@ class CourseAccessService:
 
         # Find first incomplete session
         for session_id in all_sessions:
-            if session_id not in completed_ids:
+            if session_id not in completed_session_ids:
                 return Session.objects.get(pk=session_id)
 
         return None

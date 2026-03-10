@@ -58,15 +58,15 @@ class LevelAnalyticsAdmin(
         total = obj.total_passes + obj.total_failures
         if total == 0:
             return "—"
-        rate = obj.total_passes / total * 100
-        if rate >= 60:
+        pass_rate_value = obj.total_passes / total * 100
+        if pass_rate_value >= 60:
             color = "#27ae60"
         else:
             color = "#e74c3c"
         return format_html(
             '<span style="color:{};">{}%</span>',
             color,
-            f"{rate:.0f}",
+            f"{pass_rate_value:.0f}",
         )
 
     @admin.display(

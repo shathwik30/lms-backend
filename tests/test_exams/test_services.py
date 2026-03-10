@@ -48,8 +48,8 @@ class StartExamOnboardingAlreadyAttemptedTests(TestCase):
         self.factory.create_question(self.exam)
 
     def test_onboarding_already_attempted_raises(self):
-        self.profile.onboarding_exam_attempted = True
-        self.profile.save(update_fields=["onboarding_exam_attempted"])
+        self.profile.is_onboarding_exam_attempted = True
+        self.profile.save(update_fields=["is_onboarding_exam_attempted"])
 
         with self.assertRaises(OnboardingAlreadyAttempted):
             ExamService.start_exam(self.profile, self.exam)
@@ -185,9 +185,9 @@ class ProcessOnboardingResultTests(TestCase):
     def setUp(self):
         self.factory = TestFactory()
         self.user, self.profile = self.factory.create_student()
-        self.level1 = self.factory.create_level(order=1, passing_pct=50)
-        self.level2 = self.factory.create_level(order=2, passing_pct=50)
-        self.level3 = self.factory.create_level(order=3, passing_pct=50)
+        self.level1 = self.factory.create_level(order=1, passing_percentage=50)
+        self.level2 = self.factory.create_level(order=2, passing_percentage=50)
+        self.level3 = self.factory.create_level(order=3, passing_percentage=50)
 
         self.exam = self.factory.create_exam(
             self.level1,
@@ -244,7 +244,7 @@ class ProcessOnboardingResultTests(TestCase):
         ExamService._process_onboarding_result(self.user, attempt)
 
         self.profile.refresh_from_db()
-        self.assertTrue(self.profile.onboarding_exam_attempted)
+        self.assertTrue(self.profile.is_onboarding_exam_attempted)
         self.assertEqual(self.profile.highest_cleared_level, self.level2)
         self.assertEqual(self.profile.current_level, self.level3)
 
@@ -809,13 +809,13 @@ class SubmitExamOnboardingTests(TestCase):
     def setUp(self):
         self.factory = TestFactory()
         self.user, self.profile = self.factory.create_student()
-        self.level = self.factory.create_level(order=1, passing_pct=50)
+        self.level = self.factory.create_level(order=1, passing_percentage=50)
 
         self.exam = self.factory.create_exam(
             self.level,
             exam_type=Exam.ExamType.ONBOARDING,
             num_questions=1,
-            passing_pct=50,
+            passing_percentage=50,
         )
 
         self.q = Question.objects.create(

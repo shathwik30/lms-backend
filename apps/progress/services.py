@@ -87,15 +87,15 @@ class ProgressService:
 
     @staticmethod
     def complete_exam_session(
-        profile: StudentProfile, session: Session, passed: bool
+        profile: StudentProfile, session: Session, is_passed: bool
     ) -> tuple[SessionProgress | None, str | None]:
         with transaction.atomic():
             progress, _ = SessionProgress.objects.get_or_create(
                 student=profile,
                 session=session,
             )
-            progress.is_exam_passed = passed
-            if passed:
+            progress.is_exam_passed = is_passed
+            if is_passed:
                 progress.is_completed = True
                 progress.completed_at = timezone.now()
                 progress.save(update_fields=["is_exam_passed", "is_completed", "completed_at"])
@@ -196,14 +196,15 @@ class ProgressService:
 
         week_data = [
             {
-                "week_id": ws["id"],
-                "week_name": ws["name"],
-                "week_order": ws["order"],
-                "total_sessions": ws["total_sessions"],
-                "completed_sessions": ws["completed_sessions"],
-                "is_complete": ws["completed_sessions"] == ws["total_sessions"] and ws["total_sessions"] > 0,
+                "week_id": week_stat["id"],
+                "week_name": week_stat["name"],
+                "week_order": week_stat["order"],
+                "total_sessions": week_stat["total_sessions"],
+                "completed_sessions": week_stat["completed_sessions"],
+                "is_complete": week_stat["completed_sessions"] == week_stat["total_sessions"]
+                and week_stat["total_sessions"] > 0,
             }
-            for ws in week_stats
+            for week_stat in week_stats
         ]
 
         cp = CourseProgress.objects.filter(student=profile, course=course).first()
@@ -236,7 +237,7 @@ class ProgressService:
             "course_progress": course_progress_qs,
             "next_action": next_info["action"],
             "message": next_info["message"],
-            "onboarding_exam_attempted": profile.onboarding_exam_attempted,
+            "is_onboarding_exam_attempted": profile.is_onboarding_exam_attempted,
         }
 
     @staticmethod
@@ -311,22 +312,22 @@ class ProgressService:
 
         student_stats: dict[int, dict[str, Any]] = {}
         for entry in passed_attempts:
-            sid = entry["student_id"]
-            student_stats[sid] = {
+            student_id = entry["student_id"]
+            student_stats[student_id] = {
                 "exams_passed": entry["exams_passed"],
                 "total_score": float(entry["total_score"]),
                 "levels_cleared": 0,
             }
 
         for entry in levels_cleared:
-            sid = entry["student_id"]
-            if sid not in student_stats:
-                student_stats[sid] = {
+            student_id = entry["student_id"]
+            if student_id not in student_stats:
+                student_stats[student_id] = {
                     "exams_passed": 0,
                     "total_score": 0.0,
                     "levels_cleared": 0,
                 }
-            student_stats[sid]["levels_cleared"] = entry["levels_cleared"]
+            student_stats[student_id]["levels_cleared"] = entry["levels_cleared"]
 
         ranked = sorted(
             student_stats.items(),
@@ -334,12 +335,12 @@ class ProgressService:
             reverse=True,
         )
 
-        top_ids = [sid for sid, _ in ranked[:limit]]
+        top_ids = [student_id for student_id, _ in ranked[:limit]]
         profiles = {p.id: p for p in StudentProfile.objects.filter(id__in=top_ids).select_related("user")}
 
         leaderboard = []
-        for rank, (sid, stats) in enumerate(ranked[:limit], start=1):
-            profile = profiles.get(sid)
+        for rank, (student_id, stats) in enumerate(ranked[:limit], start=1):
+            profile = profiles.get(student_id)
             if not profile:
                 continue
             leaderboard.append(
@@ -370,14 +371,14 @@ class ProgressService:
 
         my_rank = None
         if user.is_student and hasattr(user, "student_profile"):
-            my_id = user.student_profile.id
+            current_student_id = user.student_profile.id
             for entry in leaderboard:
-                if entry["student_id"] == my_id:
+                if entry["student_id"] == current_student_id:
                     my_rank = entry["rank"]
                     break
             if my_rank is None and ranked is not None:
-                for i, (sid, _) in enumerate(ranked, start=1):
-                    if sid == my_id:
+                for i, (student_id, _) in enumerate(ranked, start=1):
+                    if student_id == current_student_id:
                         my_rank = i
                         break
 

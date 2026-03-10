@@ -101,7 +101,7 @@ class AggregateAnalyticsTaskTests(TestCase):
         txn = PaymentTransaction.objects.create(
             student=profile,
             level=self.data["level"],
-            gateway_order_id="test_order_1",
+            razorpay_order_id="test_order_1",
             amount=999,
             status=PaymentTransaction.Status.SUCCESS,
         )

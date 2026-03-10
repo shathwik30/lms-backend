@@ -1363,8 +1363,8 @@ class Command(BaseCommand):
             profile, _ = StudentProfile.objects.get_or_create(
                 user=user,
                 defaults={
-                    "onboarding_completed": idx < 25,  # Most students completed onboarding
-                    "onboarding_exam_attempted": idx < 25,
+                    "is_onboarding_completed": idx < 25,  # Most students completed onboarding
+                    "is_onboarding_exam_attempted": idx < 25,
                 },
             )
             UserPreference.objects.get_or_create(user=user)
@@ -1446,8 +1446,8 @@ class Command(BaseCommand):
                 purchase=purchase,
                 student=profile,
                 level=level,
-                gateway_order_id=f"order_{profile.pk}_{level.pk}_{random.randint(10000, 99999)}",
-                gateway_payment_id=f"pay_{random.randint(100000, 999999)}",
+                razorpay_order_id=f"order_{profile.pk}_{level.pk}_{random.randint(10000, 99999)}",
+                razorpay_payment_id=f"pay_{random.randint(100000, 999999)}",
                 amount=level.price,
                 status=PaymentTransaction.Status.SUCCESS,
             )
@@ -1804,7 +1804,7 @@ class Command(BaseCommand):
                         student=profile,
                         session=session,
                         defaults={
-                            "rating": random.randint(3, 5),
+                            "overall_rating": random.randint(3, 5),
                             "difficulty_rating": random.randint(2, 5),
                             "clarity_rating": random.randint(3, 5),
                             "comment": random.choice(comments),
