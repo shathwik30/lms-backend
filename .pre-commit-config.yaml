@@ -18,7 +18,7 @@ repos:
 
       - id: tests-coverage
         name: tests with coverage
-        entry: bash -c 'tmpdir=$(mktemp -d) && COVERAGE_FILE="$tmpdir/.coverage" coverage run manage.py test tests --parallel && COVERAGE_FILE="$tmpdir/.coverage" coverage combine && COVERAGE_FILE="$tmpdir/.coverage" coverage report && rm -rf "$tmpdir"'
+        entry: bash -c 'tmpdir=$(mktemp -d) && COVERAGE_FILE="$tmpdir/.coverage" coverage run --concurrency=multiprocessing manage.py test tests --parallel && COVERAGE_FILE="$tmpdir/.coverage" coverage combine && COVERAGE_FILE="$tmpdir/.coverage" coverage report && rm -rf "$tmpdir"'
         language: system
         pass_filenames: false
         always_run: true
