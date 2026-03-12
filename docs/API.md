@@ -15,7 +15,7 @@ Authorization: Bearer <access_token>
 ```
 
 Tokens are obtained via `/api/v1/auth/login/`, `/api/v1/auth/register/`, or `/api/v1/auth/google/`.
-Access tokens expire after a short period — use `/api/v1/auth/token/refresh/` with a refresh token to get a new access token.
+Access tokens expire after a short period — use `/api/v1/auth/token/refresh/` with a refresh token to get a new pair of tokens (refresh token rotation is enabled).
 
 ### Permission Levels
 
@@ -23,8 +23,8 @@ Access tokens expire after a short period — use `/api/v1/auth/token/refresh/` 
 |---|---|
 | **Public** | No authentication required |
 | **Authenticated** | Any logged-in user |
-| **Student** | Only student accounts |
-| **Admin** | Only admin/staff accounts |
+| **Student** | Only student accounts (`is_student=true`) |
+| **Admin** | Only admin/staff accounts (`is_admin=true`) |
 
 ---
 
@@ -32,6 +32,7 @@ Access tokens expire after a short period — use `/api/v1/auth/token/refresh/` 
 
 ### `POST /api/v1/auth/register/`
 **Permission:** Public
+**Rate Limit:** `login` (5/min)
 
 Register a new student account. Returns user data and JWT tokens.
 
@@ -68,6 +69,7 @@ Register a new student account. Returns user data and JWT tokens.
 
 ### `POST /api/v1/auth/login/`
 **Permission:** Public
+**Rate Limit:** `login` (5/min)
 
 Authenticate with email and password.
 
@@ -85,6 +87,7 @@ Authenticate with email and password.
 
 ### `POST /api/v1/auth/google/`
 **Permission:** Public
+**Rate Limit:** `login` (5/min)
 
 Authenticate using a Google ID token (from Google Sign-In).
 
@@ -98,8 +101,19 @@ Authenticate using a Google ID token (from Google Sign-In).
 **Response (200):**
 ```json
 {
-  "user": { ... },
-  "tokens": { "refresh": "...", "access": "..." },
+  "user": {
+    "id": 1,
+    "email": "student@example.com",
+    "full_name": "John Doe",
+    "phone": null,
+    "profile_picture": null,
+    "is_student": true,
+    "is_admin": false
+  },
+  "tokens": {
+    "refresh": "eyJ...",
+    "access": "eyJ..."
+  },
   "created": true
 }
 ```
@@ -134,7 +148,7 @@ Blacklist the refresh token.
 ### `POST /api/v1/auth/token/refresh/`
 **Permission:** Public
 
-Get a new access token using a refresh token.
+Get a new token pair using a refresh token. Refresh token rotation is enabled — each call returns a new refresh token and blacklists the old one.
 
 **Request:**
 ```json
@@ -146,7 +160,8 @@ Get a new access token using a refresh token.
 **Response (200):**
 ```json
 {
-  "access": "eyJ..."
+  "access": "eyJ...",
+  "refresh": "eyJ..."
 }
 ```
 
@@ -155,7 +170,7 @@ Get a new access token using a refresh token.
 ### `GET /api/v1/auth/me/`
 **Permission:** Authenticated
 
-Get current user profile. Includes student profile data for student accounts.
+Get current user profile. Includes student profile data (with `gender`, `is_onboarding_exam_attempted`) for student accounts.
 
 **Response (200):**
 ```json
@@ -174,11 +189,15 @@ Get current user profile. Includes student profile data for student accounts.
     "current_level_name": "Level 1",
     "highest_cleared_level": null,
     "highest_cleared_level_name": null,
+    "gender": "male",
     "is_onboarding_completed": false,
+    "is_onboarding_exam_attempted": false,
     "created_at": "2024-01-01T00:00:00Z"
   }
 }
 ```
+
+The `profile` key is only present when `is_student` is `true`.
 
 ---
 
@@ -191,9 +210,12 @@ Update profile fields. Supports `multipart/form-data` for avatar upload.
 ```json
 {
   "full_name": "Updated Name",
-  "phone": "1234567890"
+  "phone": "1234567890",
+  "gender": "male"
 }
 ```
+
+**Updatable fields:** `full_name`, `phone`, `profile_picture` (file), `gender` (one of `male`, `female`, `other`).
 
 **Request (multipart for avatar):**
 ```
@@ -203,6 +225,8 @@ profile_picture: <file>
 
 **Note:** Profile picture uploads have a **5 MB** size limit. Files exceeding 5 MB will receive a `400 Bad Request` response.
 
+**Response (200):** Returns the updated `UserSerializer` data.
+
 ---
 
 ### `DELETE /api/v1/auth/me/`
@@ -210,11 +234,16 @@ profile_picture: <file>
 
 Remove the current profile picture.
 
+**Response (200):** Returns the updated `UserSerializer` data.
+
 ---
 
 ### `POST /api/v1/auth/change-password/`
 **Permission:** Authenticated
 
+Change the current user's password. Returns new JWT tokens (old tokens are invalidated).
+
+**Request:**
 ```json
 {
   "old_password": "current123",
@@ -222,10 +251,20 @@ Remove the current profile picture.
 }
 ```
 
+**Response (200):**
+```json
+{
+  "detail": "Password changed successfully.",
+  "refresh": "eyJ...",
+  "access": "eyJ..."
+}
+```
+
 ---
 
 ### `POST /api/v1/auth/password-reset/`
 **Permission:** Public
+**Rate Limit:** `login` (5/min)
 
 Request a password reset email. Always returns 200 to prevent email enumeration.
 
@@ -239,6 +278,7 @@ Request a password reset email. Always returns 200 to prevent email enumeration.
 
 ### `POST /api/v1/auth/password-reset/confirm/`
 **Permission:** Public
+**Rate Limit:** `login` (5/min)
 
 ```json
 {
@@ -252,6 +292,7 @@ Request a password reset email. Always returns 200 to prevent email enumeration.
 
 ### `POST /api/v1/auth/otp/send/`
 **Permission:** Public
+**Rate Limit:** `login` (5/min)
 
 ```json
 {
@@ -265,12 +306,21 @@ Purpose: `"verify"` or `"password_reset"`.
 
 ### `POST /api/v1/auth/otp/verify/`
 **Permission:** Public
+**Rate Limit:** `login` (5/min)
 
 ```json
 {
   "email": "student@example.com",
   "otp": "123456",
   "purpose": "verify"
+}
+```
+
+**Response (200):**
+```json
+{
+  "detail": "OTP verified.",
+  "verified": true
 }
 ```
 
@@ -295,14 +345,24 @@ Get or update notification preferences.
 ---
 
 ### `POST /api/v1/auth/onboarding/complete/`
-**Permission:** Authenticated (Student only)
+**Permission:** Authenticated
 
 Mark onboarding as completed.
+
+**Response (200):**
+```json
+{
+  "detail": "Onboarding completed.",
+  "is_onboarding_completed": true
+}
+```
 
 ---
 
 ### `POST /api/v1/auth/report-issue/`
 **Permission:** Authenticated
+
+Report an issue. Supports optional `screenshot` file via multipart.
 
 ```json
 {
@@ -311,22 +371,83 @@ Mark onboarding as completed.
   "description": "Detailed description..."
 }
 ```
-Categories: `bug`, `content`, `payment`, `account`, `other`. Supports optional `screenshot` file via multipart.
+Categories: `bug`, `content`, `payment`, `account`, `other`.
+
+**Response (201):**
+```json
+{
+  "id": 1,
+  "category": "bug",
+  "subject": "App crashes on login",
+  "description": "Detailed description...",
+  "screenshot": null,
+  "is_resolved": false,
+  "created_at": "2024-01-01T00:00:00Z"
+}
+```
 
 ---
 
 ### `GET /api/v1/auth/my-issues/`
 **Permission:** Authenticated
+**Pagination:** SmallPagination (10/page)
+**Filters:** `category`, `is_resolved`
 
-List the current user's issue reports. Paginated.
+List the current user's issue reports.
 
 ---
 
-### Admin: `GET /api/v1/auth/admin/students/`
-### Admin: `GET|PATCH /api/v1/auth/admin/students/<id>/`
+### Admin: Students
+
+### `GET /api/v1/auth/admin/students/`
+**Permission:** Admin
+**Pagination:** LargePagination (50/page)
+**Filters:** `current_level`, `highest_cleared_level`
+**Search:** `user__email`, `user__full_name`
+
+List all students.
+
+### `GET /api/v1/auth/admin/students/<id>/`
 **Permission:** Admin
 
-List/update students. Filterable by `current_level`, `highest_cleared_level`. Searchable by email/name.
+Get a student profile.
+
+### `PATCH /api/v1/auth/admin/students/<id>/`
+**Permission:** Admin
+
+Update a student's level assignment.
+
+**Request:**
+```json
+{
+  "current_level": 2,
+  "highest_cleared_level": 1
+}
+```
+
+---
+
+### Admin: Issues
+
+### `GET /api/v1/auth/admin/issues/`
+**Permission:** Admin
+**Pagination:** LargePagination (50/page)
+**Filters:** `category`, `is_resolved`
+**Search:** `subject`, `user__email`
+
+List all issue reports.
+
+### `PATCH /api/v1/auth/admin/issues/<id>/`
+**Permission:** Admin
+
+Update an issue report (e.g., mark as resolved).
+
+**Request:**
+```json
+{
+  "is_resolved": true
+}
+```
 
 ---
 
@@ -334,41 +455,96 @@ List/update students. Filterable by `current_level`, `highest_cleared_level`. Se
 
 ### `GET /api/v1/levels/`
 **Permission:** Public
+**Pagination:** None (returns flat list)
+**Cache:** 5 minutes
 
 List all active levels ordered by `order`.
 
 **Response (200):**
 ```json
-{
-  "count": 5,
-  "results": [
-    {
-      "id": 1,
-      "name": "Level 1",
-      "order": 1,
-      "description": "...",
-      "is_active": true
-    }
-  ]
-}
+[
+  {
+    "id": 1,
+    "name": "Level 1",
+    "order": 1,
+    "description": "...",
+    "is_active": true,
+    "passing_percentage": 50.0,
+    "price": "999.00",
+    "validity_days": 90,
+    "max_final_exam_attempts": 3,
+    "courses_count": 5,
+    "created_at": "2024-01-01T00:00:00Z"
+  }
+]
 ```
 
 ---
 
 ### `GET /api/v1/levels/<id>/`
 **Permission:** Public
+**Cache:** 5 minutes
 
-Get level details with its weeks.
+Get level details including its courses.
+
+**Response (200):**
+```json
+{
+  "id": 1,
+  "name": "Level 1",
+  "order": 1,
+  "description": "...",
+  "is_active": true,
+  "passing_percentage": 50.0,
+  "price": "999.00",
+  "validity_days": 90,
+  "max_final_exam_attempts": 3,
+  "courses": [
+    {
+      "id": 1,
+      "title": "Physics",
+      "description": "...",
+      "is_active": true,
+      "weeks_count": 4
+    }
+  ],
+  "created_at": "2024-01-01T00:00:00Z"
+}
+```
 
 ---
 
-### Admin: `GET|POST /api/v1/levels/admin/`
-### Admin: `GET|PATCH|DELETE /api/v1/levels/admin/<id>/`
-### Admin: `GET|POST /api/v1/levels/admin/<level_id>/weeks/`
-### Admin: `GET|PATCH|DELETE /api/v1/levels/admin/weeks/<id>/`
+### Admin: Levels
+
+### `GET /api/v1/levels/admin/`
+**Permission:** Admin
+**Pagination:** None (returns flat list)
+
+List all levels (including inactive).
+
+### `POST /api/v1/levels/admin/`
 **Permission:** Admin
 
-Full CRUD for levels and weeks.
+Create a level.
+
+**Request:**
+```json
+{
+  "name": "Level 1",
+  "order": 1,
+  "description": "...",
+  "is_active": true,
+  "passing_percentage": 50.0,
+  "price": "999.00",
+  "validity_days": 90,
+  "max_final_exam_attempts": 3
+}
+```
+
+### `GET|PUT|PATCH|DELETE /api/v1/levels/admin/<id>/`
+**Permission:** Admin
+
+Full CRUD for individual levels.
 
 ---
 
@@ -377,55 +553,144 @@ Full CRUD for levels and weeks.
 ### `GET /api/v1/courses/level/<level_id>/`
 **Permission:** Authenticated
 
-Get courses for a specific level.
+Get active courses for a specific level.
+
+**Response (200):**
+```json
+[
+  {
+    "id": 1,
+    "level": 1,
+    "level_name": "Level 1",
+    "title": "Physics",
+    "description": "...",
+    "is_active": true,
+    "weeks_count": 4,
+    "created_at": "2024-01-01T00:00:00Z"
+  }
+]
+```
 
 ---
 
 ### `GET /api/v1/courses/<course_id>/sessions/`
-**Permission:** Student (requires active purchase)
+**Permission:** Student (requires active purchase for the course's level)
+**Pagination:** StandardPagination (20/page)
 
 List sessions for a purchased course. Returns `402 Payment Required` if no active purchase.
+
+**Response fields per session:** `id`, `week`, `title`, `description`, `duration_seconds`, `order`, `session_type`, `is_active`.
 
 ---
 
 ### `GET /api/v1/courses/sessions/<id>/`
 **Permission:** Student (requires active purchase)
 
-Get session details including `video_url`. Returns `402` if no purchase.
+Get full session details including `video_url`, `file_url`, `resource_type`, `markdown_content`, and `exam` FK. Returns `402` if no purchase, `403` if session is not yet accessible.
+
+---
+
+### `POST /api/v1/courses/sessions/<id>/complete-resource/`
+**Permission:** Student
+
+Mark a resource-type session (PDF, note, markdown) as completed.
+
+**Response (200):**
+```json
+{
+  "detail": "Resource session marked as completed."
+}
+```
 
 ---
 
 ### `GET /api/v1/courses/bookmarks/`
+**Permission:** Student
+**Pagination:** SmallPagination (10/page)
+
+List the current student's session bookmarks.
+
 ### `POST /api/v1/courses/bookmarks/`
 **Permission:** Student
 
-List or create session bookmarks.
+Create a session bookmark.
 
-**Create request:**
+**Request:**
 ```json
 {
   "session": 1
 }
 ```
 
----
+**Response (201):**
+```json
+{
+  "id": 1,
+  "session": 1,
+  "session_title": "Introduction to Mechanics",
+  "session_week": 1,
+  "created_at": "2024-01-01T00:00:00Z"
+}
+```
 
 ### `DELETE /api/v1/courses/bookmarks/<id>/`
 **Permission:** Student
 
-Remove a bookmark. Only the owner can delete.
+Remove a bookmark. Only the owner can delete. Returns `204 No Content`.
 
 ---
 
-### Admin: Course, Session, Resource CRUD
+### Admin: Courses
+
+### `GET|POST /api/v1/courses/admin/`
+**Permission:** Admin
+**Pagination:** LargePagination (50/page)
+**Filters:** `level`, `is_active`
+
+List or create courses.
+
+### `GET|PUT|PATCH|DELETE /api/v1/courses/admin/<id>/`
 **Permission:** Admin
 
-- `GET|POST /api/v1/courses/admin/`
-- `GET|PATCH|DELETE /api/v1/courses/admin/<id>/`
-- `GET|POST /api/v1/courses/admin/sessions/`
-- `GET|PATCH|DELETE /api/v1/courses/admin/sessions/<id>/`
-- `GET|POST /api/v1/courses/admin/resources/`
-- `GET|PATCH|DELETE /api/v1/courses/admin/resources/<id>/`
+Full CRUD for individual courses.
+
+---
+
+### Admin: Weeks
+
+### `GET|POST /api/v1/courses/admin/<course_id>/weeks/`
+**Permission:** Admin
+**Pagination:** None
+
+List or create weeks within a course.
+
+**Week fields:** `id`, `course`, `name`, `order`, `is_active`, `created_at`.
+
+### `GET|PUT|PATCH|DELETE /api/v1/courses/admin/weeks/<id>/`
+**Permission:** Admin
+
+Full CRUD for individual weeks.
+
+---
+
+### Admin: Sessions
+
+### `GET|POST /api/v1/courses/admin/sessions/`
+**Permission:** Admin
+**Pagination:** StandardPagination (20/page)
+**Filters:** `week`, `is_active`, `session_type`
+
+List or create sessions. On GET, `markdown_content` is deferred for performance.
+
+**Session fields:** `id`, `week`, `title`, `description`, `video_url`, `file_url`, `resource_type`, `markdown_content`, `duration_seconds`, `order`, `session_type`, `exam`, `is_active`.
+
+**Session types:** `video`, `resource`, `practice_exam`, `proctored_exam`.
+**Resource types:** `pdf`, `note`, `markdown`.
+
+### `GET|PUT|PATCH|DELETE /api/v1/courses/admin/sessions/<id>/`
+**Permission:** Admin
+
+Full CRUD for individual sessions.
 
 ---
 
@@ -436,45 +701,70 @@ Remove a bookmark. Only the owner can delete.
 
 Get exam info with eligibility status.
 
-**Response:**
+**Response (200):**
 ```json
 {
   "id": 1,
-  "title": "Level 1 Final Exam",
+  "level": 1,
+  "level_name": "Level 1",
+  "week": 1,
+  "week_name": "Week 1",
+  "course": 1,
+  "course_title": "Physics",
   "exam_type": "level_final",
+  "title": "Level 1 Final Exam",
   "duration_minutes": 60,
   "total_marks": 20,
   "passing_percentage": 50.0,
   "num_questions": 5,
+  "pool_size": 20,
   "is_proctored": true,
   "max_warnings": 3,
+  "is_active": true,
+  "created_at": "2024-01-01T00:00:00Z",
   "is_eligible": true
 }
 ```
+
+**Exam types:** `weekly`, `level_final`, `onboarding`.
 
 ---
 
 ### `POST /api/v1/exams/<id>/start/`
 **Permission:** Student
 
-Start an exam attempt. Returns a random set of questions. If an active attempt exists, returns it instead.
+Start an exam attempt. Returns a random set of questions. If an active (in-progress) attempt exists, returns it with `200` instead of `201`.
 
 **Response (201):**
 ```json
 {
   "id": 1,
-  "exam": { ... },
+  "exam": 1,
+  "exam_title": "Level 1 Final Exam",
+  "started_at": "2024-01-01T00:00:00Z",
+  "submitted_at": null,
   "status": "in_progress",
+  "score": null,
   "total_marks": 20,
+  "is_passed": false,
+  "is_disqualified": false,
   "questions": [
     {
       "id": 1,
       "question": {
         "id": 5,
         "text": "What is...?",
+        "image_url": null,
+        "marks": 4,
         "question_type": "mcq",
-        "options": [...]
+        "options": [
+          {"id": 10, "text": "Option A", "image_url": null},
+          {"id": 11, "text": "Option B", "image_url": null}
+        ]
       },
+      "selected_option": null,
+      "selected_option_ids": [],
+      "text_answer": "",
       "order": 1
     }
   ]
@@ -485,6 +775,7 @@ Start an exam attempt. Returns a random set of questions. If an active attempt e
 
 ### `POST /api/v1/exams/attempts/<id>/submit/`
 **Permission:** Student
+**Rate Limit:** `exam_submit` (30/hour)
 
 Submit answers for an exam attempt.
 
@@ -501,20 +792,22 @@ Submit answers for an exam attempt.
 
 **Answer types:**
 - MCQ: `option_id` (single integer)
-- Multi-Select MCQ: `option_ids` (list of integers)
-- Fill-in-the-Blank: `text_answer` (string)
+- Multi-Select MCQ: `option_ids` (list of integers, max 20)
+- Fill-in-the-Blank: `text_answer` (string, max 1000 chars)
 
 **Response (200):**
 ```json
 {
   "id": 1,
   "exam": 1,
+  "exam_title": "Level 1 Final Exam",
+  "started_at": "2024-01-01T00:00:00Z",
+  "submitted_at": "2024-01-01T01:00:00Z",
   "status": "submitted",
   "score": 16.0,
   "total_marks": 20,
   "is_passed": true,
-  "is_disqualified": false,
-  "submitted_at": "2024-01-01T01:00:00Z"
+  "is_disqualified": false
 }
 ```
 
@@ -523,14 +816,49 @@ Submit answers for an exam attempt.
 ### `GET /api/v1/exams/attempts/<id>/result/`
 **Permission:** Student
 
-Get detailed result with per-question breakdown (includes explanations and correct answers).
+Get detailed result with per-question breakdown including explanations, correct answers, and marks awarded. Returns `400` if the exam has not been submitted yet.
+
+**Response (200):**
+```json
+{
+  "id": 1,
+  "exam": 1,
+  "exam_title": "Level 1 Final Exam",
+  "started_at": "...",
+  "submitted_at": "...",
+  "status": "submitted",
+  "score": 16.0,
+  "total_marks": 20,
+  "is_passed": true,
+  "is_disqualified": false,
+  "questions": [
+    {
+      "id": 1,
+      "question": 5,
+      "question_text": "What is...?",
+      "question_type": "mcq",
+      "selected_option": 12,
+      "selected_option_ids": [],
+      "text_answer": "",
+      "is_correct": true,
+      "marks_awarded": 4.0,
+      "order": 1,
+      "explanation": "Because...",
+      "correct_text_answer": null,
+      "correct_option_ids": [12]
+    }
+  ]
+}
+```
 
 ---
 
 ### `GET /api/v1/exams/attempts/`
 **Permission:** Student
+**Pagination:** SmallPagination (10/page)
+**Filters:** `exam`, `status`, `is_passed`
 
-List all exam attempts by the current student. Paginated.
+List all exam attempts by the current student.
 
 ---
 
@@ -539,8 +867,9 @@ List all exam attempts by the current student. Paginated.
 ### `POST /api/v1/exams/attempts/<id>/report-violation/`
 **Permission:** Student
 
-Report a proctoring violation during an active exam.
+Report a proctoring violation during an active exam. Auto-disqualifies when `max_warnings` is reached.
 
+**Request:**
 ```json
 {
   "violation_type": "tab_switch",
@@ -550,14 +879,15 @@ Report a proctoring violation during an active exam.
 
 Violation types: `full_screen_exit`, `tab_switch`, `voice_detected`, `multi_face`, `extension_detected`.
 
-Auto-disqualifies when `max_warnings` is reached.
-
 **Response (201):**
 ```json
 {
   "id": 1,
+  "attempt": 1,
   "violation_type": "tab_switch",
   "warning_number": 2,
+  "details": "Switched to another tab",
+  "created_at": "2024-01-01T00:30:00Z",
   "total_warnings": 2,
   "max_warnings": 3,
   "is_disqualified": false
@@ -571,17 +901,89 @@ Auto-disqualifies when `max_warnings` is reached.
 
 Get all proctoring violations for an attempt.
 
+**Response (200):**
+```json
+{
+  "violations": [
+    {
+      "id": 1,
+      "attempt": 1,
+      "violation_type": "tab_switch",
+      "warning_number": 1,
+      "details": "...",
+      "created_at": "2024-01-01T00:30:00Z"
+    }
+  ],
+  "total_warnings": 1,
+  "max_warnings": 3,
+  "is_disqualified": false
+}
+```
+
 ---
 
-### Admin: Question, Option, Exam, Attempt CRUD
+### Admin: Exams
+
+### `GET|POST /api/v1/exams/admin/`
+**Permission:** Admin
+**Pagination:** LargePagination (50/page)
+**Filters:** `level`, `exam_type`, `is_active`
+
+List or create exams.
+
+### `GET|PUT|PATCH|DELETE /api/v1/exams/admin/<id>/`
 **Permission:** Admin
 
-- `GET|POST /api/v1/exams/admin/questions/`
-- `GET|PATCH|DELETE /api/v1/exams/admin/questions/<id>/`
-- `GET|POST /api/v1/exams/admin/questions/<question_id>/options/`
-- `GET|POST /api/v1/exams/admin/`
-- `GET|PATCH|DELETE /api/v1/exams/admin/<id>/`
-- `GET /api/v1/exams/admin/attempts/` (filterable by exam, status, is_passed, is_disqualified, exam__level)
+Full CRUD for individual exams.
+
+---
+
+### Admin: Questions
+
+### `GET|POST /api/v1/exams/admin/questions/`
+**Permission:** Admin
+**Pagination:** LargePagination (50/page)
+**Filters:** `exam`, `level`, `difficulty`, `question_type`, `is_active`
+
+List or create questions. Questions include `options` (with `is_correct` visible to admins).
+
+**Question fields:** `id`, `exam`, `level`, `text`, `image_url`, `difficulty`, `question_type`, `marks`, `negative_marks`, `explanation`, `correct_text_answer`, `is_active`, `options`, `created_at`.
+
+**Question types:** `mcq`, `multi_mcq`, `fill_blank`.
+**Difficulties:** `easy`, `medium`, `hard`.
+
+### `GET|PUT|PATCH|DELETE /api/v1/exams/admin/questions/<id>/`
+**Permission:** Admin
+
+Full CRUD for individual questions.
+
+---
+
+### Admin: Options
+
+### `GET|POST /api/v1/exams/admin/questions/<question_id>/options/`
+**Permission:** Admin
+**Pagination:** None
+
+List or create options for a question.
+
+**Option fields:** `id`, `question`, `text`, `image_url`, `is_correct`.
+
+### `GET|PUT|PATCH|DELETE /api/v1/exams/admin/options/<id>/`
+**Permission:** Admin
+
+Full CRUD for individual options.
+
+---
+
+### Admin: Attempts
+
+### `GET /api/v1/exams/admin/attempts/`
+**Permission:** Admin
+**Pagination:** LargePagination (50/page)
+**Filters:** `exam`, `status`, `is_passed`, `is_disqualified`, `exam__level`
+
+List all exam attempts.
 
 ---
 
@@ -589,24 +991,34 @@ Get all proctoring violations for an attempt.
 
 ### `POST /api/v1/payments/initiate/`
 **Permission:** Student
+**Rate Limit:** `payment` (10/min)
 
-Create a Razorpay order for course purchase.
+Create a Razorpay order for level purchase.
 
+**Request:**
 ```json
 {
-  "course_id": 1
+  "level_id": 1
 }
 ```
 
 **Response (201):**
 ```json
 {
-  "order_id": "order_abc123",
-  "amount": 99900,
+  "transaction_id": 1,
+  "razorpay_order_id": "order_abc123",
+  "amount": "99900",
   "currency": "INR",
-  "key_id": "rzp_test_..."
+  "level_id": 1,
+  "level_name": "Level 1",
+  "razorpay_key": "rzp_test_..."
 }
 ```
+
+**Error responses:**
+- **404** — Level not found
+- **400** — Already purchased / validation error
+- **502** — Payment gateway error
 
 ---
 
@@ -615,6 +1027,7 @@ Create a Razorpay order for course purchase.
 
 Verify Razorpay payment and activate purchase.
 
+**Request:**
 ```json
 {
   "razorpay_order_id": "order_abc123",
@@ -623,27 +1036,69 @@ Verify Razorpay payment and activate purchase.
 }
 ```
 
+**Response (201):**
+```json
+{
+  "id": 1,
+  "level": 1,
+  "level_name": "Level 1",
+  "amount_paid": "999.00",
+  "purchased_at": "2024-01-01T00:00:00Z",
+  "expires_at": "2024-04-01T00:00:00Z",
+  "status": "active",
+  "is_valid": true,
+  "extended_by_days": 0
+}
+```
+
 ---
 
 ### `GET /api/v1/payments/purchases/`
 **Permission:** Student
+**Pagination:** SmallPagination (10/page)
+**Filters:** `level`, `status`
 
-List the current student's purchases. Paginated.
+List the current student's purchases.
+
+**Purchase statuses:** `active`, `expired`, `revoked`.
 
 ---
 
 ### `GET /api/v1/payments/transactions/`
 **Permission:** Student
+**Pagination:** SmallPagination (10/page)
+**Filters:** `status`
 
-List payment transactions. Paginated.
+List payment transactions.
+
+**Transaction fields:** `id`, `razorpay_order_id`, `razorpay_payment_id`, `amount`, `status`, `created_at`.
+**Transaction statuses:** `pending`, `success`, `failed`, `refunded`.
 
 ---
 
-### Admin: `GET /api/v1/payments/admin/purchases/`
-### Admin: `POST /api/v1/payments/admin/extend/`
+### Admin: Purchases
+
+### `GET /api/v1/payments/admin/purchases/`
+**Permission:** Admin
+**Pagination:** LargePagination (50/page)
+**Filters:** `status`, `level`
+
+List all purchases.
+
+### `POST /api/v1/payments/admin/extend/`
 **Permission:** Admin
 
-List all purchases / extend purchase validity.
+Extend a purchase's validity period.
+
+**Request:**
+```json
+{
+  "purchase_id": 1,
+  "extra_days": 30
+}
+```
+
+**Response (200):** Returns the updated purchase object.
 
 ---
 
@@ -658,9 +1113,32 @@ Get student dashboard with current level, progress overview, and next recommende
 ```json
 {
   "current_level": {"id": 1, "name": "Level 1", "order": 1},
-  "level_progress": [...],
+  "level_progress": [
+    {
+      "id": 1,
+      "level": 1,
+      "level_name": "Level 1",
+      "level_order": 1,
+      "status": "in_progress",
+      "started_at": "2024-01-01T00:00:00Z",
+      "completed_at": null,
+      "final_exam_attempts_used": 0
+    }
+  ],
+  "course_progress": [
+    {
+      "id": 1,
+      "course": 1,
+      "course_title": "Physics",
+      "level_name": "Level 1",
+      "status": "in_progress",
+      "started_at": "2024-01-01T00:00:00Z",
+      "completed_at": null
+    }
+  ],
   "next_action": "attempt_exam",
-  "message": "You are ready to take the Level 1 exam."
+  "message": "You are ready to take the Level 1 exam.",
+  "is_onboarding_exam_attempted": true
 }
 ```
 
@@ -670,12 +1148,28 @@ Get student dashboard with current level, progress overview, and next recommende
 
 ### `POST /api/v1/progress/sessions/<session_id>/`
 **Permission:** Student
+**Rate Limit:** `progress_update` (120/min)
 
 Update watch progress. Auto-completes at 90% if feedback is submitted.
 
+**Request:**
 ```json
 {
   "watched_seconds": 1500
+}
+```
+
+**Response (200):**
+```json
+{
+  "id": 1,
+  "session": 1,
+  "session_title": "Introduction to Mechanics",
+  "total_duration": 1800,
+  "watched_seconds": 1500,
+  "is_completed": false,
+  "completed_at": null,
+  "is_exam_passed": false
 }
 ```
 
@@ -683,15 +1177,50 @@ Update watch progress. Auto-completes at 90% if feedback is submitted.
 
 ### `GET /api/v1/progress/levels/<level_id>/sessions/`
 **Permission:** Student
+**Pagination:** SmallPagination (10/page)
 
-List session progress for a level.
+List session progress for all sessions in a level.
 
 ---
 
 ### `GET /api/v1/progress/levels/`
 **Permission:** Student
+**Pagination:** None (returns flat list)
 
 List level progress for all levels.
+
+**Level progress statuses:** `not_started`, `in_progress`, `syllabus_complete`, `exam_passed`, `exam_failed`.
+
+---
+
+### `GET /api/v1/progress/courses/<course_id>/`
+**Permission:** Student
+
+Get progress for a specific course.
+
+**Response (200):**
+```json
+{
+  "id": 1,
+  "course": 1,
+  "course_title": "Physics",
+  "level_name": "Level 1",
+  "status": "in_progress",
+  "started_at": "2024-01-01T00:00:00Z",
+  "completed_at": null
+}
+```
+
+**Course progress statuses:** `not_started`, `in_progress`, `completed`.
+
+---
+
+### `GET /api/v1/progress/levels/<level_id>/courses/`
+**Permission:** Student
+
+List course progress for all courses in a level.
+
+**Response (200):** Array of course progress objects.
 
 ---
 
@@ -699,6 +1228,21 @@ List level progress for all levels.
 **Permission:** Student
 
 Get activity calendar showing sessions watched and exams taken per day.
+
+**Query parameters (required):**
+- `year` — 2000–2100
+- `month` — 1–12
+
+**Response (200):**
+```json
+{
+  "year": 2024,
+  "month": 6,
+  "active_dates": [
+    {"date": "2024-06-01", "sessions_watched": 3, "exams_taken": 0}
+  ]
+}
+```
 
 ---
 
@@ -734,12 +1278,20 @@ Get leaderboard of top students ranked by levels cleared and total exam scores.
 ## 7. Doubts (Q&A Support)
 
 ### `GET /api/v1/doubts/`
+**Permission:** Student
+**Pagination:** SmallPagination (10/page)
+**Rate Limit:** `doubt_create` (10/min, applies to POST only)
+
+List the current student's doubt tickets.
+
+**Response fields per ticket:** `id`, `student`, `student_name`, `title`, `status`, `context_type`, `created_at`, `replies_count`.
+
 ### `POST /api/v1/doubts/`
 **Permission:** Student
 
-List or create doubt tickets.
+Create a doubt ticket.
 
-**Create request:**
+**Request:**
 ```json
 {
   "context_type": "session",
@@ -771,32 +1323,95 @@ Returns `403 Forbidden` if no active purchase:
 ### `GET /api/v1/doubts/<id>/`
 **Permission:** Student
 
-Get doubt ticket details with replies.
+Get doubt ticket details with all replies.
 
 ---
 
 ### `POST /api/v1/doubts/<id>/reply/`
 **Permission:** Student
 
-Reply to a doubt ticket. Supports `attachment` file.
+Reply to a doubt ticket. Supports `attachment` file via multipart.
 
+**Request:**
 ```json
 {
   "message": "Thanks, I still have a question about..."
 }
 ```
 
+**Response (201):**
+```json
+{
+  "id": 1,
+  "ticket": 1,
+  "author": 1,
+  "author_name": "John Doe",
+  "author_role": "student",
+  "message": "Thanks, I still have a question about...",
+  "attachment": null,
+  "created_at": "2024-01-01T00:00:00Z"
+}
+```
+
 ---
 
-### Admin: Doubt management
+### Admin: Doubts
+
+### `GET /api/v1/doubts/admin/`
+**Permission:** Admin
+**Pagination:** LargePagination (50/page)
+**Filters:** `status`, `context_type`, `assigned_to`
+**Search:** `title`, `student__user__email`
+
+List all doubt tickets.
+
+### `GET /api/v1/doubts/admin/<id>/`
 **Permission:** Admin
 
-- `GET /api/v1/doubts/admin/` — List all doubts
-- `GET /api/v1/doubts/admin/<id>/` — Get doubt details
-- `POST /api/v1/doubts/admin/<id>/reply/` — Reply to doubt
-- `POST /api/v1/doubts/admin/<id>/assign/` — Assign to admin
-- `POST /api/v1/doubts/admin/<id>/status/` — Update status
-- `POST /api/v1/doubts/admin/<id>/bonus/` — Award bonus marks
+Get doubt ticket details with replies.
+
+### `POST /api/v1/doubts/admin/<id>/reply/`
+**Permission:** Admin
+
+Reply to a doubt ticket as admin.
+
+### `PATCH /api/v1/doubts/admin/<id>/assign/`
+**Permission:** Admin
+
+Assign a doubt ticket to an admin user.
+
+**Request:**
+```json
+{
+  "assigned_to": 2
+}
+```
+
+### `PATCH /api/v1/doubts/admin/<id>/status/`
+**Permission:** Admin
+
+Update doubt ticket status.
+
+**Request:**
+```json
+{
+  "status": "answered"
+}
+```
+
+**Doubt statuses:** `open`, `in_review`, `answered`, `closed`.
+
+### `PATCH /api/v1/doubts/admin/<id>/bonus/`
+**Permission:** Admin
+
+Award bonus marks to the student.
+
+**Request:**
+```json
+{
+  "bonus_marks": 5.00
+}
+```
 
 ---
 
@@ -804,9 +1419,11 @@ Reply to a doubt ticket. Supports `attachment` file.
 
 ### `POST /api/v1/feedback/sessions/<session_id>/`
 **Permission:** Student (requires active purchase for the session's level)
+**Rate Limit:** `feedback` (20/min)
 
-Submit mandatory session feedback (required for session completion). The student must have an active purchase for the course at the session's level.
+Submit mandatory session feedback (required for session completion). The session ID comes from the URL, not the request body.
 
+**Request:**
 ```json
 {
   "overall_rating": 5,
@@ -815,12 +1432,32 @@ Submit mandatory session feedback (required for session completion). The student
   "comment": "Great session!"
 }
 ```
-All ratings are 1-5. One feedback per session per student.
 
-Returns `403 Forbidden` if the student has no active purchase:
+- `overall_rating` (integer, required) — 1–5
+- `difficulty_rating` (integer, optional) — 1–5
+- `clarity_rating` (integer, optional) — 1–5
+- `comment` (string, optional)
+
+One feedback per session per student. Returns `400` if already submitted.
+
+Returns `403 Forbidden` if no active purchase:
 ```json
 {
   "detail": "You must purchase a course for this level to submit feedback."
+}
+```
+
+**Response (201):**
+```json
+{
+  "id": 1,
+  "session": 1,
+  "session_title": "Introduction to Mechanics",
+  "overall_rating": 5,
+  "difficulty_rating": 3,
+  "clarity_rating": 4,
+  "comment": "Great session!",
+  "created_at": "2024-01-01T00:00:00Z"
 }
 ```
 
@@ -828,6 +1465,8 @@ Returns `403 Forbidden` if the student has no active purchase:
 
 ### `GET /api/v1/feedback/`
 **Permission:** Student
+**Pagination:** SmallPagination (10/page)
+**Filters:** `session`, `overall_rating`
 
 List the current student's feedback submissions.
 
@@ -835,24 +1474,35 @@ List the current student's feedback submissions.
 
 ### Admin: `GET /api/v1/feedback/admin/`
 **Permission:** Admin
+**Pagination:** LargePagination (50/page)
+**Filters:** `session`, `overall_rating`, `difficulty_rating`, `clarity_rating`
+**Search:** `student__user__email`
 
-List all feedback with filters.
+List all feedback.
 
 ---
 
 ## 9. Analytics (Admin)
 
-### `GET /api/v1/analytics/revenue/?date=2024-01-01`
+### `GET /api/v1/analytics/revenue/`
 **Permission:** Admin
+**Pagination:** LargePagination (50/page)
+**Filters:** `date`
 
-Get daily revenue aggregation. Filterable by `date`.
+Get daily revenue records.
+
+**Response fields:** `id`, `date`, `total_revenue`, `total_transactions`.
 
 ---
 
-### `GET /api/v1/analytics/levels/?level=1&date=2024-01-01`
+### `GET /api/v1/analytics/levels/`
 **Permission:** Admin
+**Pagination:** LargePagination (50/page)
+**Filters:** `level`, `date`
 
-Get level-wise analytics (attempts, passes, failures, purchases, revenue, pass rate). Filterable by `level` and `date`.
+Get per-level analytics.
+
+**Response fields:** `id`, `level`, `level_name`, `date`, `total_attempts`, `total_passes`, `total_failures`, `total_purchases`, `revenue`, `pass_rate`.
 
 ---
 
@@ -860,8 +1510,19 @@ Get level-wise analytics (attempts, passes, failures, purchases, revenue, pass r
 
 ### `GET /api/v1/notifications/`
 **Permission:** Authenticated
+**Pagination:** SmallPagination (10/page)
+**Filters:** `is_read`, `notification_type`
 
-List notifications. Paginated.
+List notifications for the current user.
+
+**Notification types:** `purchase`, `exam_result`, `doubt_reply`, `level_unlock`, `course_expiry`, `general`.
+
+---
+
+### `DELETE /api/v1/notifications/<id>/`
+**Permission:** Authenticated
+
+Delete a single notification. Returns `204 No Content`.
 
 ---
 
@@ -877,6 +1538,14 @@ Mark a single notification as read.
 
 Mark all notifications as read.
 
+**Response (200):**
+```json
+{
+  "detail": "All notifications marked as read.",
+  "count": 5
+}
+```
+
 ---
 
 ### `DELETE /api/v1/notifications/clear-all/`
@@ -884,12 +1553,20 @@ Mark all notifications as read.
 
 Delete all notifications for the current user.
 
+**Response (200):**
+```json
+{
+  "detail": "All notifications cleared.",
+  "count": 5
+}
+```
+
 ---
 
 ### `GET /api/v1/notifications/unread-count/`
 **Permission:** Authenticated
 
-**Response:**
+**Response (200):**
 ```json
 {
   "unread_count": 3
@@ -902,30 +1579,62 @@ Delete all notifications for the current user.
 
 ### `GET /api/v1/home/banners/`
 **Permission:** Public
+**Pagination:** None
+**Cache:** 5 minutes
 
-Get active banners for the home screen, ordered by `order`.
+Get active banners for the home screen.
+
+**Response (200):**
+```json
+[
+  {
+    "id": 1,
+    "title": "New Course Available",
+    "subtitle": "Check out our latest physics course",
+    "image_url": "https://...",
+    "link_type": "course",
+    "link_id": 1,
+    "link_url": null
+  }
+]
+```
+
+**Banner link types:** `course`, `level`, `url`, `none`.
 
 ---
 
 ### `GET /api/v1/home/featured/`
 **Permission:** Public
+**Cache:** 1 minute
 
-Get featured/active courses for the home screen.
+Get featured/active courses for the home screen (max 10).
+
+**Response (200):** Array of course objects.
 
 ---
 
-### Admin: Banner CRUD
+### Admin: Banners
+
+### `GET|POST /api/v1/home/admin/banners/`
+**Permission:** Admin
+**Pagination:** None
+
+List or create banners.
+
+**Banner fields (admin):** `id`, `title`, `subtitle`, `image_url`, `link_type`, `link_id`, `link_url`, `order`, `is_active`.
+
+### `GET|PUT|PATCH|DELETE /api/v1/home/admin/banners/<id>/`
 **Permission:** Admin
 
-- `GET|POST /api/v1/home/admin/banners/`
-- `GET|PATCH|DELETE /api/v1/home/admin/banners/<id>/`
+Full CRUD for individual banners.
 
 ---
 
-## 13. Search
+## 12. Search
 
 ### `GET /api/v1/search/?q=keyword`
 **Permission:** Authenticated
+**Rate Limit:** `search` (60/min)
 
 Global search across levels, courses, sessions, and questions.
 
@@ -948,10 +1657,39 @@ When `level` is provided, `levels` list is empty (already scoped). Results are c
 
 ---
 
+## 13. Health Check
+
+### `GET /api/v1/health/`
+**Permission:** Public
+
+Check the health of the API, database, and Redis cache.
+
+**Response (200):**
+```json
+{
+  "status": "healthy",
+  "database": true,
+  "redis": true
+}
+```
+
+`status` is `"healthy"` when both database and Redis are reachable, `"degraded"` otherwise.
+
+---
+
 ## Pagination
 
-All list endpoints use page-based pagination:
+List endpoints use one of three page-based pagination classes:
 
+| Class | Page Size | Max Page Size | Used By |
+|---|---|---|---|
+| **StandardPagination** | 20 | 100 | Default for most endpoints |
+| **SmallPagination** | 10 | 50 | Bookmarks, doubts, feedback, attempts, purchases, transactions, notifications, issues, session progress |
+| **LargePagination** | 50 | 200 | Admin list endpoints (students, courses, exams, questions, purchases, analytics, feedback, doubts, attempts) |
+
+Some endpoints have no pagination (flat list): levels, level progress, weeks, banners, options.
+
+**Paginated response format:**
 ```json
 {
   "count": 42,
@@ -960,8 +1698,6 @@ All list endpoints use page-based pagination:
   "results": [...]
 }
 ```
-
-Default page size: 20.
 
 ---
 
@@ -1014,16 +1750,35 @@ Default page size: 20.
 }
 ```
 
+**429 Too Many Requests:**
+```json
+{
+  "detail": "Request was throttled."
+}
+```
+
+**502 Bad Gateway:**
+```json
+{
+  "detail": "Payment gateway error."
+}
+```
+
 ---
 
 ## Rate Limiting
 
-| Scope | Limit |
-|---|---|
-| Anonymous requests | 30/min |
-| Authenticated requests | 120/min |
-| Login/Register/OTP | 5/min |
-| Payment operations | 10/min |
+| Scope | Limit | Endpoints |
+|---|---|---|
+| Anonymous requests | 30/min | All unauthenticated requests |
+| Authenticated requests | 120/min | All authenticated requests |
+| `login` | 5/min | Register, login, Google auth, OTP, password reset |
+| `payment` | 10/min | Payment initiation |
+| `exam_submit` | 30/hour | Exam submission |
+| `search` | 60/min | Global search |
+| `doubt_create` | 10/min | Doubt ticket creation |
+| `feedback` | 20/min | Feedback submission |
+| `progress_update` | 120/min | Session progress updates |
 
 ---
 
