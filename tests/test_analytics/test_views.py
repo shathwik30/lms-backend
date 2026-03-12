@@ -50,7 +50,7 @@ class AnalyticsAPITests(APITestCase):
         )
         response = self.admin_client.get("/api/v1/analytics/revenue/")
         self.assertEqual(response.status_code, status.HTTP_200_OK)
-        self.assertEqual(response.data["count"], 1)
+        self.assertEqual(len(response.data["results"]), 1)
 
     def test_admin_level_analytics_list(self):
         LevelAnalytics.objects.create(
@@ -61,7 +61,7 @@ class AnalyticsAPITests(APITestCase):
         )
         response = self.admin_client.get("/api/v1/analytics/levels/")
         self.assertEqual(response.status_code, status.HTTP_200_OK)
-        self.assertEqual(response.data["count"], 1)
+        self.assertEqual(len(response.data["results"]), 1)
 
     def test_student_cannot_access_analytics(self):
         user, _ = self.factory.create_student()

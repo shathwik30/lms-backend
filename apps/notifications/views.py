@@ -6,6 +6,7 @@ from rest_framework.response import Response
 from rest_framework.views import APIView
 
 from core.constants import ErrorMessage, SuccessMessage
+from core.decorators import swagger_safe
 from core.pagination import SmallPagination
 
 from .models import Notification
@@ -22,9 +23,8 @@ class NotificationListView(generics.ListAPIView):
     pagination_class = SmallPagination
     filterset_fields = ["is_read", "notification_type"]
 
+    @swagger_safe(Notification)
     def get_queryset(self):
-        if getattr(self, "swagger_fake_view", False):
-            return Notification.objects.none()
         return Notification.objects.filter(user=self.request.user)  # type: ignore[misc]
 
 

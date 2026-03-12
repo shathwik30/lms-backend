@@ -4,10 +4,12 @@ import logging
 import random
 from datetime import timedelta
 from decimal import Decimal
+from typing import Any
 
 from django.db import transaction
 from django.utils import timezone
 
+from apps.levels.models import Level
 from apps.notifications.models import Notification
 from apps.notifications.services import NotificationService
 from apps.progress.models import LevelProgress
@@ -235,7 +237,7 @@ class ExamService:
         )
 
     @staticmethod
-    def _reset_level_progress(student: StudentProfile, level) -> None:
+    def _reset_level_progress(student: StudentProfile, level: Level) -> None:
         from apps.progress.services import ProgressService
 
         ProgressService.reset_level_progress(student, level)
@@ -336,7 +338,7 @@ class ExamService:
         }, None
 
     @staticmethod
-    def _evaluate_mcq(attempt_question: AttemptQuestion, answer: dict) -> None:
+    def _evaluate_mcq(attempt_question: AttemptQuestion, answer: dict[str, Any]) -> None:
         selected_option_id = answer.get("option_id")
         if selected_option_id:
             option = next((o for o in attempt_question.question.options.all() if o.pk == selected_option_id), None)
@@ -355,7 +357,11 @@ class ExamService:
             attempt_question.marks_awarded = 0
 
     @staticmethod
-    def _evaluate_multi_mcq(attempt_question: AttemptQuestion, answer: dict, multi_mcq_updates: list) -> None:
+    def _evaluate_multi_mcq(
+        attempt_question: AttemptQuestion,
+        answer: dict[str, Any],
+        multi_mcq_updates: list[tuple[AttemptQuestion, list[int]]],
+    ) -> None:
         option_ids = answer.get("option_ids", [])
         if option_ids:
             all_options = list(attempt_question.question.options.all())
@@ -373,7 +379,7 @@ class ExamService:
             attempt_question.marks_awarded = 0
 
     @staticmethod
-    def _evaluate_fill_blank(attempt_question: AttemptQuestion, answer: dict) -> None:
+    def _evaluate_fill_blank(attempt_question: AttemptQuestion, answer: dict[str, Any]) -> None:
         text_answer = answer.get("text_answer", "").strip()
         attempt_question.text_answer = text_answer
         if text_answer:

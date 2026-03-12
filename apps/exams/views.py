@@ -4,6 +4,7 @@ from rest_framework.response import Response
 from rest_framework.views import APIView
 
 from core.constants import ErrorMessage
+from core.decorators import swagger_safe
 from core.pagination import LargePagination, SmallPagination
 from core.permissions import IsAdmin, IsStudent
 from core.throttling import SafeScopedRateThrottle
@@ -125,9 +126,8 @@ class StudentAttemptListView(generics.ListAPIView):
     pagination_class = SmallPagination
     filterset_fields = ["exam", "status", "is_passed"]
 
+    @swagger_safe(ExamAttempt)
     def get_queryset(self):
-        if getattr(self, "swagger_fake_view", False):
-            return ExamAttempt.objects.none()
         return ExamAttempt.objects.filter(
             student=self.request.user.student_profile,  # type: ignore[union-attr]
         ).select_related("exam")
@@ -229,9 +229,8 @@ class AdminOptionListCreateView(generics.ListCreateAPIView):
     serializer_class = OptionAdminSerializer
     pagination_class = None
 
+    @swagger_safe(Option)
     def get_queryset(self):
-        if getattr(self, "swagger_fake_view", False):
-            return Option.objects.none()
         return Option.objects.filter(question_id=self.kwargs["question_pk"])
 
     def perform_create(self, serializer):

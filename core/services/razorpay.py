@@ -15,11 +15,15 @@ Usage:
     )
 """
 
+from __future__ import annotations
+
+from typing import Any
+
 import razorpay
 from django.conf import settings
 
 
-def _get_client():
+def _get_client() -> razorpay.Client:
     return razorpay.Client(
         auth=(settings.RAZORPAY_KEY_ID, settings.RAZORPAY_KEY_SECRET),
     )
@@ -27,7 +31,12 @@ def _get_client():
 
 class RazorpayService:
     @staticmethod
-    def create_order(amount, receipt, currency="INR", notes=None):
+    def create_order(
+        amount: float,
+        receipt: str,
+        currency: str = "INR",
+        notes: dict[str, str] | None = None,
+    ) -> dict[str, Any]:
         """
         Create a Razorpay order.
 
@@ -58,7 +67,7 @@ class RazorpayService:
         }
 
     @staticmethod
-    def verify_payment(order_id, payment_id, signature):
+    def verify_payment(order_id: str, payment_id: str, signature: str) -> bool:
         """
         Verify Razorpay payment signature.
 
@@ -78,13 +87,13 @@ class RazorpayService:
             return False
 
     @staticmethod
-    def fetch_payment(payment_id):
+    def fetch_payment(payment_id: str) -> dict[str, Any]:
         """Fetch payment details from Razorpay."""
         client = _get_client()
         return client.payment.fetch(payment_id)
 
     @staticmethod
-    def initiate_refund(payment_id, amount=None):
+    def initiate_refund(payment_id: str, amount: float | None = None) -> dict[str, Any]:
         """
         Initiate a refund.
 

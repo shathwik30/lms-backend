@@ -7,6 +7,7 @@ from rest_framework.views import APIView
 
 from apps.levels.models import Level
 from core.constants import ErrorMessage, SuccessMessage
+from core.decorators import swagger_safe
 from core.pagination import LargePagination, SmallPagination
 from core.permissions import IsAdmin
 from core.throttling import SafeScopedRateThrottle
@@ -527,13 +528,8 @@ class IssueReportListView(generics.ListAPIView):
     pagination_class = SmallPagination
     filterset_fields = ["category", "is_resolved"]
 
+    @swagger_safe(IssueReport)
     def get_queryset(self):
-        if getattr(self, "swagger_fake_view", False):
-            from .models import IssueReport
-
-            return IssueReport.objects.none()
-        from .models import IssueReport
-
         return IssueReport.objects.filter(user=self.request.user)  # type: ignore[misc]
 
 

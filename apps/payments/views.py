@@ -7,6 +7,7 @@ from rest_framework.response import Response
 from rest_framework.views import APIView
 
 from core.constants import ErrorMessage
+from core.decorators import swagger_safe
 from core.pagination import LargePagination, SmallPagination
 from core.permissions import IsAdmin, IsStudent
 from core.throttling import SafeScopedRateThrottle
@@ -97,9 +98,8 @@ class PurchaseHistoryView(generics.ListAPIView):
     pagination_class = SmallPagination
     filterset_fields = ["level", "status"]
 
+    @swagger_safe(Purchase)
     def get_queryset(self):
-        if getattr(self, "swagger_fake_view", False):
-            return Purchase.objects.none()
         return Purchase.objects.filter(
             student=self.request.user.student_profile,  # type: ignore[union-attr]
         ).select_related("level")
@@ -114,9 +114,8 @@ class TransactionHistoryView(generics.ListAPIView):
     pagination_class = SmallPagination
     filterset_fields = ["status"]
 
+    @swagger_safe(PaymentTransaction)
     def get_queryset(self):
-        if getattr(self, "swagger_fake_view", False):
-            return PaymentTransaction.objects.none()
         return PaymentTransaction.objects.filter(
             student=self.request.user.student_profile,  # type: ignore[union-attr]
         )

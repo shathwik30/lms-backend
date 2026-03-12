@@ -1,7 +1,7 @@
 from drf_spectacular.utils import extend_schema, extend_schema_view
 from rest_framework import generics
 
-from core.pagination import LargePagination
+from core.pagination import AnalyticsCursorPagination
 from core.permissions import IsAdmin
 
 from .models import DailyRevenue, LevelAnalytics
@@ -15,7 +15,7 @@ class RevenueListView(generics.ListAPIView):
     permission_classes = [IsAdmin]
     serializer_class = DailyRevenueSerializer
     queryset = DailyRevenue.objects.all()
-    pagination_class = LargePagination
+    pagination_class = AnalyticsCursorPagination
     filterset_fields = ["date"]
 
 
@@ -26,5 +26,5 @@ class LevelAnalyticsListView(generics.ListAPIView):
     permission_classes = [IsAdmin]
     serializer_class = LevelAnalyticsSerializer
     queryset = LevelAnalytics.objects.select_related("level")
-    pagination_class = LargePagination
+    pagination_class = AnalyticsCursorPagination
     filterset_fields = ["level", "date"]

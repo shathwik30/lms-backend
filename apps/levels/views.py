@@ -5,6 +5,7 @@ from drf_spectacular.utils import extend_schema, extend_schema_view
 from rest_framework import generics
 from rest_framework.permissions import AllowAny
 
+from core.decorators import swagger_safe
 from core.permissions import IsAdmin
 
 from .models import Level, Week
@@ -69,9 +70,8 @@ class AdminWeekListCreateView(generics.ListCreateAPIView):
     serializer_class = WeekSerializer
     pagination_class = None
 
+    @swagger_safe(Week)
     def get_queryset(self):
-        if getattr(self, "swagger_fake_view", False):
-            return Week.objects.none()
         return Week.objects.filter(course_id=self.kwargs["course_pk"])
 
     def perform_create(self, serializer):

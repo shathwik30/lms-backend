@@ -1,3 +1,4 @@
+from django.http import Http404
 from drf_spectacular.utils import extend_schema, extend_schema_view, inline_serializer
 from rest_framework import generics, serializers, status
 from rest_framework.permissions import IsAuthenticated
@@ -5,6 +6,7 @@ from rest_framework.response import Response
 from rest_framework.views import APIView
 
 from core.constants import ErrorMessage, SuccessMessage
+from core.decorators import swagger_safe
 from core.exceptions import PurchaseRequired, SessionNotAccessible
 from core.pagination import LargePagination, SmallPagination
 from core.permissions import IsAdmin, IsStudent
@@ -37,9 +39,8 @@ class CourseSessionsView(generics.ListAPIView):
     permission_classes = [IsStudent]
     serializer_class = SessionListSerializer
 
+    @swagger_safe(Session)
     def get_queryset(self):
-        if getattr(self, "swagger_fake_view", False):
-            return Session.objects.none()
         course_id = self.kwargs["course_pk"]
         profile = self.request.user.student_profile  # type: ignore[union-attr]
 
@@ -48,8 +49,8 @@ class CourseSessionsView(generics.ListAPIView):
 
         try:
             course = Course.objects.get(pk=course_id)
-        except Course.DoesNotExist as exc:
-            raise PurchaseRequired() from exc
+        except Course.DoesNotExist:
+            raise Http404 from None
         return (
             Session.objects.filter(
                 week__course=course,
@@ -118,9 +119,8 @@ class BookmarkListCreateView(generics.ListCreateAPIView):
     serializer_class = BookmarkSerializer
     pagination_class = SmallPagination
 
+    @swagger_safe(Bookmark)
     def get_queryset(self):
-        if getattr(self, "swagger_fake_view", False):
-            return Bookmark.objects.none()
         return Bookmark.objects.filter(
             student=self.request.user.student_profile,  # type: ignore[union-attr]
         ).select_related("session__week")
@@ -181,9 +181,8 @@ class AdminSessionListCreateView(generics.ListCreateAPIView):
     serializer_class = SessionDetailSerializer
     filterset_fields = ["week", "is_active", "session_type"]
 
+    @swagger_safe(Session)
     def get_queryset(self):
-        if getattr(self, "swagger_fake_view", False):
-            return Session.objects.none()
         if self.request.method == "GET":
             return Session.objects.select_related("week__course__level").defer("markdown_content")
         return Session.objects.select_related("week__course__level")

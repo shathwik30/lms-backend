@@ -6,6 +6,7 @@ from rest_framework.response import Response
 from rest_framework.views import APIView
 
 from core.constants import ErrorMessage, ProgressConstants
+from core.decorators import swagger_safe
 from core.pagination import SmallPagination
 from core.permissions import IsStudent
 from core.throttling import SafeScopedRateThrottle
@@ -50,9 +51,8 @@ class SessionProgressListView(generics.ListAPIView):
     serializer_class = SessionProgressSerializer
     pagination_class = SmallPagination
 
+    @swagger_safe(SessionProgress)
     def get_queryset(self):
-        if getattr(self, "swagger_fake_view", False):
-            return SessionProgress.objects.none()
         level_pk = self.kwargs.get("level_pk")
         return SessionProgress.objects.filter(
             student=self.request.user.student_profile,  # type: ignore[union-attr]
@@ -68,9 +68,8 @@ class LevelProgressListView(generics.ListAPIView):
     serializer_class = LevelProgressSerializer
     pagination_class = None
 
+    @swagger_safe(LevelProgress)
     def get_queryset(self):
-        if getattr(self, "swagger_fake_view", False):
-            return LevelProgress.objects.none()
         return LevelProgress.objects.filter(
             student=self.request.user.student_profile,  # type: ignore[union-attr]
         ).select_related("level")

@@ -4,6 +4,7 @@ from rest_framework.response import Response
 from rest_framework.views import APIView
 
 from core.constants import ErrorMessage
+from core.decorators import swagger_safe
 from core.pagination import LargePagination, SmallPagination
 from core.permissions import IsAdmin, IsStudent
 from core.throttling import SafeScopedRateThrottle
@@ -38,9 +39,8 @@ class StudentDoubtListCreateView(generics.ListCreateAPIView):
             return CreateDoubtSerializer
         return DoubtTicketListSerializer
 
+    @swagger_safe(DoubtTicket)
     def get_queryset(self):
-        if getattr(self, "swagger_fake_view", False):
-            return DoubtTicket.objects.none()
         return DoubtTicket.objects.filter(
             student=self.request.user.student_profile,  # type: ignore[union-attr]
         ).prefetch_related("replies")
@@ -62,9 +62,8 @@ class StudentDoubtDetailView(generics.RetrieveAPIView):
     permission_classes = [IsStudent]
     serializer_class = DoubtTicketDetailSerializer
 
+    @swagger_safe(DoubtTicket)
     def get_queryset(self):
-        if getattr(self, "swagger_fake_view", False):
-            return DoubtTicket.objects.none()
         return DoubtTicket.objects.filter(
             student=self.request.user.student_profile,  # type: ignore[union-attr]
         ).prefetch_related("replies__author")

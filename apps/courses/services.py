@@ -11,7 +11,7 @@ from apps.users.models import StudentProfile
 from core.services.eligibility import EligibilityService
 
 if TYPE_CHECKING:
-    from apps.courses.models import Session
+    from apps.courses.models import Course, Session
 
 
 class CourseAccessService:
@@ -40,11 +40,11 @@ class CourseAccessService:
         ).exists()
 
     @staticmethod
-    def is_session_accessible(profile: StudentProfile, session) -> bool:
+    def is_session_accessible(profile: StudentProfile, session: Session) -> bool:
         return EligibilityService.is_session_accessible(profile, session)
 
     @staticmethod
-    def get_next_session(profile: StudentProfile, course) -> Session | None:
+    def get_next_session(profile: StudentProfile, course: Course) -> Session | None:
         from apps.courses.models import Session
 
         # Single query: get all active sessions ordered by week then session order

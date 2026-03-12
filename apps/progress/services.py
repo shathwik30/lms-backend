@@ -9,7 +9,7 @@ from django.db.models import Count, FloatField, Q, Sum
 from django.db.models.functions import Coalesce, TruncDate
 from django.utils import timezone
 
-from apps.courses.models import Session
+from apps.courses.models import Course, Session
 from apps.levels.models import Level, Week
 from apps.users.models import StudentProfile, User
 from core.constants import ErrorMessage, ProgressConstants
@@ -172,7 +172,7 @@ class ProgressService:
         )
 
     @staticmethod
-    def get_course_progress(profile: StudentProfile, course) -> dict[str, Any]:
+    def get_course_progress(profile: StudentProfile, course: Course) -> dict[str, Any]:
         # Two queries instead of 2*N: aggregate per-week stats
         week_stats = (
             Week.objects.filter(course=course, is_active=True)

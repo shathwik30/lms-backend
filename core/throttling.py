@@ -18,7 +18,7 @@ class SafeScopedRateThrottle(ScopedRateThrottle):
             return True
         return super().allow_request(request, view)
 
-    def get_rate(self):
+    def get_rate(self) -> str | None:
         try:
             return super().get_rate()
         except ImproperlyConfigured:

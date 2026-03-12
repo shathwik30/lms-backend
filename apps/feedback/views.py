@@ -4,6 +4,7 @@ from rest_framework.response import Response
 from rest_framework.views import APIView
 
 from core.constants import ErrorMessage
+from core.decorators import swagger_safe
 from core.pagination import LargePagination, SmallPagination
 from core.permissions import IsAdmin, IsStudent
 from core.throttling import SafeScopedRateThrottle
@@ -47,9 +48,8 @@ class StudentFeedbackListView(generics.ListAPIView):
     pagination_class = SmallPagination
     filterset_fields = ["session", "overall_rating"]
 
+    @swagger_safe(SessionFeedback)
     def get_queryset(self):
-        if getattr(self, "swagger_fake_view", False):
-            return SessionFeedback.objects.none()
         return SessionFeedback.objects.filter(
             student=self.request.user.student_profile,  # type: ignore[union-attr]
         ).select_related("session")
