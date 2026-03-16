@@ -3,8 +3,7 @@ builder = "dockerfile"
 dockerfilePath = "Dockerfile"
 
 [deploy]
-startCommand = "python manage.py collectstatic --noinput && gunicorn config.wsgi:application --config gunicorn.conf.py"
 healthcheckPath = "/api/v1/health/"
 healthcheckTimeout = 600
 restartPolicyType = "on_failure"
-restartPolicyMaxRetries = 10
+restartPolicyMaxRetries = 5
