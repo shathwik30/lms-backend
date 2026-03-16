@@ -80,8 +80,10 @@ LOGGING["handlers"]["console"]["formatter"] = "structured"  # type: ignore[index
 # Override apps logger to INFO in production (no DEBUG)
 LOGGING["loggers"]["apps"]["level"] = "INFO"  # type: ignore[index]  # noqa: F405
 
-# Allow credentials for JWT auth with CORS
+# CORS — allow all origins if CORS_ALLOWED_ORIGINS is empty, otherwise restrict.
 CORS_ALLOW_CREDENTIALS = True
+if not CORS_ALLOWED_ORIGINS:  # noqa: F405
+    CORS_ALLOW_ALL_ORIGINS = True
 
 # Upload size limits
 DATA_UPLOAD_MAX_MEMORY_SIZE = 10 * 1024 * 1024  # 10 MB
