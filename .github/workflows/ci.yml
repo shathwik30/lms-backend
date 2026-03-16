@@ -92,8 +92,7 @@ jobs:
       DEBUG: "True"
       DJANGO_ENV: development
       DATABASE_URL: postgres://test_user:test_pass@localhost:5432/test_lms_db
-      CELERY_BROKER_URL: redis://localhost:6379/0
-      CELERY_RESULT_BACKEND: redis://localhost:6379/0
+      REDIS_URL: redis://localhost:6379/0
       RAZORPAY_KEY_ID: ""
       RAZORPAY_KEY_SECRET: ""
 
@@ -140,8 +139,7 @@ jobs:
       DEBUG: "True"
       DJANGO_ENV: development
       DATABASE_URL: sqlite:///db.sqlite3
-      CELERY_BROKER_URL: redis://localhost:6379/0
-      CELERY_RESULT_BACKEND: redis://localhost:6379/0
+      REDIS_URL: redis://localhost:6379/0
       RAZORPAY_KEY_ID: ""
       RAZORPAY_KEY_SECRET: ""
 

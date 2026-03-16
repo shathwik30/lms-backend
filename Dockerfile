@@ -13,6 +13,10 @@ RUN pip install --no-cache-dir -r requirements.txt
 
 COPY --chown=appuser:appgroup . .
 
+# /app itself is root-owned (created by WORKDIR); grant appuser ownership
+# so collectstatic and media uploads can create directories at runtime.
+RUN chown appuser:appgroup /app
+
 USER appuser
 
 EXPOSE 8000

@@ -8,7 +8,18 @@ DEBUG = False
 ALLOWED_HOSTS = env.list("ALLOWED_HOSTS", default=[])  # noqa: F405
 CSRF_TRUSTED_ORIGINS = env.list("CSRF_TRUSTED_ORIGINS", default=[])  # noqa: F405
 
+# ── Railway support ──
+# Railway health checks use hostname "healthcheck.railway.app".
+ALLOWED_HOSTS.append("healthcheck.railway.app")
+
+# Railway sets RAILWAY_PUBLIC_DOMAIN when a domain is assigned to the service.
+RAILWAY_PUBLIC_DOMAIN = env("RAILWAY_PUBLIC_DOMAIN", default="")  # noqa: F405
+if RAILWAY_PUBLIC_DOMAIN:
+    ALLOWED_HOSTS.append(RAILWAY_PUBLIC_DOMAIN)
+    CSRF_TRUSTED_ORIGINS.append(f"https://{RAILWAY_PUBLIC_DOMAIN}")
+
 SECURE_SSL_REDIRECT = True
+SECURE_REDIRECT_EXEMPT = [r"^api/v1/health/$"]  # Railway health probes may not send X-Forwarded-Proto
 SECURE_HSTS_SECONDS = 31536000
 SECURE_HSTS_INCLUDE_SUBDOMAINS = True
 SECURE_HSTS_PRELOAD = True
@@ -23,6 +34,18 @@ SECURE_CONTENT_TYPE_NOSNIFF = True
 SECURE_REFERRER_POLICY = "strict-origin-when-cross-origin"
 X_FRAME_OPTIONS = "DENY"
 
+# ── WhiteNoise — serve static files without nginx ──
+# Inserted after SecurityMiddleware (index 1) as recommended by WhiteNoise docs.
+MIDDLEWARE.insert(2, "whitenoise.middleware.WhiteNoiseMiddleware")  # noqa: F405
+STORAGES = {
+    "default": {
+        "BACKEND": "django.core.files.storage.FileSystemStorage",
+    },
+    "staticfiles": {
+        "BACKEND": "whitenoise.storage.CompressedManifestStaticFilesStorage",
+    },
+}
+
 # ── Database connection pooling ──
 # Keep connections alive across requests to avoid reconnect overhead.
 # CONN_HEALTH_CHECKS ensures stale connections are recycled transparently.
@@ -33,7 +56,7 @@ DATABASES["default"]["CONN_HEALTH_CHECKS"] = True  # noqa: F405
 CACHES = {
     "default": {
         "BACKEND": "django.core.cache.backends.redis.RedisCache",
-        "LOCATION": env("CACHE_LOCATION", default=CELERY_BROKER_URL),  # noqa: F405
+        "LOCATION": env("CACHE_LOCATION", default=REDIS_URL),  # noqa: F405
     }
 }
 
@@ -60,7 +83,7 @@ LOGGING["loggers"]["apps"]["level"] = "INFO"  # type: ignore[index]  # noqa: F40
 # Allow credentials for JWT auth with CORS
 CORS_ALLOW_CREDENTIALS = True
 
-# Upload size limits (match nginx client_max_body_size)
+# Upload size limits
 DATA_UPLOAD_MAX_MEMORY_SIZE = 10 * 1024 * 1024  # 10 MB
 FILE_UPLOAD_MAX_MEMORY_SIZE = 5 * 1024 * 1024  # 5 MB
 

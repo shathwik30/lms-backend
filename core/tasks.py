@@ -1,16 +1,17 @@
 import logging
-import smtplib
 import socket
 
 from celery import shared_task
 from celery.exceptions import SoftTimeLimitExceeded
+from resend.exceptions import ApplicationError, RateLimitError
 
 from core.constants import TaskConfig
 
 logger = logging.getLogger(__name__)
 
 _TRANSIENT_EMAIL_ERRORS = (
-    smtplib.SMTPException,
+    RateLimitError,
+    ApplicationError,
     socket.timeout,
     ConnectionError,
     OSError,

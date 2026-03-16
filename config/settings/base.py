@@ -223,15 +223,11 @@ CORS_ALLOW_CREDENTIALS = True
 # Upload size limits
 # ──────────────────────────────────────────────
 
-DATA_UPLOAD_MAX_MEMORY_SIZE = 10 * 1024 * 1024  # 10 MB — matches nginx client_max_body_size
-FILE_UPLOAD_MAX_MEMORY_SIZE = 5 * 1024 * 1024  # 5 MB — matches profile picture limit
+DATA_UPLOAD_MAX_MEMORY_SIZE = 10 * 1024 * 1024  # 10 MB
+FILE_UPLOAD_MAX_MEMORY_SIZE = 5 * 1024 * 1024  # 5 MB
 
 # ──────────────────────────────────────────────
-# Celery
-# ──────────────────────────────────────────────
-
-# ──────────────────────────────────────────────
-# Cache (used by OTP etc.)
+# Cache & Celery
 # ──────────────────────────────────────────────
 
 CACHES = {
@@ -249,8 +245,9 @@ CACHE_TTL_SHORT = 60  # 1 min  — leaderboard, featured courses
 CACHE_TTL_MEDIUM = 300  # 5 min  — level list, course list
 CACHE_TTL_LONG = 3600  # 1 hour — rarely changing data
 
-CELERY_BROKER_URL = env("CELERY_BROKER_URL", default="redis://localhost:6379/0")
-CELERY_RESULT_BACKEND = env("CELERY_RESULT_BACKEND", default="redis://localhost:6379/0")
+REDIS_URL = env("REDIS_URL", default="redis://localhost:6379/0")
+CELERY_BROKER_URL = env("CELERY_BROKER_URL", default=REDIS_URL)
+CELERY_RESULT_BACKEND = env("CELERY_RESULT_BACKEND", default=REDIS_URL)
 CELERY_ACCEPT_CONTENT = ["json"]
 CELERY_TASK_SERIALIZER = "json"
 CELERY_RESULT_SERIALIZER = "json"
@@ -316,14 +313,10 @@ LOGGING = {
 
 EMAIL_BACKEND = env(
     "EMAIL_BACKEND",
-    default="django.core.mail.backends.console.EmailBackend",
+    default="core.email_backends.ResendEmailBackend",
 )
-EMAIL_HOST = env("EMAIL_HOST", default="")
-EMAIL_PORT = env.int("EMAIL_PORT", default=587)
-EMAIL_USE_TLS = env.bool("EMAIL_USE_TLS", default=True)
-EMAIL_HOST_USER = env("EMAIL_HOST_USER", default="")
-EMAIL_HOST_PASSWORD = env("EMAIL_HOST_PASSWORD", default="")
-DEFAULT_FROM_EMAIL = env("DEFAULT_FROM_EMAIL", default="noreply@lms.com")
+RESEND_API_KEY = env("RESEND_API_KEY", default="")
+DEFAULT_FROM_EMAIL = env("DEFAULT_FROM_EMAIL", default="onboarding@resend.dev")
 
 FRONTEND_URL = env("FRONTEND_URL", default="http://localhost:3000")
 

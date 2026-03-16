@@ -9,6 +9,9 @@ CORS_ALLOW_ALL_ORIGINS = True
 REST_FRAMEWORK["DEFAULT_THROTTLE_CLASSES"] = []  # noqa: F405
 REST_FRAMEWORK["DEFAULT_THROTTLE_RATES"] = {}  # noqa: F405
 
+# Console email in dev/test (no API key needed)
+EMAIL_BACKEND = "django.core.mail.backends.console.EmailBackend"
+
 # Run Celery tasks synchronously in dev/test
 CELERY_TASK_ALWAYS_EAGER = True
 CELERY_TASK_EAGER_PROPAGATES = True
