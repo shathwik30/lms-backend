@@ -14,7 +14,7 @@ max_requests_jitter = 50
 # Logging to stdout/stderr (captured by container runtime)
 accesslog = "-"
 errorlog = "-"
-loglevel = "warning"
+loglevel = "info"
 
 # Trust X-Forwarded-For from reverse proxy (Railway / nginx)
 forwarded_allow_ips = "*"
