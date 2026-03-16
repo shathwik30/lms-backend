@@ -3,7 +3,7 @@ builder = "dockerfile"
 dockerfilePath = "Dockerfile"
 
 [deploy]
-startCommand = "python manage.py migrate --noinput && echo '--- collectstatic ---' && python manage.py collectstatic --noinput && echo '--- starting gunicorn on port $PORT ---' && gunicorn config.wsgi:application --config gunicorn.conf.py"
+startCommand = "python manage.py collectstatic --noinput && gunicorn config.wsgi:application --config gunicorn.conf.py"
 healthcheckPath = "/api/v1/health/"
 healthcheckTimeout = 600
 restartPolicyType = "on_failure"
