@@ -1,3 +1,4 @@
+import os
 from datetime import timedelta
 from pathlib import Path
 
@@ -7,6 +8,11 @@ BASE_DIR = Path(__file__).resolve().parent.parent.parent
 
 env = environ.Env()
 environ.Env.read_env(BASE_DIR / ".env")
+
+# Railway / Neon use "postgresql://" but django-environ only recognises "postgres://".
+_db_url = os.environ.get("DATABASE_URL", "")
+if _db_url.startswith("postgresql://"):
+    os.environ["DATABASE_URL"] = _db_url.replace("postgresql://", "postgres://", 1)
 
 SECRET_KEY = env("SECRET_KEY")
 DEBUG = env.bool("DEBUG", default=False)

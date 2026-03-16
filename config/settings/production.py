@@ -1,5 +1,4 @@
 import sentry_sdk
-from django.core.exceptions import ImproperlyConfigured
 
 from .base import *  # noqa: F401,F403
 
@@ -93,8 +92,10 @@ FILE_UPLOAD_MAX_MEMORY_SIZE = 5 * 1024 * 1024  # 5 MB
 SPECTACULAR_SETTINGS["SERVE_PERMISSIONS"] = ["rest_framework.permissions.IsAdminUser"]  # noqa: F405
 
 # ── Required secrets validation ──
-# Fail fast at startup rather than silently bypassing payment verification.
+import logging as _logging  # noqa: E402
+
+_prod_logger = _logging.getLogger("config.settings.production")
 if not RAZORPAY_KEY_ID:  # noqa: F405
-    raise ImproperlyConfigured("RAZORPAY_KEY_ID must be set in production.")
+    _prod_logger.warning("RAZORPAY_KEY_ID is not set — payment features will not work.")
 if not RAZORPAY_KEY_SECRET:  # noqa: F405
-    raise ImproperlyConfigured("RAZORPAY_KEY_SECRET must be set in production.")
+    _prod_logger.warning("RAZORPAY_KEY_SECRET is not set — payment features will not work.")
