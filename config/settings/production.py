@@ -79,17 +79,16 @@ LOGGING["handlers"]["console"]["formatter"] = "structured"  # type: ignore[index
 # Override apps logger to INFO in production (no DEBUG)
 LOGGING["loggers"]["apps"]["level"] = "INFO"  # type: ignore[index]  # noqa: F405
 
-# CORS — allow all origins if CORS_ALLOWED_ORIGINS is empty, otherwise restrict.
+# CORS — open to all origins for now (frontend team testing)
+CORS_ALLOW_ALL_ORIGINS = True
 CORS_ALLOW_CREDENTIALS = True
-if not CORS_ALLOWED_ORIGINS:  # noqa: F405
-    CORS_ALLOW_ALL_ORIGINS = True
 
 # Upload size limits
 DATA_UPLOAD_MAX_MEMORY_SIZE = 10 * 1024 * 1024  # 10 MB
 FILE_UPLOAD_MAX_MEMORY_SIZE = 5 * 1024 * 1024  # 5 MB
 
-# Restrict Swagger/API docs to admin users in production
-SPECTACULAR_SETTINGS["SERVE_PERMISSIONS"] = ["rest_framework.permissions.IsAdminUser"]  # noqa: F405
+# Allow anyone to view API docs (frontend team testing)
+SPECTACULAR_SETTINGS["SERVE_PERMISSIONS"] = ["rest_framework.permissions.AllowAny"]  # noqa: F405
 
 # ── Required secrets validation ──
 import logging as _logging  # noqa: E402
