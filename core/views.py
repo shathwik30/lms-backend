@@ -15,6 +15,8 @@ logger = logging.getLogger(__name__)
 
 class HealthCheckView(APIView):
     permission_classes = [AllowAny]
+    throttle_classes = []
+    authentication_classes = []
 
     @extend_schema(
         responses={
