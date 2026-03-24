@@ -61,6 +61,7 @@ INSTALLED_APPS = DJANGO_APPS + THIRD_PARTY_APPS + LOCAL_APPS
 MIDDLEWARE = [
     "django_prometheus.middleware.PrometheusBeforeMiddleware",
     "django.middleware.security.SecurityMiddleware",
+    "core.middleware.TrailingSlashMiddleware",
     "corsheaders.middleware.CorsMiddleware",
     "django.contrib.sessions.middleware.SessionMiddleware",
     "django.middleware.common.CommonMiddleware",
@@ -70,6 +71,8 @@ MIDDLEWARE = [
     "django.middleware.clickjacking.XFrameOptionsMiddleware",
     "django_prometheus.middleware.PrometheusAfterMiddleware",
 ]
+
+APPEND_SLASH = False
 
 # ──────────────────────────────────────────────
 # URL / WSGI
@@ -253,9 +256,19 @@ CELERY_ACCEPT_CONTENT = ["json"]
 CELERY_TASK_SERIALIZER = "json"
 CELERY_RESULT_SERIALIZER = "json"
 CELERY_TIMEZONE = TIME_ZONE
+CELERY_TASK_ALWAYS_EAGER = env.bool("CELERY_TASK_ALWAYS_EAGER", default=False)
+CELERY_TASK_EAGER_PROPAGATES = env.bool("CELERY_TASK_EAGER_PROPAGATES", default=False)
 CELERY_TASK_ACKS_LATE = True
 CELERY_WORKER_PREFETCH_MULTIPLIER = 1
 CELERY_TASK_REJECT_ON_WORKER_LOST = True
+
+# Upstash / any rediss:// URL needs ssl_cert_reqs for Celery
+if CELERY_BROKER_URL.startswith("rediss://") and "ssl_cert_reqs" not in CELERY_BROKER_URL:
+    _sep = "&" if "?" in CELERY_BROKER_URL else "?"
+    CELERY_BROKER_URL += f"{_sep}ssl_cert_reqs=CERT_REQUIRED"
+if CELERY_RESULT_BACKEND.startswith("rediss://") and "ssl_cert_reqs" not in CELERY_RESULT_BACKEND:
+    _sep = "&" if "?" in CELERY_RESULT_BACKEND else "?"
+    CELERY_RESULT_BACKEND += f"{_sep}ssl_cert_reqs=CERT_REQUIRED"
 
 
 # ──────────────────────────────────────────────

@@ -158,15 +158,16 @@ class ExamService:
         elif attempt.exam.exam_type == Exam.ExamType.LEVEL_FINAL:
             cls._update_level_progress(user, attempt)
 
-        from core.tasks import send_exam_result_task
+        from core.tasks import fire_and_forget, send_exam_result_task
 
-        send_exam_result_task.delay(
-            email=user.email,
-            full_name=user.full_name,
-            exam_title=attempt.exam.title,
-            score=str(attempt.score),
-            total_marks=attempt.total_marks,
-            is_passed=attempt.is_passed,
+        fire_and_forget(
+            send_exam_result_task,
+            user.email,
+            user.full_name,
+            attempt.exam.title,
+            str(attempt.score),
+            attempt.total_marks,
+            attempt.is_passed,
         )
 
         return attempt, None

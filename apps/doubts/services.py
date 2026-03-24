@@ -60,14 +60,15 @@ class DoubtService:
             data={"ticket_id": ticket.id},
         )
 
-        from core.tasks import send_doubt_reply_task
+        from core.tasks import fire_and_forget, send_doubt_reply_task
 
-        send_doubt_reply_task.delay(
-            email=student_user.email,
-            full_name=student_user.full_name,
-            ticket_title=ticket.title,
-            reply_author=author.full_name,
-            reply_preview=reply.message[:200],
+        fire_and_forget(
+            send_doubt_reply_task,
+            student_user.email,
+            student_user.full_name,
+            ticket.title,
+            author.full_name,
+            reply.message[:200],
         )
 
     @staticmethod

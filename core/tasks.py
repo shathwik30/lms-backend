@@ -1,5 +1,6 @@
 import logging
 import socket
+import threading
 
 from celery import shared_task
 from celery.exceptions import SoftTimeLimitExceeded
@@ -8,6 +9,28 @@ from resend.exceptions import ApplicationError, RateLimitError
 from core.constants import TaskConfig
 
 logger = logging.getLogger(__name__)
+
+
+def fire_and_forget(task, *args):
+    """Queue a Celery task in a background thread so the caller never blocks.
+
+    In eager mode (dev/test) the task is dispatched synchronously so that
+    test assertions and mocks work as expected.
+    """
+    from django.conf import settings
+
+    if getattr(settings, "CELERY_TASK_ALWAYS_EAGER", False):
+        task.delay(*args)
+        return
+
+    def _dispatch():
+        try:
+            task.delay(*args)
+        except Exception:
+            logger.exception("Failed to queue task %s", task.name)
+
+    threading.Thread(target=_dispatch, daemon=True).start()
+
 
 _TRANSIENT_EMAIL_ERRORS = (
     RateLimitError,

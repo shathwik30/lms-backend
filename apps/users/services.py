@@ -24,9 +24,9 @@ class AuthService:
     def register(user: UserModel) -> dict[str, str]:
         refresh = RefreshToken.for_user(user)
 
-        from core.tasks import send_welcome_email_task
+        from core.tasks import fire_and_forget, send_welcome_email_task
 
-        send_welcome_email_task.delay(user.email, user.full_name)
+        fire_and_forget(send_welcome_email_task, user.email, user.full_name)
 
         return {
             "refresh": str(refresh),
@@ -134,9 +134,9 @@ class PasswordResetService:
         token = default_token_generator.make_token(user)
         reset_url = f"{settings.FRONTEND_URL}/reset-password?uid={uid}&token={token}"
 
-        from core.tasks import send_password_reset_task
+        from core.tasks import fire_and_forget, send_password_reset_task
 
-        send_password_reset_task.delay(user.email, user.full_name, reset_url)
+        fire_and_forget(send_password_reset_task, user.email, user.full_name, reset_url)
 
     @staticmethod
     def confirm_reset(uid_b64: str, token: str, new_password: str) -> tuple[bool, str]:

@@ -175,14 +175,15 @@ class PaymentService:
             data={"purchase_id": purchase.id, "level_id": level.id},
         )
 
-        from core.tasks import send_purchase_confirmation_task
+        from core.tasks import fire_and_forget, send_purchase_confirmation_task
 
-        send_purchase_confirmation_task.delay(
-            email=user.email,
-            full_name=user.full_name,
-            level_name=level.name,
-            amount=str(purchase.amount_paid),
-            expires_at_iso=purchase.expires_at.isoformat(),
+        fire_and_forget(
+            send_purchase_confirmation_task,
+            user.email,
+            user.full_name,
+            level.name,
+            str(purchase.amount_paid),
+            purchase.expires_at.isoformat(),
         )
 
         return purchase, None
