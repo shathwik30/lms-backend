@@ -1342,6 +1342,230 @@ class Command(BaseCommand):
                 exam.total_marks = num_q * 4
                 exam.save(update_fields=["num_questions", "total_marks"])
 
+        # ── Onboarding (Placement) Exam ──────────────────────────────────
+        first_level = levels[0]
+        onboarding_exam, ob_created = Exam.objects.get_or_create(
+            exam_type=Exam.ExamType.ONBOARDING,
+            is_active=True,
+            defaults={
+                "level": first_level,
+                "title": "Placement Test",
+                "duration_minutes": 45,
+                "total_marks": 0,  # updated below
+                "passing_percentage": Decimal("50.00"),
+                "num_questions": 0,  # updated below
+                "is_proctored": False,
+            },
+        )
+
+        ob_q_count = 0
+        if ob_created:
+            exam_count += 1
+            onboarding_questions = [
+                # Level 1 – Foundation
+                (
+                    first_level if len(levels) >= 1 else None,
+                    [
+                        (
+                            "What is the SI unit of force?",
+                            "easy",
+                            [("Newton", True), ("Joule", False), ("Watt", False), ("Pascal", False)],
+                            "Force is measured in Newtons (N = kg·m/s²).",
+                        ),
+                        (
+                            "Which law states that every action has an equal and opposite reaction?",
+                            "easy",
+                            [
+                                ("Newton's First Law", False),
+                                ("Newton's Second Law", False),
+                                ("Newton's Third Law", True),
+                                ("Law of Gravitation", False),
+                            ],
+                            "Newton's Third Law of Motion.",
+                        ),
+                        (
+                            "What is the atomic number of Carbon?",
+                            "easy",
+                            [("4", False), ("6", True), ("8", False), ("12", False)],
+                            "Carbon has 6 protons.",
+                        ),
+                        (
+                            "The value of sin(30°) is:",
+                            "easy",
+                            [("0", False), ("1/2", True), ("1", False), ("√3/2", False)],
+                            "sin(30°) = 0.5",
+                        ),
+                        (
+                            "Which of the following is a vector quantity?",
+                            "easy",
+                            [("Speed", False), ("Mass", False), ("Velocity", True), ("Temperature", False)],
+                            "Velocity has both magnitude and direction.",
+                        ),
+                    ],
+                ),
+                # Level 2 – Intermediate
+                (
+                    levels[1] if len(levels) >= 2 else None,
+                    [
+                        (
+                            "A body of mass 2 kg is acted upon by a force of 10 N. What is its acceleration?",
+                            "medium",
+                            [("2 m/s²", False), ("5 m/s²", True), ("10 m/s²", False), ("20 m/s²", False)],
+                            "F = ma → a = F/m = 10/2 = 5 m/s².",
+                        ),
+                        (
+                            "The hybridisation of carbon in ethylene (C₂H₄) is:",
+                            "medium",
+                            [("sp", False), ("sp²", True), ("sp³", False), ("sp³d", False)],
+                            "Double bond → one sigma + one pi → sp² hybridisation.",
+                        ),
+                        (
+                            "The derivative of x³ with respect to x is:",
+                            "medium",
+                            [("x²", False), ("3x²", True), ("3x", False), ("x³", False)],
+                            "d/dx(xⁿ) = nxⁿ⁻¹ → 3x².",
+                        ),
+                        (
+                            "What is the pH of a 0.01 M HCl solution?",
+                            "medium",
+                            [("1", False), ("2", True), ("3", False), ("7", False)],
+                            "pH = -log[H⁺] = -log(0.01) = 2.",
+                        ),
+                        (
+                            "The moment of inertia of a solid sphere about its diameter is:",
+                            "medium",
+                            [("2/5 MR²", True), ("2/3 MR²", False), ("1/2 MR²", False), ("MR²", False)],
+                            "Standard result: I = 2/5 MR² for a solid sphere.",
+                        ),
+                    ],
+                ),
+                # Level 3 – Advanced
+                (
+                    levels[2] if len(levels) >= 3 else None,
+                    [
+                        (
+                            "The electric field inside a charged conducting sphere is:",
+                            "medium",
+                            [
+                                ("Maximum at center", False),
+                                ("Zero", True),
+                                ("Uniform throughout", False),
+                                ("Proportional to radius", False),
+                            ],
+                            "Inside a conductor, E = 0 in electrostatic equilibrium.",
+                        ),
+                        (
+                            "Which reagent converts a primary alcohol to an aldehyde without over-oxidation?",
+                            "hard",
+                            [("KMnO₄", False), ("K₂Cr₂O₇", False), ("PCC", True), ("Conc. H₂SO₄", False)],
+                            "PCC (Pyridinium Chlorochromate) is a mild oxidising agent.",
+                        ),
+                        (
+                            "∫ 1/x dx equals:",
+                            "medium",
+                            [("x", False), ("ln|x| + C", True), ("1/x² + C", False), ("e^x + C", False)],
+                            "Standard integral: ∫ 1/x dx = ln|x| + C.",
+                        ),
+                        (
+                            "In Young's double-slit experiment, fringe width is proportional to:",
+                            "hard",
+                            [
+                                ("Slit separation", False),
+                                ("Wavelength", True),
+                                ("Intensity", False),
+                                ("Slit width", False),
+                            ],
+                            "β = λD/d — fringe width is directly proportional to wavelength.",
+                        ),
+                        (
+                            "The IUPAC name of CH₃CH(OH)CH₃ is:",
+                            "medium",
+                            [
+                                ("1-propanol", False),
+                                ("propan-2-ol", True),
+                                ("isopropyl alcohol", False),
+                                ("2-methylethanol", False),
+                            ],
+                            "OH on the second carbon → propan-2-ol.",
+                        ),
+                    ],
+                ),
+                # Level 4 – Elite
+                (
+                    levels[3] if len(levels) >= 4 else None,
+                    [
+                        (
+                            "For a particle in SHM, when is kinetic energy maximum?",
+                            "hard",
+                            [
+                                ("At extreme position", False),
+                                ("At mean position", True),
+                                ("At half amplitude", False),
+                                ("Never", False),
+                            ],
+                            "At mean position displacement is zero, velocity is max → KE max.",
+                        ),
+                        (
+                            "The number of stereoisomers of 2,3-dibromobutane is:",
+                            "hard",
+                            [("2", False), ("3", True), ("4", False), ("1", False)],
+                            "2,3-dibromobutane has a meso form + one pair of enantiomers = 3 stereoisomers.",
+                        ),
+                        (
+                            "The radius of convergence of the power series Σ xⁿ/n! is:",
+                            "hard",
+                            [("0", False), ("1", False), ("e", False), ("∞", True)],
+                            "This is the Taylor series for eˣ, which converges for all x.",
+                        ),
+                        (
+                            "The de Broglie wavelength of an electron accelerated through V volts is:",
+                            "hard",
+                            [
+                                ("12.27/√V Å", True),
+                                ("1.227/√V Å", False),
+                                ("0.1227/√V Å", False),
+                                ("122.7/√V Å", False),
+                            ],
+                            "λ = 12.27/√V Å for an electron.",
+                        ),
+                        (
+                            "In a galvanic cell, at the cathode:",
+                            "hard",
+                            [
+                                ("Oxidation occurs", False),
+                                ("Reduction occurs", True),
+                                ("No reaction", False),
+                                ("Dissolution occurs", False),
+                            ],
+                            "Cathode is the site of reduction in a galvanic cell.",
+                        ),
+                    ],
+                ),
+            ]
+
+            for level, questions in onboarding_questions:
+                if level is None:
+                    continue
+                for text, difficulty, options_data, explanation in questions:
+                    q = Question.objects.create(
+                        exam=onboarding_exam,
+                        level=level,
+                        text=text,
+                        difficulty=difficulty,
+                        marks=4,
+                        negative_marks=Decimal("1.00") if difficulty != "easy" else Decimal("0"),
+                        explanation=explanation,
+                        question_type=Question.QuestionType.MCQ,
+                    )
+                    ob_q_count += 1
+                    for opt_text, is_correct in options_data:
+                        Option.objects.create(question=q, text=opt_text, is_correct=is_correct)
+
+            onboarding_exam.num_questions = ob_q_count
+            onboarding_exam.total_marks = ob_q_count * 4
+            onboarding_exam.save(update_fields=["num_questions", "total_marks"])
+
+        q_count += ob_q_count
         self.stdout.write(self.style.SUCCESS(f"  [5/14] {q_count} questions, {exam_count} exams created"))
 
     # ─── 5. Students ──────────────────────────────────────────────────────
