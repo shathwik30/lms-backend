@@ -168,6 +168,10 @@ class EligibilityService:
                     "level": None,
                     "message": NextActionMessage.NO_LEVELS,
                 }
+            onboarding_exam = Exam.objects.filter(
+                exam_type=Exam.ExamType.ONBOARDING,
+                is_active=True,
+            ).first()
             return {
                 "action": NextAction.TAKE_ONBOARDING_EXAM,
                 "level": {
@@ -175,6 +179,7 @@ class EligibilityService:
                     "name": first_level.name,
                     "order": first_level.order,
                 },
+                "exam_id": onboarding_exam.id if onboarding_exam else None,
                 "message": NextActionMessage.take_onboarding(),
             }
 

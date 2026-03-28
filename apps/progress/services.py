@@ -238,6 +238,7 @@ class ProgressService:
             "next_action": next_info["action"],
             "message": next_info["message"],
             "is_onboarding_exam_attempted": profile.is_onboarding_exam_attempted,
+            "exam_id": next_info.get("exam_id"),
         }
 
     @staticmethod
