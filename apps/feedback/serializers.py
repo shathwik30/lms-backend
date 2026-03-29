@@ -49,13 +49,13 @@ class AdminFeedbackSerializer(serializers.ModelSerializer):
         ]
         read_only_fields = fields
 
-    def get_level_name(self, obj) -> str | None:
+    def get_level_name(self, obj: SessionFeedback) -> str | None:
         try:
             return obj.session.week.course.level.name
         except AttributeError:
             return None
 
-    def get_subject_name(self, obj) -> str | None:
+    def get_subject_name(self, obj: SessionFeedback) -> str | None:
         try:
             return obj.session.week.course.title
         except AttributeError:

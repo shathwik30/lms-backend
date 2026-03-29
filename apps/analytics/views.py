@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 import datetime
 
 from django.db.models import Count, Sum
@@ -5,6 +7,7 @@ from django.db.models.functions import TruncDate
 from django.utils import timezone
 from drf_spectacular.utils import extend_schema, extend_schema_view
 from rest_framework import generics
+from rest_framework.request import Request
 from rest_framework.response import Response
 from rest_framework.views import APIView
 
@@ -48,48 +51,30 @@ class AdminDashboardView(APIView):
     permission_classes = [IsAdmin]
 
     @extend_schema(tags=["Analytics"], summary="Admin dashboard stats")
-    def get(self, request):
+    def get(self, request: Request) -> Response:
         now = timezone.now()
         today = now.date()
         seven_days_ago = now - datetime.timedelta(days=7)
         thirty_days_ago = now - datetime.timedelta(days=30)
 
-        # Total students
-        total_students = StudentProfile.objects.count()
+        total_students: int = StudentProfile.objects.count()
 
-        # Total revenue (all time)
-        total_revenue = Purchase.objects.filter(status="active").aggregate(total=Sum("amount_paid"))["total"] or 0
+        total_revenue = (
+            Purchase.objects.filter(status=Purchase.Status.ACTIVE).aggregate(total=Sum("amount_paid"))["total"] or 0
+        )
 
-        # Active users (students with session activity in last 7 days)
-        active_users = (
+        active_users: int = (
             SessionProgress.objects.filter(updated_at__gte=seven_days_ago).values("student").distinct().count()
         )
 
-        # Exams passed today
-        exams_passed_today = ExamAttempt.objects.filter(
+        exams_passed_today: int = ExamAttempt.objects.filter(
             is_passed=True,
             submitted_at__date=today,
         ).count()
 
-        # Open doubts
-        open_doubts = DoubtTicket.objects.filter(status="open").count()
+        open_doubts: int = DoubtTicket.objects.filter(status=DoubtTicket.Status.OPEN).count()
 
-        # Recent doubts (last 10)
-        recent_doubts = list(
-            DoubtTicket.objects.select_related("student__user")
-            .order_by("-created_at")[:10]
-            .values(
-                "id",
-                "title",
-                "status",
-                "context_type",
-                "created_at",
-                student_name=Count("student__user__full_name"),
-            )
-        )
-        # Use a simpler approach for recent doubts
-        recent_doubt_qs = DoubtTicket.objects.select_related("student__user").order_by("-created_at")[:10]
-        recent_doubts = [
+        recent_doubts: list[dict[str, object]] = [
             {
                 "id": d.id,
                 "student_name": d.student.user.full_name,
@@ -98,11 +83,10 @@ class AdminDashboardView(APIView):
                 "context_type": d.context_type,
                 "created_at": d.created_at,
             }
-            for d in recent_doubt_qs
+            for d in DoubtTicket.objects.select_related("student__user").order_by("-created_at")[:10]
         ]
 
-        # Daily active users (last 30 days for graph)
-        daily_active_users = list(
+        daily_active_users: list[dict[str, object]] = list(
             SessionProgress.objects.filter(updated_at__gte=thirty_days_ago)
             .annotate(date=TruncDate("updated_at"))
             .values("date")
@@ -110,8 +94,7 @@ class AdminDashboardView(APIView):
             .order_by("date")
         )
 
-        # Streak retention buckets
-        streak_data = self._calculate_streak_retention()
+        streak_data = self._calculate_streak_retention(today)
 
         return Response(
             {
@@ -126,20 +109,34 @@ class AdminDashboardView(APIView):
             }
         )
 
-    def _calculate_streak_retention(self) -> dict:
-        """Bucket students by current streak length."""
-        today = timezone.now().date()
-        students = StudentProfile.objects.all()[:500]
+    @staticmethod
+    def _calculate_streak_retention(today: datetime.date) -> dict[str, int]:
+        """Bucket students by current streak length using a single bulk query."""
+        cutoff = today - datetime.timedelta(days=30)
+        activity = (
+            SessionProgress.objects.filter(updated_at__date__gte=cutoff)
+            .values("student_id")
+            .annotate(active_date=TruncDate("updated_at"))
+            .values_list("student_id", "active_date")
+            .distinct()
+        )
 
-        buckets = {"0_days": 0, "1_3_days": 0, "4_7_days": 0, "8_plus_days": 0}
+        student_dates: dict[int, list[datetime.date]] = {}
+        for student_id, active_date in activity:
+            student_dates.setdefault(student_id, []).append(active_date)
 
-        for student in students:
-            dates = list(
-                SessionProgress.objects.filter(student=student)
-                .values_list("updated_at__date", flat=True)
-                .distinct()
-                .order_by("-updated_at__date")[:30]
-            )
+        total_students: int = StudentProfile.objects.count()
+        num_active = len(student_dates)
+
+        buckets: dict[str, int] = {
+            "0_days": total_students - num_active,
+            "1_3_days": 0,
+            "4_7_days": 0,
+            "8_plus_days": 0,
+        }
+
+        for dates in student_dates.values():
+            dates.sort(reverse=True)
             streak = 0
             expected = today
             for d in dates:

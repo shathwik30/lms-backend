@@ -1,3 +1,4 @@
+from django.db.models import Max, OuterRef, Subquery
 from drf_spectacular.utils import extend_schema, extend_schema_view, inline_serializer
 from rest_framework import generics, status
 from rest_framework import serializers as drf_serializers
@@ -6,6 +7,7 @@ from rest_framework.response import Response
 from rest_framework.views import APIView
 
 from apps.levels.models import Level
+from apps.payments.models import Purchase
 from core.constants import ErrorMessage, SuccessMessage
 from core.decorators import swagger_safe
 from core.pagination import LargePagination, SmallPagination
@@ -271,10 +273,21 @@ class AdminStudentListView(generics.ListAPIView):
     permission_classes = [IsAdmin]
     serializer_class = AdminStudentListSerializer
     pagination_class = LargePagination
-    queryset = StudentProfile.objects.select_related(
-        "user",
-        "current_level",
-        "highest_cleared_level",
+    queryset = (
+        StudentProfile.objects.select_related(
+            "user",
+            "current_level",
+            "highest_cleared_level",
+        )
+        .annotate(
+            _validity_till=Subquery(
+                Purchase.objects.filter(student=OuterRef("pk"), status=Purchase.Status.ACTIVE)
+                .order_by("-expires_at")
+                .values("expires_at")[:1]
+            ),
+            _last_active=Max("session_progress__updated_at"),
+        )
+        .order_by("-created_at")
     )
     filterset_fields = ["current_level", "highest_cleared_level"]
     search_fields = ["user__email", "user__full_name"]

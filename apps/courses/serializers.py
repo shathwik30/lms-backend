@@ -106,15 +106,15 @@ class AdminCourseSerializer(serializers.ModelSerializer):
         ]
         read_only_fields = ["id", "created_at"]
 
-    def get_students_enrolled(self, obj) -> int:
+    def get_students_enrolled(self, obj: Course) -> int:
         from apps.progress.models import CourseProgress
 
         return CourseProgress.objects.filter(
             course=obj,
-            status__in=["in_progress", "completed"],
+            status__in=[CourseProgress.Status.IN_PROGRESS, CourseProgress.Status.COMPLETED],
         ).count()
 
-    def get_exam_linked(self, obj) -> list[str]:
+    def get_exam_linked(self, obj: Course) -> list[str]:
         from apps.exams.models import Exam
 
         return list(Exam.objects.filter(course=obj, is_active=True).values_list("title", flat=True))

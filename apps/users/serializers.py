@@ -56,16 +56,21 @@ class StudentProfileSerializer(serializers.ModelSerializer):
 
 
 class AdminStudentListSerializer(serializers.ModelSerializer):
+    """
+    Used by AdminStudentListView which annotates the queryset with
+    ``_validity_till`` and ``_last_active`` to avoid N+1 queries.
+    """
+
     user = UserSerializer(read_only=True)
     current_level_name = serializers.CharField(source="current_level.name", default=None)
     highest_cleared_level_name = serializers.CharField(
         source="highest_cleared_level.name",
         default=None,
     )
-    validity_till = serializers.SerializerMethodField()
+    validity_till = serializers.DateTimeField(source="_validity_till", read_only=True, default=None)
     exam_status = serializers.SerializerMethodField()
     streak = serializers.SerializerMethodField()
-    last_active = serializers.SerializerMethodField()
+    last_active = serializers.DateTimeField(source="_last_active", read_only=True, default=None)
     account_status = serializers.SerializerMethodField()
 
     class Meta:
@@ -89,18 +94,7 @@ class AdminStudentListSerializer(serializers.ModelSerializer):
         ]
         read_only_fields = fields
 
-    def get_validity_till(self, obj) -> str | None:
-        from apps.payments.models import Purchase
-
-        purchase = (
-            Purchase.objects.filter(student=obj, status="active")
-            .order_by("-expires_at")
-            .values_list("expires_at", flat=True)
-            .first()
-        )
-        return purchase.isoformat() if purchase else None
-
-    def get_exam_status(self, obj) -> str:
+    def get_exam_status(self, obj: StudentProfile) -> str:
         from apps.exams.models import ExamAttempt
 
         attempt = ExamAttempt.objects.filter(student=obj).order_by("-started_at").values("status", "is_passed").first()
@@ -108,11 +102,11 @@ class AdminStudentListSerializer(serializers.ModelSerializer):
             return "not_attempted"
         if attempt["is_passed"]:
             return "passed"
-        if attempt["status"] == "in_progress":
+        if attempt["status"] == ExamAttempt.Status.IN_PROGRESS:
             return "in_progress"
         return "failed"
 
-    def get_streak(self, obj) -> int:
+    def get_streak(self, obj: StudentProfile) -> int:
         import datetime
 
         from django.utils import timezone
@@ -120,7 +114,7 @@ class AdminStudentListSerializer(serializers.ModelSerializer):
         from apps.progress.models import SessionProgress
 
         today = timezone.now().date()
-        dates = list(
+        dates: list[datetime.date] = list(
             SessionProgress.objects.filter(student=obj)
             .values_list("updated_at__date", flat=True)
             .distinct()
@@ -136,18 +130,7 @@ class AdminStudentListSerializer(serializers.ModelSerializer):
                 break
         return streak
 
-    def get_last_active(self, obj) -> str | None:
-        from apps.progress.models import SessionProgress
-
-        ts = (
-            SessionProgress.objects.filter(student=obj)
-            .order_by("-updated_at")
-            .values_list("updated_at", flat=True)
-            .first()
-        )
-        return ts.isoformat() if ts else None
-
-    def get_account_status(self, obj) -> str:
+    def get_account_status(self, obj: StudentProfile) -> str:
         return "active" if obj.user.is_active else "inactive"
 
 

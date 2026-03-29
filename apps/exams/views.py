@@ -248,7 +248,7 @@ class AdminExamListCreateView(generics.ListCreateAPIView):
     pagination_class = LargePagination
     filterset_fields = ["level", "exam_type", "is_active"]
 
-    def get_serializer_class(self):
+    def get_serializer_class(self) -> type[ExamSerializer] | type[AdminExamSerializer]:
         if self.request.method == "POST":
             return ExamSerializer
         return AdminExamSerializer
@@ -264,7 +264,7 @@ class AdminExamDetailView(generics.RetrieveUpdateDestroyAPIView):
     permission_classes = [IsAdmin]
     queryset = Exam.objects.select_related("level", "week", "course")
 
-    def get_serializer_class(self):
+    def get_serializer_class(self) -> type[ExamSerializer] | type[AdminExamSerializer]:
         if self.request.method == "GET":
             return AdminExamSerializer
         return ExamSerializer

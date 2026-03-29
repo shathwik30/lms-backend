@@ -146,7 +146,7 @@ class AdminExamSerializer(ExamSerializer):
     class Meta(ExamSerializer.Meta):
         fields = [*ExamSerializer.Meta.fields, "subjects_included"]
 
-    def get_subjects_included(self, obj) -> list[str]:
+    def get_subjects_included(self, obj: Exam) -> list[str]:
         from apps.courses.models import Course
 
         return list(Course.objects.filter(level=obj.level, is_active=True).values_list("title", flat=True))

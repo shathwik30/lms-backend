@@ -49,28 +49,29 @@ class DoubtTicketListSerializer(serializers.ModelSerializer):
         ]
         read_only_fields = fields
 
-    def get_level_name(self, obj) -> str | None:
+    def get_level_name(self, obj: DoubtTicket) -> str | None:
         if obj.session_id:
             try:
-                return obj.session.week.course.level.name
+                return obj.session.week.course.level.name  # type: ignore[union-attr]
             except AttributeError:
                 return None
         if obj.exam_question_id:
             try:
-                return obj.exam_question.exam.level.name
+                return obj.exam_question.exam.level.name  # type: ignore[union-attr]
             except AttributeError:
                 return None
         return None
 
-    def get_course_name(self, obj) -> str | None:
+    def get_course_name(self, obj: DoubtTicket) -> str | None:
         if obj.session_id:
             try:
-                return obj.session.week.course.title
+                return obj.session.week.course.title  # type: ignore[union-attr]
             except AttributeError:
                 return None
         if obj.exam_question_id:
             try:
-                return obj.exam_question.exam.course.title if obj.exam_question.exam.course else None
+                exam = obj.exam_question.exam  # type: ignore[union-attr]
+                return exam.course.title if exam.course else None
             except AttributeError:
                 return None
         return None

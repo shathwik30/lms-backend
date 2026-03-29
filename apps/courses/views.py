@@ -155,11 +155,11 @@ class BookmarkDeleteView(APIView):
 )
 class AdminCourseListCreateView(generics.ListCreateAPIView):
     permission_classes = [IsAdmin]
-    queryset = Course.objects.select_related("level")
+    queryset = Course.objects.select_related("level").order_by("-created_at")
     pagination_class = LargePagination
     filterset_fields = ["level", "is_active"]
 
-    def get_serializer_class(self):
+    def get_serializer_class(self) -> type[CourseSerializer] | type[AdminCourseSerializer]:
         if self.request.method == "POST":
             return CourseSerializer
         return AdminCourseSerializer
@@ -175,7 +175,7 @@ class AdminCourseDetailView(generics.RetrieveUpdateDestroyAPIView):
     permission_classes = [IsAdmin]
     queryset = Course.objects.select_related("level")
 
-    def get_serializer_class(self):
+    def get_serializer_class(self) -> type[CourseSerializer] | type[AdminCourseSerializer]:
         if self.request.method == "GET":
             return AdminCourseSerializer
         return CourseSerializer
