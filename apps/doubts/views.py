@@ -105,6 +105,9 @@ class AdminDoubtListView(generics.ListAPIView):
     pagination_class = LargePagination
     queryset = DoubtTicket.objects.select_related(
         "student__user",
+        "session__week__course__level",
+        "exam_question__exam__level",
+        "exam_question__exam__course",
     ).prefetch_related("replies")
     filterset_fields = ["status", "context_type", "assigned_to"]
     search_fields = ["title", "student__user__email"]

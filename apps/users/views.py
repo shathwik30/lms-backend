@@ -15,6 +15,7 @@ from core.throttling import SafeScopedRateThrottle
 from .models import IssueReport, StudentProfile, UserPreference
 from .serializers import (
     AdminIssueReportSerializer,
+    AdminStudentListSerializer,
     AdminStudentUpdateSerializer,
     ChangePasswordSerializer,
     GoogleAuthSerializer,
@@ -268,7 +269,7 @@ class ChangePasswordView(APIView):
 )
 class AdminStudentListView(generics.ListAPIView):
     permission_classes = [IsAdmin]
-    serializer_class = StudentProfileSerializer
+    serializer_class = AdminStudentListSerializer
     pagination_class = LargePagination
     queryset = StudentProfile.objects.select_related(
         "user",

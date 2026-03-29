@@ -30,6 +30,8 @@ class DoubtReplySerializer(serializers.ModelSerializer):
 class DoubtTicketListSerializer(serializers.ModelSerializer):
     student_name = serializers.CharField(source="student.user.full_name", read_only=True)
     replies_count = serializers.IntegerField(source="replies.count", read_only=True)
+    level_name = serializers.SerializerMethodField()
+    course_name = serializers.SerializerMethodField()
 
     class Meta:
         model = DoubtTicket
@@ -40,10 +42,38 @@ class DoubtTicketListSerializer(serializers.ModelSerializer):
             "title",
             "status",
             "context_type",
+            "level_name",
+            "course_name",
             "created_at",
             "replies_count",
         ]
         read_only_fields = fields
+
+    def get_level_name(self, obj) -> str | None:
+        if obj.session_id:
+            try:
+                return obj.session.week.course.level.name
+            except AttributeError:
+                return None
+        if obj.exam_question_id:
+            try:
+                return obj.exam_question.exam.level.name
+            except AttributeError:
+                return None
+        return None
+
+    def get_course_name(self, obj) -> str | None:
+        if obj.session_id:
+            try:
+                return obj.session.week.course.title
+            except AttributeError:
+                return None
+        if obj.exam_question_id:
+            try:
+                return obj.exam_question.exam.course.title if obj.exam_question.exam.course else None
+            except AttributeError:
+                return None
+        return None
 
 
 class DoubtTicketDetailSerializer(serializers.ModelSerializer):

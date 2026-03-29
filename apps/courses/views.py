@@ -13,6 +13,7 @@ from core.permissions import IsAdmin, IsStudent
 
 from .models import Bookmark, Course, Session
 from .serializers import (
+    AdminCourseSerializer,
     BookmarkSerializer,
     CourseSerializer,
     SessionDetailSerializer,
@@ -154,10 +155,14 @@ class BookmarkDeleteView(APIView):
 )
 class AdminCourseListCreateView(generics.ListCreateAPIView):
     permission_classes = [IsAdmin]
-    serializer_class = CourseSerializer
     queryset = Course.objects.select_related("level")
     pagination_class = LargePagination
     filterset_fields = ["level", "is_active"]
+
+    def get_serializer_class(self):
+        if self.request.method == "POST":
+            return CourseSerializer
+        return AdminCourseSerializer
 
 
 @extend_schema_view(
@@ -168,8 +173,12 @@ class AdminCourseListCreateView(generics.ListCreateAPIView):
 )
 class AdminCourseDetailView(generics.RetrieveUpdateDestroyAPIView):
     permission_classes = [IsAdmin]
-    serializer_class = CourseSerializer
-    queryset = Course.objects.all()
+    queryset = Course.objects.select_related("level")
+
+    def get_serializer_class(self):
+        if self.request.method == "GET":
+            return AdminCourseSerializer
+        return CourseSerializer
 
 
 @extend_schema_view(

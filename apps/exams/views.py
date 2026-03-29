@@ -11,6 +11,7 @@ from core.throttling import SafeScopedRateThrottle
 
 from .models import Exam, ExamAttempt, Option, Question
 from .serializers import (
+    AdminExamSerializer,
     AttemptQuestionResultSerializer,
     ExamAttemptDetailSerializer,
     ExamAttemptSerializer,
@@ -243,10 +244,14 @@ class AdminOptionListCreateView(generics.ListCreateAPIView):
 )
 class AdminExamListCreateView(generics.ListCreateAPIView):
     permission_classes = [IsAdmin]
-    serializer_class = ExamSerializer
     queryset = Exam.objects.select_related("level", "week", "course")
     pagination_class = LargePagination
     filterset_fields = ["level", "exam_type", "is_active"]
+
+    def get_serializer_class(self):
+        if self.request.method == "POST":
+            return ExamSerializer
+        return AdminExamSerializer
 
 
 @extend_schema_view(
@@ -257,8 +262,12 @@ class AdminExamListCreateView(generics.ListCreateAPIView):
 )
 class AdminExamDetailView(generics.RetrieveUpdateDestroyAPIView):
     permission_classes = [IsAdmin]
-    serializer_class = ExamSerializer
-    queryset = Exam.objects.all()
+    queryset = Exam.objects.select_related("level", "week", "course")
+
+    def get_serializer_class(self):
+        if self.request.method == "GET":
+            return AdminExamSerializer
+        return ExamSerializer
 
 
 @extend_schema_view(

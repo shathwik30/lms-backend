@@ -140,6 +140,18 @@ class AttemptQuestionResultSerializer(serializers.ModelSerializer):
         return list(obj.question.options.filter(is_correct=True).values_list("id", flat=True))
 
 
+class AdminExamSerializer(ExamSerializer):
+    subjects_included = serializers.SerializerMethodField()
+
+    class Meta(ExamSerializer.Meta):
+        fields = [*ExamSerializer.Meta.fields, "subjects_included"]
+
+    def get_subjects_included(self, obj) -> list[str]:
+        from apps.courses.models import Course
+
+        return list(Course.objects.filter(level=obj.level, is_active=True).values_list("title", flat=True))
+
+
 class ExamAttemptSerializer(serializers.ModelSerializer):
     exam_title = serializers.CharField(source="exam.title", read_only=True)
 

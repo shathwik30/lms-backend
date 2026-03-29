@@ -10,7 +10,7 @@ from core.permissions import IsAdmin, IsStudent
 from core.throttling import SafeScopedRateThrottle
 
 from .models import SessionFeedback
-from .serializers import SessionFeedbackSerializer
+from .serializers import AdminFeedbackSerializer, SessionFeedbackSerializer
 from .services import FeedbackService
 
 
@@ -60,8 +60,11 @@ class StudentFeedbackListView(generics.ListAPIView):
 )
 class AdminFeedbackListView(generics.ListAPIView):
     permission_classes = [IsAdmin]
-    serializer_class = SessionFeedbackSerializer
-    queryset = SessionFeedback.objects.select_related("student__user", "session")
+    serializer_class = AdminFeedbackSerializer
+    queryset = SessionFeedback.objects.select_related(
+        "student__user",
+        "session__week__course__level",
+    )
     pagination_class = LargePagination
     filterset_fields = ["session", "overall_rating", "difficulty_rating", "clarity_rating"]
     search_fields = ["student__user__email"]

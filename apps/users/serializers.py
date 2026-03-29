@@ -55,6 +55,102 @@ class StudentProfileSerializer(serializers.ModelSerializer):
         read_only_fields = fields
 
 
+class AdminStudentListSerializer(serializers.ModelSerializer):
+    user = UserSerializer(read_only=True)
+    current_level_name = serializers.CharField(source="current_level.name", default=None)
+    highest_cleared_level_name = serializers.CharField(
+        source="highest_cleared_level.name",
+        default=None,
+    )
+    validity_till = serializers.SerializerMethodField()
+    exam_status = serializers.SerializerMethodField()
+    streak = serializers.SerializerMethodField()
+    last_active = serializers.SerializerMethodField()
+    account_status = serializers.SerializerMethodField()
+
+    class Meta:
+        model = StudentProfile
+        fields = [
+            "id",
+            "user",
+            "current_level",
+            "current_level_name",
+            "highest_cleared_level",
+            "highest_cleared_level_name",
+            "gender",
+            "is_onboarding_completed",
+            "is_onboarding_exam_attempted",
+            "validity_till",
+            "exam_status",
+            "streak",
+            "last_active",
+            "account_status",
+            "created_at",
+        ]
+        read_only_fields = fields
+
+    def get_validity_till(self, obj) -> str | None:
+        from apps.payments.models import Purchase
+
+        purchase = (
+            Purchase.objects.filter(student=obj, status="active")
+            .order_by("-expires_at")
+            .values_list("expires_at", flat=True)
+            .first()
+        )
+        return purchase.isoformat() if purchase else None
+
+    def get_exam_status(self, obj) -> str:
+        from apps.exams.models import ExamAttempt
+
+        attempt = ExamAttempt.objects.filter(student=obj).order_by("-started_at").values("status", "is_passed").first()
+        if not attempt:
+            return "not_attempted"
+        if attempt["is_passed"]:
+            return "passed"
+        if attempt["status"] == "in_progress":
+            return "in_progress"
+        return "failed"
+
+    def get_streak(self, obj) -> int:
+        import datetime
+
+        from django.utils import timezone
+
+        from apps.progress.models import SessionProgress
+
+        today = timezone.now().date()
+        dates = list(
+            SessionProgress.objects.filter(student=obj)
+            .values_list("updated_at__date", flat=True)
+            .distinct()
+            .order_by("-updated_at__date")[:60]
+        )
+        streak = 0
+        expected = today
+        for d in dates:
+            if d == expected:
+                streak += 1
+                expected -= datetime.timedelta(days=1)
+            elif d < expected:
+                break
+        return streak
+
+    def get_last_active(self, obj) -> str | None:
+        from apps.progress.models import SessionProgress
+
+        ts = (
+            SessionProgress.objects.filter(student=obj)
+            .order_by("-updated_at")
+            .values_list("updated_at", flat=True)
+            .first()
+        )
+        return ts.isoformat() if ts else None
+
+    def get_account_status(self, obj) -> str:
+        return "active" if obj.user.is_active else "inactive"
+
+
 class AdminStudentUpdateSerializer(serializers.Serializer):
     current_level = serializers.IntegerField(required=False)
     highest_cleared_level = serializers.IntegerField(required=False)

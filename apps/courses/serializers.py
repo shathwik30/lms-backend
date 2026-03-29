@@ -80,3 +80,41 @@ class CourseSerializer(serializers.ModelSerializer):
             "created_at",
         ]
         read_only_fields = ["id", "created_at"]
+
+
+class AdminCourseSerializer(serializers.ModelSerializer):
+    level_name = serializers.CharField(source="level.name", read_only=True)
+    weeks_count = serializers.IntegerField(source="weeks.count", read_only=True)
+    price = serializers.DecimalField(source="level.price", max_digits=10, decimal_places=2, read_only=True)
+    students_enrolled = serializers.SerializerMethodField()
+    exam_linked = serializers.SerializerMethodField()
+
+    class Meta:
+        model = Course
+        fields = [
+            "id",
+            "level",
+            "level_name",
+            "title",
+            "description",
+            "is_active",
+            "weeks_count",
+            "price",
+            "students_enrolled",
+            "exam_linked",
+            "created_at",
+        ]
+        read_only_fields = ["id", "created_at"]
+
+    def get_students_enrolled(self, obj) -> int:
+        from apps.progress.models import CourseProgress
+
+        return CourseProgress.objects.filter(
+            course=obj,
+            status__in=["in_progress", "completed"],
+        ).count()
+
+    def get_exam_linked(self, obj) -> list[str]:
+        from apps.exams.models import Exam
+
+        return list(Exam.objects.filter(course=obj, is_active=True).values_list("title", flat=True))
