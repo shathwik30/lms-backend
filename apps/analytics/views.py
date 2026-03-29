@@ -5,8 +5,9 @@ import datetime
 from django.db.models import Count, Sum
 from django.db.models.functions import TruncDate
 from django.utils import timezone
-from drf_spectacular.utils import extend_schema, extend_schema_view
+from drf_spectacular.utils import extend_schema, extend_schema_view, inline_serializer
 from rest_framework import generics
+from rest_framework import serializers as drf_serializers
 from rest_framework.request import Request
 from rest_framework.response import Response
 from rest_framework.views import APIView
@@ -50,7 +51,25 @@ class AdminDashboardView(APIView):
 
     permission_classes = [IsAdmin]
 
-    @extend_schema(tags=["Analytics"], summary="Admin dashboard stats")
+    @extend_schema(
+        tags=["Analytics"],
+        summary="Admin dashboard stats",
+        responses={
+            200: inline_serializer(
+                "AdminDashboardResponse",
+                fields={
+                    "total_students": drf_serializers.IntegerField(),
+                    "total_revenue": drf_serializers.CharField(),
+                    "active_users": drf_serializers.IntegerField(),
+                    "exams_passed_today": drf_serializers.IntegerField(),
+                    "open_doubts": drf_serializers.IntegerField(),
+                    "recent_doubts": drf_serializers.ListField(child=drf_serializers.DictField()),
+                    "daily_active_users": drf_serializers.ListField(child=drf_serializers.DictField()),
+                    "streak_retention": drf_serializers.DictField(),
+                },
+            )
+        },
+    )
     def get(self, request: Request) -> Response:
         now = timezone.now()
         today = now.date()
