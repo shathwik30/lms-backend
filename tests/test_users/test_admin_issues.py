@@ -137,3 +137,106 @@ class AdminIssueReportUpdateViewTests(TestCase):
         self.report.refresh_from_db()
         self.assertEqual(self.report.subject, "Test bug")
         self.assertTrue(self.report.is_resolved)
+
+
+class AdminIssueEnrichedFieldsTests(TestCase):
+    """Tests for enriched fields on the admin issue endpoints."""
+
+    def setUp(self):
+        self.factory = TestFactory()
+        self.admin = self.factory.create_admin()
+        self.admin_client = self.factory.get_auth_client(self.admin)
+        self.student_user, self.profile = self.factory.create_student()
+        self.student_client = self.factory.get_auth_client(self.student_user)
+
+    def test_response_includes_student_name(self):
+        IssueReport.objects.create(
+            user=self.student_user,
+            category=IssueReport.Category.BUG,
+            subject="Bug",
+            description="Desc",
+        )
+        response = self.admin_client.get("/api/v1/auth/admin/issues/")
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        issue = response.data["results"][0]
+        self.assertIn("student_name", issue)
+        self.assertEqual(issue["student_name"], self.student_user.full_name)
+
+    def test_response_includes_profile_picture(self):
+        IssueReport.objects.create(
+            user=self.student_user,
+            category=IssueReport.Category.BUG,
+            subject="Bug",
+            description="Desc",
+        )
+        response = self.admin_client.get("/api/v1/auth/admin/issues/")
+        issue = response.data["results"][0]
+        self.assertIn("student_profile_picture", issue)
+
+    def test_response_includes_device_fields(self):
+        IssueReport.objects.create(
+            user=self.student_user,
+            category=IssueReport.Category.BUG,
+            subject="Bug",
+            description="Desc",
+            device_info="iPhone 14",
+            browser_info="Safari 17",
+            os_info="iOS 17",
+        )
+        response = self.admin_client.get("/api/v1/auth/admin/issues/")
+        issue = response.data["results"][0]
+        self.assertIn("device_info", issue)
+        self.assertIn("browser_info", issue)
+        self.assertIn("os_info", issue)
+        self.assertEqual(issue["device_info"], "iPhone 14")
+        self.assertEqual(issue["browser_info"], "Safari 17")
+        self.assertEqual(issue["os_info"], "iOS 17")
+
+    def test_admin_can_write_response(self):
+        report = IssueReport.objects.create(
+            user=self.student_user,
+            category=IssueReport.Category.BUG,
+            subject="Bug",
+            description="Desc",
+        )
+        response = self.admin_client.patch(
+            f"/api/v1/auth/admin/issues/{report.pk}/",
+            data={"admin_response": "We are looking into this."},
+            format="json",
+        )
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(response.data["admin_response"], "We are looking into this.")
+
+    def test_admin_response_persists(self):
+        report = IssueReport.objects.create(
+            user=self.student_user,
+            category=IssueReport.Category.BUG,
+            subject="Bug",
+            description="Desc",
+        )
+        self.admin_client.patch(
+            f"/api/v1/auth/admin/issues/{report.pk}/",
+            data={"admin_response": "Fixed in next release."},
+            format="json",
+        )
+        report.refresh_from_db()
+        self.assertEqual(report.admin_response, "Fixed in next release.")
+
+    def test_create_issue_with_device_info(self):
+        response = self.student_client.post(
+            "/api/v1/auth/report-issue/",
+            data={
+                "category": "bug",
+                "subject": "App crash",
+                "description": "Crashes on launch",
+                "device_info": "Pixel 7",
+                "browser_info": "Chrome 120",
+                "os_info": "Android 14",
+            },
+            format="json",
+        )
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED)
+        report = IssueReport.objects.get(subject="App crash")
+        self.assertEqual(report.device_info, "Pixel 7")
+        self.assertEqual(report.browser_info, "Chrome 120")
+        self.assertEqual(report.os_info, "Android 14")

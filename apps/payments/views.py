@@ -1,5 +1,9 @@
+import datetime
 import logging
 
+from django.db.models import Count, Q, Sum
+from django.db.models.functions import TruncMonth
+from django.utils import timezone
 from drf_spectacular.utils import extend_schema, extend_schema_view, inline_serializer
 from rest_framework import generics, status
 from rest_framework import serializers as drf_serializers
@@ -122,6 +126,87 @@ class TransactionHistoryView(generics.ListAPIView):
 
 
 # ── Admin views ──
+
+
+class AdminPaymentDashboardView(APIView):
+    """Aggregated payment stats for the admin dashboard."""
+
+    permission_classes = [IsAdmin]
+
+    @extend_schema(
+        tags=["Payments"],
+        summary="Payment dashboard stats",
+        responses={
+            200: inline_serializer(
+                "AdminPaymentDashboardResponse",
+                fields={
+                    "total_revenue": drf_serializers.CharField(),
+                    "successful_payments": drf_serializers.IntegerField(),
+                    "failed_payments": drf_serializers.IntegerField(),
+                    "refunded_payments": drf_serializers.IntegerField(),
+                    "revenue_trend": drf_serializers.ListField(child=drf_serializers.DictField()),
+                    "top_purchased_levels": drf_serializers.ListField(child=drf_serializers.DictField()),
+                },
+            )
+        },
+    )
+    def get(self, request):
+        status_counts = PaymentTransaction.objects.aggregate(
+            successful=Count("id", filter=Q(status=PaymentTransaction.Status.SUCCESS)),
+            failed=Count("id", filter=Q(status=PaymentTransaction.Status.FAILED)),
+            refunded=Count("id", filter=Q(status=PaymentTransaction.Status.REFUNDED)),
+        )
+
+        total_revenue = (
+            PaymentTransaction.objects.filter(status=PaymentTransaction.Status.SUCCESS).aggregate(total=Sum("amount"))[
+                "total"
+            ]
+            or 0
+        )
+
+        twelve_months_ago = timezone.now() - datetime.timedelta(days=365)
+        revenue_trend = list(
+            PaymentTransaction.objects.filter(
+                status=PaymentTransaction.Status.SUCCESS,
+                created_at__gte=twelve_months_ago,
+            )
+            .annotate(month=TruncMonth("created_at"))
+            .values("month")
+            .annotate(revenue=Sum("amount"), count=Count("id"))
+            .order_by("month")
+        )
+
+        top_levels = list(
+            Purchase.objects.filter(status=Purchase.Status.ACTIVE)
+            .values("level__id", "level__name")
+            .annotate(purchase_count=Count("id"))
+            .order_by("-purchase_count")[:10]
+        )
+
+        return Response(
+            {
+                "total_revenue": str(total_revenue),
+                "successful_payments": status_counts["successful"],
+                "failed_payments": status_counts["failed"],
+                "refunded_payments": status_counts["refunded"],
+                "revenue_trend": [
+                    {
+                        "month": item["month"],
+                        "revenue": str(item["revenue"]),
+                        "count": item["count"],
+                    }
+                    for item in revenue_trend
+                ],
+                "top_purchased_levels": [
+                    {
+                        "level_id": item["level__id"],
+                        "level_name": item["level__name"],
+                        "purchase_count": item["purchase_count"],
+                    }
+                    for item in top_levels
+                ],
+            }
+        )
 
 
 class AdminExtendValidityView(APIView):

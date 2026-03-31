@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import datetime
 from typing import Any
 
 from django.conf import settings
@@ -281,6 +282,67 @@ class ProgressService:
             calendar_data[date_str]["exams_taken"] = entry["exams_taken"]
 
         return sorted(calendar_data.values(), key=lambda x: x["date"])
+
+    @staticmethod
+    def get_streak_data(profile: StudentProfile) -> dict[str, Any]:
+        """Calculate current streak, longest streak, and streak goal progress."""
+        today = timezone.now().date()
+
+        dates: list[datetime.date] = list(
+            SessionProgress.objects.filter(student=profile)
+            .values_list("updated_at__date", flat=True)
+            .distinct()
+            .order_by("-updated_at__date")
+        )
+
+        from apps.exams.models import ExamAttempt
+
+        exam_dates: list[datetime.date] = list(
+            ExamAttempt.objects.filter(student=profile).values_list("started_at__date", flat=True).distinct()
+        )
+
+        all_active = sorted(set(dates) | set(exam_dates), reverse=True)
+
+        # Current streak (consecutive days ending today or yesterday)
+        current_streak = 0
+        expected = today
+        for d in all_active:
+            if d == expected:
+                current_streak += 1
+                expected -= datetime.timedelta(days=1)
+            elif d < expected:
+                break
+
+        # Longest streak (scan all dates)
+        longest_streak = 0
+        if all_active:
+            sorted_asc = sorted(set(all_active))
+            streak = 1
+            for i in range(1, len(sorted_asc)):
+                if (sorted_asc[i] - sorted_asc[i - 1]).days == 1:
+                    streak += 1
+                else:
+                    longest_streak = max(longest_streak, streak)
+                    streak = 1
+            longest_streak = max(longest_streak, streak)
+
+        # Streak goal and milestone
+        streak_goal = 30
+        if current_streak >= 15:
+            next_milestone = 30
+        elif current_streak >= 7:
+            next_milestone = 15
+        else:
+            next_milestone = 7
+        days_to_milestone = max(next_milestone - current_streak, 0)
+
+        return {
+            "current_streak": current_streak,
+            "longest_streak": longest_streak,
+            "streak_goal": streak_goal,
+            "next_milestone": next_milestone,
+            "days_to_milestone": days_to_milestone,
+        }
 
     @staticmethod
     def _build_ranked_leaderboard(

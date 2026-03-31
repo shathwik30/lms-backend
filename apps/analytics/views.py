@@ -2,21 +2,25 @@ from __future__ import annotations
 
 import datetime
 
-from django.db.models import Count, Sum
+from django.db.models import Avg, Count, Q, Sum
 from django.db.models.functions import TruncDate
 from django.utils import timezone
 from drf_spectacular.utils import extend_schema, extend_schema_view, inline_serializer
 from rest_framework import generics
 from rest_framework import serializers as drf_serializers
+from rest_framework import status as http_status
 from rest_framework.request import Request
 from rest_framework.response import Response
 from rest_framework.views import APIView
 
+from apps.courses.models import Course
 from apps.doubts.models import DoubtTicket
 from apps.exams.models import ExamAttempt
+from apps.levels.models import Level
 from apps.payments.models import Purchase
-from apps.progress.models import SessionProgress
+from apps.progress.models import CourseProgress, LevelProgress, SessionProgress
 from apps.users.models import StudentProfile
+from core.constants import ErrorMessage
 from core.pagination import AnalyticsCursorPagination
 from core.permissions import IsAdmin
 
@@ -175,3 +179,113 @@ class AdminDashboardView(APIView):
                 buckets["8_plus_days"] += 1
 
         return buckets
+
+
+class AdminLevelAnalyticsDetailView(APIView):
+    """Detailed analytics for a single level."""
+
+    permission_classes = [IsAdmin]
+
+    @extend_schema(
+        tags=["Analytics"],
+        summary="Level analytics detail",
+        parameters=[
+            inline_serializer(
+                "LevelAnalyticsDetailParams",
+                fields={"days": drf_serializers.IntegerField(default=30, required=False)},
+            )
+        ],
+        responses={
+            200: inline_serializer(
+                "AdminLevelAnalyticsDetailResponse",
+                fields={
+                    "level_id": drf_serializers.IntegerField(),
+                    "level_name": drf_serializers.CharField(),
+                    "students_enrolled": drf_serializers.IntegerField(),
+                    "completion_rate": drf_serializers.FloatField(allow_null=True),
+                    "exam_pass_rate": drf_serializers.FloatField(allow_null=True),
+                    "average_score": drf_serializers.FloatField(allow_null=True),
+                    "student_activity": drf_serializers.ListField(child=drf_serializers.DictField()),
+                    "module_completion_rate": drf_serializers.ListField(child=drf_serializers.DictField()),
+                },
+            )
+        },
+    )
+    def get(self, request: Request, level_pk: int) -> Response:
+        try:
+            level = Level.objects.get(pk=level_pk)
+        except Level.DoesNotExist:
+            return Response({"detail": ErrorMessage.NOT_FOUND}, status=http_status.HTTP_404_NOT_FOUND)
+
+        # Stat cards
+        students_enrolled = (
+            Purchase.objects.filter(level=level, status=Purchase.Status.ACTIVE).values("student").distinct().count()
+        )
+
+        total_level_students = LevelProgress.objects.filter(level=level).count()
+        exam_passed_count = LevelProgress.objects.filter(level=level, status=LevelProgress.Status.EXAM_PASSED).count()
+        completion_rate = round((exam_passed_count / total_level_students) * 100, 2) if total_level_students else None
+
+        level_final_attempts = ExamAttempt.objects.filter(
+            exam__level=level,
+            exam__exam_type="level_final",
+            status=ExamAttempt.Status.SUBMITTED,
+        )
+        total_exam_attempts = level_final_attempts.count()
+        exam_passes = level_final_attempts.filter(is_passed=True).count()
+        exam_pass_rate = round((exam_passes / total_exam_attempts) * 100, 2) if total_exam_attempts else None
+
+        avg_score = level_final_attempts.aggregate(avg=Avg("score"))["avg"]
+        average_score = round(float(avg_score), 2) if avg_score is not None else None
+
+        # Student activity chart
+        days = min(int(request.query_params.get("days", 30)), 90)
+        cutoff = timezone.now() - datetime.timedelta(days=days)
+        student_activity: list[dict[str, object]] = list(
+            SessionProgress.objects.filter(
+                session__week__course__level=level,
+                updated_at__gte=cutoff,
+            )
+            .annotate(date=TruncDate("updated_at"))
+            .values("date")
+            .annotate(active_students=Count("student", distinct=True))
+            .order_by("date")
+        )
+
+        # Module (course) completion — single annotated query
+        courses_with_stats = (
+            Course.objects.filter(level=level, is_active=True)
+            .annotate(
+                total_students=Count("progress_records"),
+                completed_students=Count(
+                    "progress_records",
+                    filter=Q(progress_records__status=CourseProgress.Status.COMPLETED),
+                ),
+            )
+            .values("id", "title", "total_students", "completed_students")
+        )
+        module_completion: list[dict[str, object]] = [
+            {
+                "course_id": c["id"],
+                "course_title": c["title"],
+                "completion_rate": (
+                    round((c["completed_students"] / c["total_students"]) * 100, 2) if c["total_students"] else 0
+                ),
+                "total_students": c["total_students"],
+                "completed_students": c["completed_students"],
+            }
+            for c in courses_with_stats
+        ]
+
+        return Response(
+            {
+                "level_id": level.id,
+                "level_name": level.name,
+                "students_enrolled": students_enrolled,
+                "completion_rate": completion_rate,
+                "exam_pass_rate": exam_pass_rate,
+                "average_score": average_score,
+                "student_activity": student_activity,
+                "module_completion_rate": module_completion,
+            }
+        )

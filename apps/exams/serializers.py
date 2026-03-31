@@ -108,6 +108,8 @@ class AttemptQuestionSerializer(serializers.ModelSerializer):
 class AttemptQuestionResultSerializer(serializers.ModelSerializer):
     question_text = serializers.CharField(source="question.text", read_only=True)
     question_type = serializers.CharField(source="question.question_type", read_only=True)
+    question_level = serializers.IntegerField(source="question.level_id", read_only=True)
+    question_level_name = serializers.CharField(source="question.level.name", read_only=True)
     explanation = serializers.CharField(source="question.explanation", read_only=True)
     correct_text_answer = serializers.CharField(source="question.correct_text_answer", read_only=True)
     selected_option_ids = serializers.PrimaryKeyRelatedField(  # type: ignore[var-annotated]
@@ -124,6 +126,8 @@ class AttemptQuestionResultSerializer(serializers.ModelSerializer):
             "question",
             "question_text",
             "question_type",
+            "question_level",
+            "question_level_name",
             "selected_option",
             "selected_option_ids",
             "text_answer",
@@ -168,6 +172,37 @@ class ExamAttemptSerializer(serializers.ModelSerializer):
             "total_marks",
             "is_passed",
             "is_disqualified",
+        ]
+        read_only_fields = fields
+
+
+class AdminExamAttemptSerializer(serializers.ModelSerializer):
+    """Admin-facing attempt serializer with student info and violation count."""
+
+    exam_title = serializers.CharField(source="exam.title", read_only=True)
+    student_name = serializers.CharField(source="student.user.full_name", read_only=True)
+    student_profile_picture = serializers.ImageField(source="student.user.profile_picture", read_only=True)
+    violations_count = serializers.IntegerField(read_only=True)
+    attempt_number = serializers.IntegerField(read_only=True)
+
+    class Meta:
+        model = ExamAttempt
+        fields = [
+            "id",
+            "exam",
+            "exam_title",
+            "student",
+            "student_name",
+            "student_profile_picture",
+            "started_at",
+            "submitted_at",
+            "status",
+            "score",
+            "total_marks",
+            "is_passed",
+            "is_disqualified",
+            "violations_count",
+            "attempt_number",
         ]
         read_only_fields = fields
 

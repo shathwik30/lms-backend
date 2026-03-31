@@ -33,6 +33,7 @@ class StudentDoubtListCreateView(generics.ListCreateAPIView):
     pagination_class = SmallPagination
     throttle_classes = [SafeScopedRateThrottle]
     throttle_scope = "doubt_create"
+    filterset_fields = ["status"]
 
     def get_serializer_class(self):
         if self.request.method == "POST":

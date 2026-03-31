@@ -31,7 +31,7 @@ class CourseProgressViewTests(TestCase):
 
         response = self.client.get(f"/api/v1/progress/courses/{course.pk}/")
         self.assertEqual(response.status_code, 200)
-        self.assertEqual(response.data["course"], course.pk)
+        self.assertEqual(response.data["course_id"], course.pk)
 
 
 class LevelCourseProgressViewTests(TestCase):

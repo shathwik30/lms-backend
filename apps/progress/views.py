@@ -80,14 +80,14 @@ class CourseProgressView(APIView):
 
     @extend_schema(responses={200: CourseProgressSerializer}, tags=["Progress"])
     def get(self, request, course_pk):
+        from apps.courses.models import Course
+
         try:
-            cp = CourseProgress.objects.select_related("course__level").get(
-                course_id=course_pk,
-                student=request.user.student_profile,
-            )
-        except CourseProgress.DoesNotExist:
+            course = Course.objects.get(pk=course_pk, is_active=True)
+        except Course.DoesNotExist:
             return Response({"detail": ErrorMessage.NOT_FOUND}, status=status.HTTP_404_NOT_FOUND)
-        return Response(CourseProgressSerializer(cp).data)
+        data = ProgressService.get_course_progress(request.user.student_profile, course)
+        return Response(data)
 
 
 class LevelCourseProgressView(APIView):
@@ -153,6 +153,7 @@ class CalendarView(APIView):
                     "year": drf_serializers.IntegerField(),
                     "month": drf_serializers.IntegerField(),
                     "active_dates": drf_serializers.ListField(child=drf_serializers.DictField()),
+                    "streak": drf_serializers.DictField(),
                 },
             )
         },
@@ -173,12 +174,18 @@ class CalendarView(APIView):
                 status=status.HTTP_400_BAD_REQUEST,
             )
 
-        active_dates = ProgressService.get_calendar_data(
-            request.user.student_profile,
-            year,
-            month,
+        profile = request.user.student_profile
+        active_dates = ProgressService.get_calendar_data(profile, year, month)
+        streak_data = ProgressService.get_streak_data(profile)
+
+        return Response(
+            {
+                "year": year,
+                "month": month,
+                "active_dates": active_dates,
+                "streak": streak_data,
+            }
         )
-        return Response({"year": year, "month": month, "active_dates": active_dates})
 
 
 class LeaderboardView(APIView):

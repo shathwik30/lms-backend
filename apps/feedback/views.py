@@ -66,5 +66,12 @@ class AdminFeedbackListView(generics.ListAPIView):
         "session__week__course__level",
     )
     pagination_class = LargePagination
-    filterset_fields = ["session", "overall_rating", "difficulty_rating", "clarity_rating"]
+    filterset_fields = [
+        "session",
+        "overall_rating",
+        "difficulty_rating",
+        "clarity_rating",
+        "session__week__course",
+        "session__week__course__level",
+    ]
     search_fields = ["student__user__email"]

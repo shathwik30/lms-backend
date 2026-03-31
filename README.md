@@ -92,9 +92,6 @@ cp .env.example .env
 # Run migrations
 python manage.py migrate
 
-# Seed sample data (optional)
-python manage.py seed_data
-
 # Create superuser
 python manage.py createsuperuser
 

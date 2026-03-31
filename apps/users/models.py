@@ -101,6 +101,10 @@ class IssueReport(TimeStampedModel):
     description = models.TextField()
     screenshot = models.ImageField(upload_to="issues/screenshots/", blank=True)
     is_resolved = models.BooleanField(default=False, db_index=True)
+    device_info = models.CharField(max_length=200, blank=True, default="")
+    browser_info = models.CharField(max_length=200, blank=True, default="")
+    os_info = models.CharField(max_length=200, blank=True, default="")
+    admin_response = models.TextField(blank=True, default="")
 
     class Meta:
         db_table = "issue_reports"
@@ -117,6 +121,9 @@ class UserPreference(TimeStampedModel):
     doubt_reply_notifications = models.BooleanField(default=True)
     exam_result_notifications = models.BooleanField(default=True)
     promotional_notifications = models.BooleanField(default=True)
+    payment_notifications = models.BooleanField(default=True)
+    issue_report_notifications = models.BooleanField(default=True)
+    feedback_reminder_notifications = models.BooleanField(default=True)
 
     class Meta:
         db_table = "user_preferences"

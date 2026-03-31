@@ -1,5 +1,7 @@
-from drf_spectacular.utils import extend_schema, extend_schema_view
+from django.db.models import Avg, Count, OuterRef, Subquery
+from drf_spectacular.utils import extend_schema, extend_schema_view, inline_serializer
 from rest_framework import generics, status
+from rest_framework import serializers as drf_serializers
 from rest_framework.response import Response
 from rest_framework.views import APIView
 
@@ -9,8 +11,9 @@ from core.pagination import LargePagination, SmallPagination
 from core.permissions import IsAdmin, IsStudent
 from core.throttling import SafeScopedRateThrottle
 
-from .models import Exam, ExamAttempt, Option, Question
+from .models import Exam, ExamAttempt, Option, ProctoringViolation, Question
 from .serializers import (
+    AdminExamAttemptSerializer,
     AdminExamSerializer,
     AttemptQuestionResultSerializer,
     ExamAttemptDetailSerializer,
@@ -112,7 +115,7 @@ class AttemptResultView(APIView):
                 status=status.HTTP_400_BAD_REQUEST,
             )
 
-        questions = attempt.attempt_questions.select_related("question")
+        questions = attempt.attempt_questions.select_related("question", "question__level")
         data = ExamAttemptSerializer(attempt).data
         data["questions"] = AttemptQuestionResultSerializer(questions, many=True).data
         return Response(data)
@@ -275,10 +278,76 @@ class AdminExamDetailView(generics.RetrieveUpdateDestroyAPIView):
 )
 class AdminAttemptListView(generics.ListAPIView):
     permission_classes = [IsAdmin]
-    serializer_class = ExamAttemptSerializer
-    queryset = ExamAttempt.objects.select_related("exam", "student__user")
+    serializer_class = AdminExamAttemptSerializer
     pagination_class = LargePagination
     filterset_fields = ["exam", "status", "is_passed", "is_disqualified", "exam__level"]
+
+    @swagger_safe(ExamAttempt)
+    def get_queryset(self):
+        return (
+            ExamAttempt.objects.select_related("exam", "student__user")
+            .annotate(
+                violations_count=Count("violations"),
+                attempt_number=Subquery(
+                    ExamAttempt.objects.filter(
+                        student=OuterRef("student"),
+                        exam=OuterRef("exam"),
+                        started_at__lte=OuterRef("started_at"),
+                    )
+                    .order_by()
+                    .values("student", "exam")
+                    .annotate(n=Count("id"))
+                    .values("n")[:1]
+                ),
+            )
+            .order_by("-started_at")
+        )
+
+
+class AdminExamStatsView(APIView):
+    """Aggregated stats for a single exam (admin)."""
+
+    permission_classes = [IsAdmin]
+
+    @extend_schema(
+        tags=["Exams"],
+        summary="Exam-level analytics",
+        responses={
+            200: inline_serializer(
+                "AdminExamStatsResponse",
+                fields={
+                    "total_attempts": drf_serializers.IntegerField(),
+                    "pass_rate": drf_serializers.FloatField(allow_null=True),
+                    "average_score": drf_serializers.FloatField(allow_null=True),
+                    "total_violations": drf_serializers.IntegerField(),
+                },
+            )
+        },
+    )
+    def get(self, request, exam_pk):
+        if not Exam.objects.filter(pk=exam_pk).exists():
+            return Response({"detail": ErrorMessage.NOT_FOUND}, status=status.HTTP_404_NOT_FOUND)
+
+        attempts = ExamAttempt.objects.filter(exam_id=exam_pk).exclude(
+            status=ExamAttempt.Status.IN_PROGRESS,
+        )
+        total_attempts = attempts.count()
+        passed = attempts.filter(is_passed=True).count()
+        pass_rate = round((passed / total_attempts) * 100, 2) if total_attempts else None
+
+        avg_score = attempts.aggregate(avg=Avg("score"))["avg"]
+        average_score = round(float(avg_score), 2) if avg_score is not None else None
+
+        total_violations = ProctoringViolation.objects.filter(attempt__exam_id=exam_pk).count()
+
+        return Response(
+            {
+                "total_attempts": total_attempts,
+                "pass_rate": pass_rate,
+                "average_score": average_score,
+                "total_violations": total_violations,
+            }
+        )
 
 
 @extend_schema_view(

@@ -79,12 +79,14 @@ class DoubtTicketListSerializer(serializers.ModelSerializer):
 
 class DoubtTicketDetailSerializer(serializers.ModelSerializer):
     student_name = serializers.CharField(source="student.user.full_name", read_only=True)
+    student_profile_picture = serializers.ImageField(source="student.user.profile_picture", read_only=True)
     replies = DoubtReplySerializer(many=True, read_only=True)
     assigned_to_name = serializers.CharField(
         source="assigned_to.full_name",
         default=None,
         read_only=True,
     )
+    level_name = serializers.SerializerMethodField()
 
     class Meta:
         model = DoubtTicket
@@ -92,6 +94,7 @@ class DoubtTicketDetailSerializer(serializers.ModelSerializer):
             "id",
             "student",
             "student_name",
+            "student_profile_picture",
             "title",
             "description",
             "screenshot",
@@ -102,6 +105,7 @@ class DoubtTicketDetailSerializer(serializers.ModelSerializer):
             "assigned_to",
             "assigned_to_name",
             "bonus_marks",
+            "level_name",
             "created_at",
             "updated_at",
             "replies",
@@ -110,14 +114,29 @@ class DoubtTicketDetailSerializer(serializers.ModelSerializer):
             "id",
             "student",
             "student_name",
+            "student_profile_picture",
             "status",
             "assigned_to",
             "assigned_to_name",
             "bonus_marks",
+            "level_name",
             "created_at",
             "updated_at",
             "replies",
         ]
+
+    def get_level_name(self, obj: DoubtTicket) -> str | None:
+        if obj.session_id:
+            try:
+                return obj.session.week.course.level.name  # type: ignore[union-attr]
+            except AttributeError:
+                return None
+        if obj.exam_question_id:
+            try:
+                return obj.exam_question.exam.level.name  # type: ignore[union-attr]
+            except AttributeError:
+                return None
+        return None
 
 
 class CreateDoubtSerializer(serializers.ModelSerializer):

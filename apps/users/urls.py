@@ -25,6 +25,7 @@ urlpatterns = [
     # Admin
     path("admin/students/", views.AdminStudentListView.as_view(), name="admin-student-list"),
     path("admin/students/<int:pk>/", views.AdminStudentDetailView.as_view(), name="admin-student-detail"),
+    path("admin/students/<int:pk>/block/", views.AdminBlockStudentView.as_view(), name="admin-block-student"),
     path("admin/issues/", views.AdminIssueReportListView.as_view(), name="admin-issue-list"),
     path("admin/issues/<int:pk>/", views.AdminIssueReportUpdateView.as_view(), name="admin-issue-update"),
 ]

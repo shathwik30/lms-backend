@@ -71,6 +71,7 @@ class Session(TimeStampedModel):
         default="",
     )
     markdown_content = models.TextField(blank=True, default="")
+    thumbnail_url = models.URLField(max_length=500, blank=True, default="")
     duration_seconds = models.PositiveIntegerField(default=0)
     order = models.PositiveIntegerField()
     is_active = models.BooleanField(default=True, db_index=True)

@@ -1,4 +1,6 @@
+import django_filters
 from django.db.models import Max, OuterRef, Subquery
+from django.utils import timezone
 from drf_spectacular.utils import extend_schema, extend_schema_view, inline_serializer
 from rest_framework import generics, status
 from rest_framework import serializers as drf_serializers
@@ -17,6 +19,7 @@ from core.throttling import SafeScopedRateThrottle
 from .models import IssueReport, StudentProfile, UserPreference
 from .serializers import (
     AdminIssueReportSerializer,
+    AdminStudentDetailSerializer,
     AdminStudentListSerializer,
     AdminStudentUpdateSerializer,
     ChangePasswordSerializer,
@@ -266,6 +269,40 @@ class ChangePasswordView(APIView):
 # ── Admin views ──
 
 
+class StudentProfileFilter(django_filters.FilterSet):
+    current_level = django_filters.NumberFilter(field_name="current_level")
+    highest_cleared_level = django_filters.NumberFilter(field_name="highest_cleared_level")
+    validity = django_filters.ChoiceFilter(
+        method="filter_validity",
+        choices=[("active", "Active"), ("expired", "Expired"), ("none", "No Purchase")],
+    )
+    account_status = django_filters.ChoiceFilter(
+        method="filter_account_status",
+        choices=[("active", "Active"), ("inactive", "Inactive")],
+    )
+
+    class Meta:
+        model = StudentProfile
+        fields = ["current_level", "highest_cleared_level"]
+
+    def filter_validity(self, queryset, name, value):
+        now = timezone.now()
+        if value == "active":
+            return queryset.filter(_validity_till__gte=now)
+        if value == "expired":
+            return queryset.filter(_validity_till__lt=now)
+        if value == "none":
+            return queryset.filter(_validity_till__isnull=True)
+        return queryset
+
+    def filter_account_status(self, queryset, name, value):
+        if value == "active":
+            return queryset.filter(user__is_active=True)
+        if value == "inactive":
+            return queryset.filter(user__is_active=False)
+        return queryset
+
+
 @extend_schema_view(
     list=extend_schema(tags=["Admin - Users"], summary="List all students"),
 )
@@ -273,6 +310,7 @@ class AdminStudentListView(generics.ListAPIView):
     permission_classes = [IsAdmin]
     serializer_class = AdminStudentListSerializer
     pagination_class = LargePagination
+    filterset_class = StudentProfileFilter
     queryset = (
         StudentProfile.objects.select_related(
             "user",
@@ -289,14 +327,13 @@ class AdminStudentListView(generics.ListAPIView):
         )
         .order_by("-created_at")
     )
-    filterset_fields = ["current_level", "highest_cleared_level"]
     search_fields = ["user__email", "user__full_name"]
 
 
 class AdminStudentDetailView(APIView):
     permission_classes = [IsAdmin]
 
-    @extend_schema(responses={200: StudentProfileSerializer}, tags=["Admin - Users"])
+    @extend_schema(responses={200: AdminStudentDetailSerializer}, tags=["Admin - Users"])
     def get(self, request, pk):
         try:
             profile = StudentProfile.objects.select_related(
@@ -306,7 +343,7 @@ class AdminStudentDetailView(APIView):
             ).get(pk=pk)
         except StudentProfile.DoesNotExist:
             return Response({"detail": ErrorMessage.NOT_FOUND}, status=status.HTTP_404_NOT_FOUND)
-        return Response(StudentProfileSerializer(profile).data)
+        return Response(AdminStudentDetailSerializer(profile).data)
 
     @extend_schema(
         request=AdminStudentUpdateSerializer, responses={200: StudentProfileSerializer}, tags=["Admin - Users"]
@@ -336,6 +373,40 @@ class AdminStudentDetailView(APIView):
         if update_fields:
             profile.save(update_fields=update_fields)
         return Response(StudentProfileSerializer(profile).data)
+
+
+class AdminBlockStudentView(APIView):
+    permission_classes = [IsAdmin]
+
+    @extend_schema(
+        request=inline_serializer(
+            "BlockStudentRequest",
+            fields={"is_active": drf_serializers.BooleanField()},
+        ),
+        responses={
+            200: inline_serializer(
+                "BlockStudentResponse",
+                fields={"detail": drf_serializers.CharField(), "is_active": drf_serializers.BooleanField()},
+            )
+        },
+        tags=["Admin - Users"],
+        summary="Block or unblock a student",
+    )
+    def patch(self, request, pk):
+        try:
+            profile = StudentProfile.objects.select_related("user").get(pk=pk)
+        except StudentProfile.DoesNotExist:
+            return Response({"detail": ErrorMessage.NOT_FOUND}, status=status.HTTP_404_NOT_FOUND)
+
+        is_active = request.data.get("is_active")
+        if is_active is None:
+            return Response({"detail": "is_active field is required."}, status=status.HTTP_400_BAD_REQUEST)
+
+        profile.user.is_active = is_active
+        profile.user.save(update_fields=["is_active"])
+
+        action = "unblocked" if is_active else "blocked"
+        return Response({"detail": f"Student {action} successfully.", "is_active": is_active})
 
 
 # ── Password Reset ──
