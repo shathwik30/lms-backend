@@ -23,7 +23,6 @@ from apps.exams.models import (
     Question,
 )
 from apps.levels.models import Level, Week
-from apps.users.models import User
 
 
 class Command(BaseCommand):
@@ -35,11 +34,6 @@ class Command(BaseCommand):
         # ── Validate prerequisites ──────────────────────────────
         levels = list(Level.objects.order_by("order"))
         weeks = list(Week.objects.select_related("course", "course__level").order_by("course__level__order", "order"))
-        profiles = list(
-            User.objects.filter(is_staff=False, is_superuser=False)
-            .exclude(student_profile=None)
-            .values_list("student_profile", flat=True)
-        )
 
         if not levels:
             self.stderr.write("No levels found. Run seed_data first.")

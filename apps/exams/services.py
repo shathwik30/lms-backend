@@ -384,7 +384,7 @@ class ExamService:
         text_answer = answer.get("text_answer", "").strip()
         attempt_question.text_answer = text_answer
         if text_answer:
-            correct = attempt_question.question.correct_text_answer.strip()
+            correct = (attempt_question.question.correct_text_answer or "").strip()
             attempt_question.is_correct = text_answer.lower() == correct.lower()
             if attempt_question.is_correct:
                 attempt_question.marks_awarded = attempt_question.question.marks
