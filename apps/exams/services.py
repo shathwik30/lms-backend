@@ -120,7 +120,7 @@ class ExamService:
         multi_mcq_updates: list[tuple[AttemptQuestion, list[int]]] = []
 
         for attempt_question in attempt_questions:
-            answer = answers_map.get(attempt_question.question_id)
+            answer = answers_map.get(attempt_question.id) or answers_map.get(attempt_question.question_id)
 
             if not answer:
                 attempt_question.is_correct = None
