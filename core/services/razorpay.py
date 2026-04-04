@@ -1,11 +1,11 @@
 """
-Razorpay payment gateway integration.
+Razorpay payment gateway integration (INR only).
 
 Usage:
     from core.services.razorpay import RazorpayService
 
     # Create order
-    order = RazorpayService.create_order(amount=999.00, receipt="purchase_42")
+    order = RazorpayService.create_order(amount=Decimal("999.00"), receipt="purchase_42")
 
     # Verify payment
     is_valid = RazorpayService.verify_payment(
@@ -17,6 +17,9 @@ Usage:
 
 from __future__ import annotations
 
+import hashlib
+import hmac
+from decimal import Decimal
 from typing import Any
 
 import razorpay
@@ -29,10 +32,15 @@ def _get_client() -> razorpay.Client:
     )
 
 
+def _rupees_to_paise(amount: Decimal | float) -> int:
+    """Convert rupees to paise without floating-point loss."""
+    return int(Decimal(str(amount)).quantize(Decimal("0.01")) * 100)
+
+
 class RazorpayService:
     @staticmethod
     def create_order(
-        amount: float,
+        amount: Decimal | float,
         receipt: str,
         currency: str = "INR",
         notes: dict[str, str] | None = None,
@@ -41,17 +49,17 @@ class RazorpayService:
         Create a Razorpay order.
 
         Args:
-            amount: Amount in rupees (e.g. 999.00)
+            amount: Amount in rupees (e.g. Decimal("999.00"))
             receipt: Unique receipt string (e.g. "purchase_42")
-            currency: Currency code (default INR)
+            currency: Currency code (always INR)
             notes: Optional dict of metadata
 
         Returns:
             dict with order_id, amount, currency, etc.
         """
         client = _get_client()
-        data = {
-            "amount": int(amount * 100),  # Razorpay expects paise
+        data: dict[str, Any] = {
+            "amount": _rupees_to_paise(amount),
             "currency": currency,
             "receipt": receipt,
         }
@@ -93,7 +101,7 @@ class RazorpayService:
         return client.payment.fetch(payment_id)
 
     @staticmethod
-    def initiate_refund(payment_id: str, amount: float | None = None) -> dict[str, Any]:
+    def initiate_refund(payment_id: str, amount: Decimal | float | None = None) -> dict[str, Any]:
         """
         Initiate a refund.
 
@@ -102,7 +110,16 @@ class RazorpayService:
             amount: Partial refund amount in rupees (None = full refund)
         """
         client = _get_client()
-        data = {}
+        data: dict[str, Any] = {}
         if amount:
-            data["amount"] = int(amount * 100)
+            data["amount"] = _rupees_to_paise(amount)
         return client.payment.refund(payment_id, data)
+
+    @staticmethod
+    def verify_webhook_signature(body: bytes, signature: str) -> bool:
+        """Verify Razorpay webhook X-Razorpay-Signature header."""
+        secret = settings.RAZORPAY_WEBHOOK_SECRET
+        if not secret:
+            return False
+        expected = hmac.new(secret.encode(), body, hashlib.sha256).hexdigest()
+        return hmac.compare_digest(expected, signature)

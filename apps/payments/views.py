@@ -1,12 +1,15 @@
 import datetime
+import json
 import logging
 
+from django.conf import settings
 from django.db.models import Count, Q, Sum
 from django.db.models.functions import TruncMonth
 from django.utils import timezone
 from drf_spectacular.utils import extend_schema, extend_schema_view, inline_serializer
 from rest_framework import generics, status
 from rest_framework import serializers as drf_serializers
+from rest_framework.permissions import AllowAny
 from rest_framework.response import Response
 from rest_framework.views import APIView
 
@@ -86,6 +89,75 @@ class VerifyPaymentView(APIView):
             serializer.validated_data,
         )
         if error == ErrorMessage.TRANSACTION_NOT_FOUND:
+            return Response({"detail": error}, status=status.HTTP_404_NOT_FOUND)
+        if error:
+            return Response({"detail": error}, status=status.HTTP_400_BAD_REQUEST)
+
+        return Response(PurchaseSerializer(purchase).data, status=status.HTTP_201_CREATED)
+
+
+class RazorpayWebhookView(APIView):
+    """Razorpay server-to-server webhook.
+
+    Handles ``payment.captured`` events so purchases are created even when the
+    student's browser never calls /verify/ (e.g. network drop after payment).
+    """
+
+    authentication_classes = []
+    permission_classes = [AllowAny]
+
+    @extend_schema(exclude=True)
+    def post(self, request):
+        signature = request.META.get("HTTP_X_RAZORPAY_SIGNATURE", "")
+        body = request.body
+
+        if settings.RAZORPAY_WEBHOOK_SECRET:
+            from core.services.razorpay import RazorpayService
+
+            if not RazorpayService.verify_webhook_signature(body, signature):
+                logger.warning("Webhook signature verification failed")
+                return Response(status=status.HTTP_400_BAD_REQUEST)
+
+        try:
+            payload = json.loads(body)
+        except (json.JSONDecodeError, ValueError):
+            return Response(status=status.HTTP_400_BAD_REQUEST)
+
+        event = payload.get("event")
+        if event != "payment.captured":
+            return Response(status=status.HTTP_200_OK)
+
+        payment_entity = payload.get("payload", {}).get("payment", {}).get("entity", {})
+        order_id = payment_entity.get("order_id")
+        payment_id = payment_entity.get("id")
+
+        if not order_id or not payment_id:
+            logger.warning("Webhook payload missing order_id or payment_id")
+            return Response(status=status.HTTP_400_BAD_REQUEST)
+
+        PaymentService.fulfill_from_webhook(order_id, payment_id)
+        return Response(status=status.HTTP_200_OK)
+
+
+class DevPurchaseView(APIView):
+    """Bypass Razorpay — instantly creates a purchase for development/testing."""
+
+    permission_classes = [IsStudent]
+
+    @extend_schema(
+        tags=["Payments"],
+        request=InitiatePaymentSerializer,
+        responses={201: PurchaseSerializer},
+    )
+    def post(self, request):
+        serializer = InitiatePaymentSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+
+        purchase, error = PaymentService.dev_purchase(
+            request.user,
+            serializer.validated_data["level_id"],
+        )
+        if error == ErrorMessage.LEVEL_NOT_FOUND:
             return Response({"detail": error}, status=status.HTTP_404_NOT_FOUND)
         if error:
             return Response({"detail": error}, status=status.HTTP_400_BAD_REQUEST)

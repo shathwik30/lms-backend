@@ -98,3 +98,5 @@ if not RAZORPAY_KEY_ID:  # noqa: F405
     _prod_logger.warning("RAZORPAY_KEY_ID is not set — payment features will not work.")
 if not RAZORPAY_KEY_SECRET:  # noqa: F405
     _prod_logger.warning("RAZORPAY_KEY_SECRET is not set — payment features will not work.")
+if not RAZORPAY_WEBHOOK_SECRET:  # noqa: F405
+    _prod_logger.warning("RAZORPAY_WEBHOOK_SECRET is not set — webhook verification disabled.")
