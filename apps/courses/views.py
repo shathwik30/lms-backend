@@ -1,3 +1,4 @@
+from django.db.models import Prefetch
 from django.http import Http404
 from drf_spectacular.utils import extend_schema, extend_schema_view, inline_serializer
 from rest_framework import generics, serializers, status
@@ -17,7 +18,6 @@ from .serializers import (
     BookmarkSerializer,
     CourseSerializer,
     SessionDetailSerializer,
-    SessionListSerializer,
 )
 from .services import CourseAccessService
 
@@ -33,32 +33,131 @@ class LevelCourseView(APIView):
         return Response(CourseSerializer(courses, many=True).data)
 
 
-@extend_schema_view(
-    list=extend_schema(tags=["Courses"], summary="List sessions for a course"),
-)
-class CourseSessionsView(generics.ListAPIView):
+class CourseCurriculumView(APIView):
+    """
+    Returns the full course curriculum: weeks in order, each with their
+    sessions in order. Every session includes lock status and the student's
+    progress so the frontend can render the course map in a single request.
+
+    Lock rule: a session is locked when any earlier session (across all prior
+    weeks and within the current week) has not yet been completed.
+
+    Queries: 3 total — weeks+sessions, progress, course lookup.
+    """
+
     permission_classes = [IsStudent]
-    serializer_class = SessionListSerializer
 
-    @swagger_safe(Session)
-    def get_queryset(self):
-        course_id = self.kwargs["course_pk"]
-        profile = self.request.user.student_profile  # type: ignore[union-attr]
+    @extend_schema(
+        tags=["Courses"],
+        summary="Get structured course curriculum with per-session lock & progress",
+        responses={
+            200: inline_serializer(
+                "CourseCurriculumResponse",
+                fields={
+                    "course_id": serializers.IntegerField(),
+                    "course_title": serializers.CharField(),
+                    "weeks": serializers.ListField(child=serializers.DictField()),
+                },
+            )
+        },
+    )
+    def get(self, request, course_pk):
+        from apps.levels.models import Week
+        from apps.progress.models import SessionProgress
 
-        if not CourseAccessService.has_course_access(profile, course_id):
+        profile = request.user.student_profile
+
+        if not CourseAccessService.has_course_access(profile, course_pk):
             raise PurchaseRequired()
 
         try:
-            course = Course.objects.get(pk=course_id)
+            course = Course.objects.select_related("level").get(pk=course_pk, is_active=True)
         except Course.DoesNotExist:
             raise Http404 from None
-        return (
-            Session.objects.filter(
-                week__course=course,
-                is_active=True,
+
+        # Query 1: weeks + sessions (2 queries via prefetch, counts as 1 round-trip block)
+        weeks = list(
+            Week.objects.filter(course=course, is_active=True)
+            .order_by("order")
+            .prefetch_related(
+                Prefetch(
+                    "sessions",
+                    queryset=Session.objects.filter(is_active=True).order_by("order").defer("markdown_content"),
+                    to_attr="active_sessions",
+                )
             )
-            .select_related("week")
-            .defer("markdown_content")
+        )
+
+        # Query 2: all progress for this student on this course in one shot
+        all_session_ids = [s.id for w in weeks for s in w.active_sessions]
+        progress_map: dict[int, SessionProgress] = {
+            sp.session_id: sp
+            for sp in SessionProgress.objects.filter(
+                student=profile,
+                session_id__in=all_session_ids,
+            )
+        }
+
+        # Compute is_locked by walking the flat ordered session list.
+        # A session is locked iff any preceding session is incomplete.
+        all_prev_complete = True
+        lock_map: dict[int, bool] = {}
+        for week in weeks:
+            for session in week.active_sessions:
+                lock_map[session.id] = not all_prev_complete
+                sp = progress_map.get(session.id)
+                if not (sp and sp.is_completed):
+                    all_prev_complete = False
+
+        # Build structured response
+        result_weeks = []
+        for week in weeks:
+            sessions_out = []
+            week_complete = True
+
+            for session in week.active_sessions:
+                sp = progress_map.get(session.id)
+                is_completed = bool(sp and sp.is_completed)
+                if not is_completed:
+                    week_complete = False
+
+                sessions_out.append(
+                    {
+                        "id": session.id,
+                        "title": session.title,
+                        "description": session.description,
+                        "order": session.order,
+                        "session_type": session.session_type,
+                        "resource_type": session.resource_type or None,
+                        "duration_seconds": session.duration_seconds,
+                        "thumbnail_url": session.thumbnail_url or None,
+                        "exam_id": session.exam_id,
+                        # lock / progress
+                        "is_locked": lock_map[session.id],
+                        "is_completed": is_completed,
+                        "watched_seconds": sp.watched_seconds if sp else 0,
+                        "completed_at": sp.completed_at.isoformat() if sp and sp.completed_at else None,
+                        "is_exam_passed": sp.is_exam_passed if sp else None,
+                    }
+                )
+
+            result_weeks.append(
+                {
+                    "id": week.id,
+                    "name": week.name,
+                    "order": week.order,
+                    "is_complete": week_complete and len(sessions_out) > 0,
+                    "sessions_count": len(sessions_out),
+                    "sessions": sessions_out,
+                }
+            )
+
+        return Response(
+            {
+                "course_id": course.id,
+                "course_title": course.title,
+                "weeks": result_weeks,
+            }
         )
 
 

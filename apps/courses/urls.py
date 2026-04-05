@@ -9,7 +9,7 @@ app_name = "courses"
 urlpatterns = [
     # Student
     path("level/<int:level_pk>/", views.LevelCourseView.as_view(), name="level-courses"),
-    path("<int:course_pk>/sessions/", views.CourseSessionsView.as_view(), name="course-sessions"),
+    path("<int:course_pk>/sessions/", views.CourseCurriculumView.as_view(), name="course-sessions"),
     path("sessions/<int:pk>/", views.SessionDetailView.as_view(), name="session-detail"),
     path("sessions/<int:pk>/complete-resource/", views.CompleteResourceSessionView.as_view(), name="complete-resource"),
     path("bookmarks/", views.BookmarkListCreateView.as_view(), name="bookmark-list"),
