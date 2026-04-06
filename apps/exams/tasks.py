@@ -30,7 +30,7 @@ def auto_submit_timed_out_exams(self):
     try:
         in_progress = ExamAttempt.objects.filter(
             status=ExamAttempt.Status.IN_PROGRESS,
-        ).select_related("exam")
+        ).select_related("exam", "student__user")
 
         now = timezone.now()
 
@@ -44,7 +44,7 @@ def auto_submit_timed_out_exams(self):
                 try:
                     attempt = (
                         ExamAttempt.objects.select_for_update()
-                        .select_related("exam")
+                        .select_related("exam", "student__user")
                         .get(
                             pk=attempt.pk,
                             status=ExamAttempt.Status.IN_PROGRESS,
@@ -62,6 +62,7 @@ def auto_submit_timed_out_exams(self):
                 pass_score = (attempt.exam.passing_percentage / ExamConstants.PERCENTAGE_DIVISOR) * attempt.total_marks
                 attempt.is_passed = total_score >= pass_score
                 attempt.save(update_fields=["status", "submitted_at", "score", "is_passed"])
+                ExamService._apply_attempt_outcome(attempt.student.user, attempt)
 
                 logger.info(
                     "Auto-submitted attempt %d for student %d (score=%d/%d)",

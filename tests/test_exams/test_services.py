@@ -60,6 +60,18 @@ class StartExamOnboardingAlreadyAttemptedTests(TestCase):
         self.assertIsNotNone(attempt)
         self.assertTrue(is_new)
 
+    def test_wrong_onboarding_level_raises_level_locked(self):
+        next_level = self.factory.create_level(order=2)
+        wrong_exam = self.factory.create_exam(
+            next_level,
+            exam_type=Exam.ExamType.ONBOARDING,
+            num_questions=1,
+        )
+        self.factory.create_question(wrong_exam)
+
+        with self.assertRaises(LevelLocked):
+            ExamService.start_exam(self.profile, wrong_exam)
+
 
 class StartExamFinalExamAttemptsExhaustedTests(TestCase):
     """Coverage: start_exam line 46 — FinalExamAttemptsExhausted raised."""
@@ -180,7 +192,7 @@ class StartExamPerExamPoolTests(TestCase):
 
 
 class ProcessOnboardingResultTests(TestCase):
-    """Coverage: _process_onboarding_result lines 184-245."""
+    """Coverage: _process_onboarding_result for sequential onboarding exams."""
 
     def setUp(self):
         self.factory = TestFactory()
@@ -192,137 +204,73 @@ class ProcessOnboardingResultTests(TestCase):
         self.exam = self.factory.create_exam(
             self.level1,
             exam_type=Exam.ExamType.ONBOARDING,
-            num_questions=6,
+            num_questions=2,
         )
+        self.factory.create_question(self.exam, level=self.level1, marks=4)
+        self.factory.create_question(self.exam, level=self.level1, marks=4)
 
-    def _create_attempt_with_scores(self, level_scores):
-        """
-        Create an attempt with attempt_questions scored per level.
-
-        level_scores: list of (level, marks_per_question, num_correct, num_total)
-        """
-        attempt = ExamAttempt.objects.create(
+    def _create_attempt(self, exam, is_passed, score=8, total_marks=8):
+        return ExamAttempt.objects.create(
             student=self.profile,
-            exam=self.exam,
-            total_marks=sum(m * t for _, m, _, t in level_scores),
+            exam=exam,
+            total_marks=total_marks,
+            score=score,
+            is_passed=is_passed,
+            status=ExamAttempt.Status.SUBMITTED,
         )
 
-        order = 1
-        for level, marks, num_correct, num_total in level_scores:
-            for i in range(num_total):
-                q = Question.objects.create(
-                    exam=self.exam,
-                    level=level,
-                    text=f"Q for {level.name} #{i}",
-                    difficulty="medium",
-                    marks=marks,
-                )
-                Option.objects.create(question=q, text="Correct", is_correct=True)
-                Option.objects.create(question=q, text="Wrong", is_correct=False)
+    def test_pass_level_advances_to_next_onboarding_level(self):
+        attempt = self._create_attempt(self.exam, is_passed=True)
 
-                AttemptQuestion.objects.create(
-                    attempt=attempt,
-                    question=q,
-                    order=order,
-                    marks_awarded=marks if i < num_correct else 0,
-                    is_correct=i < num_correct,
-                )
-                order += 1
+        ExamService._process_onboarding_result(self.user, attempt)
 
-        return attempt
-
-    def test_pass_some_levels_fail_at_level_n(self):
-        """Pass levels 1 and 2, fail at level 3 -> highest_cleared=level2, current_level=level3."""
-        attempt = self._create_attempt_with_scores(
-            [
-                (self.level1, 4, 2, 2),  # 100% >= 50% -> pass
-                (self.level2, 4, 2, 2),  # 100% >= 50% -> pass
-                (self.level3, 4, 0, 2),  # 0% < 50% -> fail
-            ]
+        self.profile.refresh_from_db()
+        self.assertFalse(self.profile.is_onboarding_exam_attempted)
+        self.assertEqual(self.profile.highest_cleared_level, self.level1)
+        self.assertEqual(self.profile.current_level, self.level2)
+        self.assertTrue(
+            LevelProgress.objects.filter(
+                student=self.profile,
+                level=self.level1,
+                status=LevelProgress.Status.EXAM_PASSED,
+            ).exists()
         )
+
+    def test_fail_level_finishes_onboarding_and_keeps_failed_level_current(self):
+        self.profile.highest_cleared_level = self.level1
+        self.profile.current_level = self.level2
+        self.profile.save(update_fields=["highest_cleared_level", "current_level"])
+        level2_exam = self.factory.create_exam(
+            self.level2,
+            exam_type=Exam.ExamType.ONBOARDING,
+            num_questions=2,
+        )
+        attempt = self._create_attempt(level2_exam, is_passed=False, score=0)
 
         ExamService._process_onboarding_result(self.user, attempt)
 
         self.profile.refresh_from_db()
         self.assertTrue(self.profile.is_onboarding_exam_attempted)
-        self.assertEqual(self.profile.highest_cleared_level, self.level2)
-        self.assertEqual(self.profile.current_level, self.level3)
+        self.assertEqual(self.profile.highest_cleared_level, self.level1)
+        self.assertEqual(self.profile.current_level, self.level2)
 
-        # Level 1 and 2 should have EXAM_PASSED progress
-        self.assertTrue(
-            LevelProgress.objects.filter(
-                student=self.profile, level=self.level1, status=LevelProgress.Status.EXAM_PASSED
-            ).exists()
+    def test_pass_last_level_finishes_onboarding(self):
+        final_exam = self.factory.create_exam(
+            self.level3,
+            exam_type=Exam.ExamType.ONBOARDING,
+            num_questions=2,
         )
-        self.assertTrue(
-            LevelProgress.objects.filter(
-                student=self.profile, level=self.level2, status=LevelProgress.Status.EXAM_PASSED
-            ).exists()
-        )
-        # Level 3 should NOT have EXAM_PASSED progress
-        self.assertFalse(
-            LevelProgress.objects.filter(
-                student=self.profile, level=self.level3, status=LevelProgress.Status.EXAM_PASSED
-            ).exists()
-        )
-
-    def test_pass_all_levels(self):
-        """Pass all levels -> highest_cleared=level3, current_level=level3 (no next level)."""
-        attempt = self._create_attempt_with_scores(
-            [
-                (self.level1, 4, 2, 2),  # pass
-                (self.level2, 4, 2, 2),  # pass
-                (self.level3, 4, 2, 2),  # pass
-            ]
-        )
+        attempt = self._create_attempt(final_exam, is_passed=True)
 
         ExamService._process_onboarding_result(self.user, attempt)
 
         self.profile.refresh_from_db()
+        self.assertTrue(self.profile.is_onboarding_exam_attempted)
         self.assertEqual(self.profile.highest_cleared_level, self.level3)
-        # No level with order=4, so current_level falls back to highest_cleared
         self.assertEqual(self.profile.current_level, self.level3)
-
-    def test_fail_level_1(self):
-        """Fail level 1 -> no highest_cleared, current_level=level1."""
-        attempt = self._create_attempt_with_scores(
-            [
-                (self.level1, 4, 0, 2),  # 0% < 50% -> fail
-                (self.level2, 4, 2, 2),  # would pass but processing stops at level 1
-                (self.level3, 4, 2, 2),
-            ]
-        )
-
-        ExamService._process_onboarding_result(self.user, attempt)
-
-        self.profile.refresh_from_db()
-        self.assertIsNone(self.profile.highest_cleared_level)
-        self.assertEqual(self.profile.current_level, self.level1)
-
-    def test_no_questions_for_level_skips_it(self):
-        """Level with total=0 questions is skipped, not treated as pass or fail."""
-        # Only create questions for level1 and level3, skip level2
-        attempt = self._create_attempt_with_scores(
-            [
-                (self.level1, 4, 2, 2),  # pass
-                (self.level3, 4, 2, 2),  # pass
-            ]
-        )
-        # level2 has no questions in the attempt -> total=0 -> skipped
-        # Processing: level1 passes, level2 skipped (continue), level3 passes
-
-        ExamService._process_onboarding_result(self.user, attempt)
-
-        self.profile.refresh_from_db()
-        # level2 is skipped, so highest_cleared is level3
-        self.assertEqual(self.profile.highest_cleared_level, self.level3)
 
     def test_notification_created_on_onboarding(self):
-        attempt = self._create_attempt_with_scores(
-            [
-                (self.level1, 4, 2, 2),
-            ]
-        )
+        attempt = self._create_attempt(self.exam, is_passed=True)
 
         ExamService._process_onboarding_result(self.user, attempt)
 
@@ -962,6 +910,63 @@ class SubmitExamDisqualifiedTests(TestCase):
         result, error = ExamService.submit_exam(self.user, attempt, [])
         self.assertIsNone(result)
         self.assertEqual(error, ErrorMessage.ATTEMPT_DISQUALIFIED)
+
+
+class SubmitTimedOutOnboardingOutcomeTests(TestCase):
+    """Timed-out onboarding attempts must still update profile progression."""
+
+    def setUp(self):
+        self.factory = TestFactory()
+        self.user, self.profile = self.factory.create_student()
+        self.level1 = self.factory.create_level(order=1, passing_percentage=50)
+        self.level2 = self.factory.create_level(order=2, passing_percentage=50)
+        self.exam = self.factory.create_exam(
+            self.level1,
+            exam_type=Exam.ExamType.ONBOARDING,
+            num_questions=1,
+            duration=30,
+            passing_percentage=50,
+        )
+        self.question, self.correct_option = self.factory.create_question(self.exam, level=self.level1, marks=4)
+
+    def test_timed_out_onboarding_marks_attempted_and_advances_level(self):
+        attempt = ExamAttempt.objects.create(
+            student=self.profile,
+            exam=self.exam,
+            total_marks=4,
+            status=ExamAttempt.Status.IN_PROGRESS,
+        )
+        AttemptQuestion.objects.create(
+            attempt=attempt,
+            question=self.question,
+            order=1,
+            selected_option=self.correct_option,
+        )
+
+        past_time = timezone.now() - timedelta(
+            minutes=self.exam.duration_minutes,
+            seconds=ExamConstants.SUBMISSION_GRACE_SECONDS + 10,
+        )
+        ExamAttempt.objects.filter(pk=attempt.pk).update(started_at=past_time)
+        attempt.refresh_from_db()
+
+        result_attempt, error = ExamService.submit_exam(
+            self.user,
+            attempt,
+            [{"question_id": self.question.pk, "option_id": self.correct_option.pk}],
+        )
+
+        self.assertIsNone(result_attempt)
+        self.assertEqual(error, ErrorMessage.SUBMISSION_DEADLINE_PASSED)
+
+        attempt.refresh_from_db()
+        self.assertEqual(attempt.status, ExamAttempt.Status.TIMED_OUT)
+        self.assertTrue(attempt.is_passed)
+
+        self.profile.refresh_from_db()
+        self.assertFalse(self.profile.is_onboarding_exam_attempted)
+        self.assertEqual(self.profile.highest_cleared_level, self.level1)
+        self.assertEqual(self.profile.current_level, self.level2)
 
 
 class SubmitExamAlreadySubmittedTests(TestCase):

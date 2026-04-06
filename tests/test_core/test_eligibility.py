@@ -150,6 +150,22 @@ class EligibilityServiceTests(TestCase):
         )
         self.assertTrue(EligibilityService.can_attempt_exam(self.profile, onboarding_exam))
 
+    def test_onboarding_exam_only_allowed_for_current_onboarding_level(self):
+        self.profile.current_level = self.data2["level"]
+        self.profile.save(update_fields=["current_level"])
+        onboarding_exam_level1 = self.factory.create_exam(
+            self.data1["level"],
+            exam_type=Exam.ExamType.ONBOARDING,
+            num_questions=5,
+        )
+        onboarding_exam_level2 = self.factory.create_exam(
+            self.data2["level"],
+            exam_type=Exam.ExamType.ONBOARDING,
+            num_questions=5,
+        )
+        self.assertFalse(EligibilityService.can_attempt_exam(self.profile, onboarding_exam_level1))
+        self.assertTrue(EligibilityService.can_attempt_exam(self.profile, onboarding_exam_level2))
+
     def test_onboarding_exam_blocked_after_attempt(self):
         onboarding_exam = self.factory.create_exam(
             self.data1["level"],
@@ -175,8 +191,35 @@ class EligibilityServiceTests(TestCase):
     # ── get_next_action ──
 
     def test_next_action_new_student_onboarding(self):
+        onboarding_exam = self.factory.create_exam(
+            self.data1["level"],
+            exam_type=Exam.ExamType.ONBOARDING,
+            num_questions=5,
+        )
         result = EligibilityService.get_next_action(self.profile)
         self.assertEqual(result["action"], NextAction.TAKE_ONBOARDING_EXAM)
+        self.assertEqual(result["level"]["order"], 1)
+        self.assertEqual(result["exam_id"], onboarding_exam.id)
+
+    def test_next_action_onboarding_advances_to_current_level_exam(self):
+        self.factory.create_exam(
+            self.data1["level"],
+            exam_type=Exam.ExamType.ONBOARDING,
+            num_questions=5,
+        )
+        onboarding_exam_level2 = self.factory.create_exam(
+            self.data2["level"],
+            exam_type=Exam.ExamType.ONBOARDING,
+            num_questions=5,
+        )
+        self.profile.current_level = self.data2["level"]
+        self.profile.highest_cleared_level = self.data1["level"]
+        self.profile.save(update_fields=["current_level", "highest_cleared_level"])
+
+        result = EligibilityService.get_next_action(self.profile)
+        self.assertEqual(result["action"], NextAction.TAKE_ONBOARDING_EXAM)
+        self.assertEqual(result["level"]["order"], 2)
+        self.assertEqual(result["exam_id"], onboarding_exam_level2.id)
 
     def test_next_action_after_onboarding_no_purchase(self):
         self.profile.is_onboarding_exam_attempted = True

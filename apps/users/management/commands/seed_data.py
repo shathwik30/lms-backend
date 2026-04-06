@@ -1,5 +1,5 @@
 """
-Seed realistic data for the LMS platform.
+Flush all data and seed the database with fresh LMS data.
 
 Usage:  python manage.py seed_data
 """
@@ -32,11 +32,51 @@ from apps.users.models import IssueReport, User, UserPreference
 
 
 class Command(BaseCommand):
-    help = "Seed the database with realistic LMS data"
+    help = "Flush all data and seed the database with fresh LMS data"
 
     def handle(self, *args, **options):
-        self.stdout.write("Seeding database …")
         now = timezone.now()
+
+        # ── Flush all data ──────────────────────────────────────
+        self.stdout.write("Flushing all data ...")
+        from django.db import connection
+
+        with connection.cursor() as cursor:
+            cursor.execute("""
+                TRUNCATE TABLE
+                    level_analytics,
+                    daily_revenue,
+                    notifications,
+                    session_feedbacks,
+                    issue_reports,
+                    doubt_replies,
+                    doubt_tickets,
+                    bookmarks,
+                    session_progress,
+                    course_progress,
+                    level_progress,
+                    proctoring_violations,
+                    attempt_questions,
+                    exam_attempts,
+                    options,
+                    questions,
+                    exams,
+                    payment_transactions,
+                    purchases,
+                    sessions,
+                    weeks,
+                    courses,
+                    levels,
+                    banners,
+                    user_preferences,
+                    student_profiles,
+                    users
+                RESTART IDENTITY CASCADE
+            """)
+        self.stdout.write(self.style.SUCCESS("  All data flushed."))
+
+        # ── Seed fresh data ─────────────────────────────────────
+        self.stdout.write("Seeding fresh data ...")
 
         # ── Admin & Staff ───────────────────────────────────────
         admin = User.objects.create_superuser(
@@ -82,7 +122,7 @@ class Command(BaseCommand):
             {
                 "name": "Advanced",
                 "order": 3,
-                "description": "JEE Advanced-level problem solving — multi-concept questions, integer-type & matrix-match.",
+                "description": "JEE Advanced-level problem solving -- multi-concept questions, integer-type & matrix-match.",
                 "price": Decimal("2999.00"),
                 "passing_percentage": Decimal("60.00"),
                 "validity_days": 365,
@@ -107,43 +147,43 @@ class Command(BaseCommand):
         courses_map = {
             levels[0]: [
                 (
-                    "Physics — Mechanics Basics",
+                    "Physics -- Mechanics Basics",
                     "Newton's laws, kinematics, work-energy theorem, and rotational motion fundamentals.",
                 ),
                 (
-                    "Chemistry — Atomic Structure & Bonding",
+                    "Chemistry -- Atomic Structure & Bonding",
                     "Atomic models, periodic trends, ionic and covalent bonding, VSEPR theory.",
                 ),
                 (
-                    "Mathematics — Algebra & Trigonometry",
+                    "Mathematics -- Algebra & Trigonometry",
                     "Quadratic equations, complex numbers, sequences, trigonometric identities and equations.",
                 ),
             ],
             levels[1]: [
                 (
-                    "Physics — Electromagnetism",
+                    "Physics -- Electromagnetism",
                     "Coulomb's law, Gauss's theorem, capacitance, magnetic effects of current, and EMI.",
                 ),
                 (
-                    "Chemistry — Organic Chemistry I",
+                    "Chemistry -- Organic Chemistry I",
                     "IUPAC nomenclature, reaction mechanisms, hydrocarbons, haloalkanes, and alcohols.",
                 ),
                 (
-                    "Mathematics — Calculus I",
+                    "Mathematics -- Calculus I",
                     "Limits, continuity, differentiation techniques, and applications of derivatives.",
                 ),
             ],
             levels[2]: [
                 (
-                    "Physics — Optics & Modern Physics",
+                    "Physics -- Optics & Modern Physics",
                     "Wave optics, interference, diffraction, photoelectric effect, and nuclear physics.",
                 ),
                 (
-                    "Chemistry — Physical Chemistry",
+                    "Chemistry -- Physical Chemistry",
                     "Thermodynamics, chemical equilibrium, electrochemistry, and chemical kinetics.",
                 ),
                 (
-                    "Mathematics — Calculus II & Vectors",
+                    "Mathematics -- Calculus II & Vectors",
                     "Integration techniques, definite integrals, differential equations, and vector algebra.",
                 ),
             ],
@@ -151,7 +191,7 @@ class Command(BaseCommand):
                 ("JEE Advanced Mock Series", "Full-syllabus mock tests modelled on the latest JEE Advanced pattern."),
                 (
                     "Previous Year Paper Analysis",
-                    "Detailed walkthroughs of IIT-JEE papers from 2018–2025 with strategy notes.",
+                    "Detailed walkthroughs of IIT-JEE papers from 2018-2025 with strategy notes.",
                 ),
             ],
         }
@@ -181,11 +221,11 @@ class Command(BaseCommand):
                 [
                     "Introduction & Units",
                     "Vectors and Scalars",
-                    "Kinematics — 1D Motion",
-                    "Kinematics — 2D Projectiles",
+                    "Kinematics -- 1D Motion",
+                    "Kinematics -- 2D Projectiles",
                     "Newton's First & Second Law",
                     "Newton's Third Law & FBD",
-                    "Friction — Static & Kinetic",
+                    "Friction -- Static & Kinetic",
                     "Practice Problems Set 1",
                 ],
                 [
@@ -200,8 +240,8 @@ class Command(BaseCommand):
                 ],
                 [
                     "Gravitation",
-                    "SHM — Springs & Pendulums",
-                    "Fluid Mechanics — Pressure",
+                    "SHM -- Springs & Pendulums",
+                    "Fluid Mechanics -- Pressure",
                     "Bernoulli's Principle",
                     "Surface Tension & Viscosity",
                     "Practice Problems Set 3",
@@ -230,11 +270,11 @@ class Command(BaseCommand):
             "Mathematics": [
                 [
                     "Sets & Relations",
-                    "Functions — Domain & Range",
+                    "Functions -- Domain & Range",
                     "Quadratic Equations",
-                    "Complex Numbers — Basics",
-                    "Complex Numbers — Argand Plane",
-                    "Sequences — AP & GP",
+                    "Complex Numbers -- Basics",
+                    "Complex Numbers -- Argand Plane",
+                    "Sequences -- AP & GP",
                     "Binomial Theorem",
                     "Practice Problems Set 1",
                 ],
@@ -249,8 +289,8 @@ class Command(BaseCommand):
                 [
                     "Straight Lines",
                     "Circles",
-                    "Conic Sections — Parabola",
-                    "Conic Sections — Ellipse & Hyperbola",
+                    "Conic Sections -- Parabola",
+                    "Conic Sections -- Ellipse & Hyperbola",
                     "Practice Problems Set 3",
                 ],
             ],
@@ -259,7 +299,6 @@ class Command(BaseCommand):
         all_sessions = []
         all_weeks = []
         for course in all_courses:
-            # Pick subject from course title
             subject = "Physics"
             if "Chemistry" in course.title or "Organic" in course.title or "Physical" in course.title:
                 subject = "Chemistry"
@@ -278,7 +317,7 @@ class Command(BaseCommand):
                     s = Session.objects.create(
                         week=week,
                         title=stitle,
-                        description=f"{stitle} — detailed lecture covering key concepts with solved examples.",
+                        description=f"{stitle} -- detailed lecture covering key concepts with solved examples.",
                         video_url="" if is_practice else random.choice(video_urls),
                         thumbnail_url="" if is_practice else random.choice(thumbnails),
                         duration_seconds=0 if is_practice else random.randint(1200, 3600),
@@ -294,34 +333,34 @@ class Command(BaseCommand):
         # ── Exams & Questions ───────────────────────────────────
         physics_questions = [
             (
-                "A ball is thrown vertically upward with velocity 20 m/s. What is the maximum height reached? (g = 10 m/s²)",
+                "A ball is thrown vertically upward with velocity 20 m/s. What is the maximum height reached? (g = 10 m/s2)",
                 "easy",
                 [("20 m", True), ("40 m", False), ("10 m", False), ("30 m", False)],
-                "Using v² = u² - 2gh, at max height v=0, so h = u²/2g = 400/20 = 20 m.",
+                "Using v2 = u2 - 2gh, at max height v=0, so h = u2/2g = 400/20 = 20 m.",
             ),
             (
                 "A block of mass 5 kg is placed on a frictionless surface. A horizontal force of 10 N is applied. What is the acceleration?",
                 "easy",
-                [("2 m/s²", True), ("5 m/s²", False), ("10 m/s²", False), ("1 m/s²", False)],
-                "F = ma, so a = F/m = 10/5 = 2 m/s².",
+                [("2 m/s2", True), ("5 m/s2", False), ("10 m/s2", False), ("1 m/s2", False)],
+                "F = ma, so a = F/m = 10/5 = 2 m/s2.",
             ),
             (
                 "Two blocks of masses 3 kg and 5 kg are connected by a string over a frictionless pulley. Find the acceleration of the system.",
                 "medium",
-                [("2.45 m/s²", True), ("3.68 m/s²", False), ("4.9 m/s²", False), ("1.22 m/s²", False)],
-                "a = (m₂ - m₁)g / (m₁ + m₂) = (5-3)×9.8 / 8 = 2.45 m/s².",
+                [("2.45 m/s2", True), ("3.68 m/s2", False), ("4.9 m/s2", False), ("1.22 m/s2", False)],
+                "a = (m2 - m1)g / (m1 + m2) = (5-3)*9.8 / 8 = 2.45 m/s2.",
             ),
             (
-                "A projectile is fired at 60° with horizontal at 40 m/s. Find the range. (g = 10 m/s²)",
+                "A projectile is fired at 60 degrees with horizontal at 40 m/s. Find the range. (g = 10 m/s2)",
                 "medium",
                 [("138.6 m", True), ("160 m", False), ("80 m", False), ("120 m", False)],
-                "R = u²sin(2θ)/g = 1600 × sin120° / 10 = 138.6 m.",
+                "R = u2*sin(2*theta)/g = 1600 * sin120 / 10 = 138.6 m.",
             ),
             (
-                "A satellite orbits Earth at height h = R (R = radius of Earth). What is the orbital velocity in terms of escape velocity vₑ at the surface?",
+                "A satellite orbits Earth at height h = R (R = radius of Earth). What is the orbital velocity in terms of escape velocity ve at the surface?",
                 "hard",
-                [("vₑ / 2", True), ("vₑ / √2", False), ("vₑ / 4", False), ("vₑ √2", False)],
-                "At h=R, v_orbital = √(gR/2). Since vₑ = √(2gR), v_orbital = vₑ/2.",
+                [("ve / 2", True), ("ve / sqrt(2)", False), ("ve / 4", False), ("ve * sqrt(2)", False)],
+                "At h=R, v_orbital = sqrt(gR/2). Since ve = sqrt(2gR), v_orbital = ve/2.",
             ),
         ]
 
@@ -329,7 +368,7 @@ class Command(BaseCommand):
             (
                 "Which quantum number determines the shape of an orbital?",
                 "easy",
-                [("Azimuthal (l)", True), ("Principal (n)", False), ("Magnetic (mₗ)", False), ("Spin (mₛ)", False)],
+                [("Azimuthal (l)", True), ("Principal (n)", False), ("Magnetic (ml)", False), ("Spin (ms)", False)],
                 "The azimuthal quantum number l defines the orbital shape: l=0 (s), l=1 (p), l=2 (d).",
             ),
             (
@@ -342,52 +381,57 @@ class Command(BaseCommand):
                 "Which of the following has the highest first ionisation energy?",
                 "medium",
                 [("Nitrogen", True), ("Oxygen", False), ("Carbon", False), ("Boron", False)],
-                "N has a half-filled 2p³ configuration which is extra stable, giving it higher IE than O.",
+                "N has a half-filled 2p3 configuration which is extra stable, giving it higher IE than O.",
             ),
             (
-                "In the reaction CH₃CHO → CH₃COOH, the carbon of the aldehyde group is:",
+                "In the reaction CH3CHO -> CH3COOH, the carbon of the aldehyde group is:",
                 "medium",
                 [("Oxidised", True), ("Reduced", False), ("Neither", False), ("Both", False)],
-                "Oxidation state of C changes from +1 in CHO to +3 in COOH — it is oxidised.",
+                "Oxidation state of C changes from +1 in CHO to +3 in COOH -- it is oxidised.",
             ),
             (
-                "The hybridisation of Xe in XeF₄ is:",
+                "The hybridisation of Xe in XeF4 is:",
                 "hard",
-                [("sp³d²", True), ("sp³d", False), ("sp³", False), ("dsp³", False)],
-                "XeF₄ has 4 bond pairs + 2 lone pairs = 6 electron domains → sp³d² hybridisation.",
+                [("sp3d2", True), ("sp3d", False), ("sp3", False), ("dsp3", False)],
+                "XeF4 has 4 bond pairs + 2 lone pairs = 6 electron domains -> sp3d2 hybridisation.",
             ),
         ]
 
         maths_questions = [
             (
-                "If the roots of x² - 5x + 6 = 0 are α and β, what is α² + β²?",
+                "If the roots of x2 - 5x + 6 = 0 are alpha and beta, what is alpha2 + beta2?",
                 "easy",
                 [("13", True), ("11", False), ("25", False), ("17", False)],
-                "α+β=5, αβ=6. α²+β² = (α+β)² - 2αβ = 25-12 = 13.",
+                "alpha+beta=5, alpha*beta=6. alpha2+beta2 = (alpha+beta)2 - 2*alpha*beta = 25-12 = 13.",
             ),
             (
-                "The value of sin(75°) is:",
+                "The value of sin(75 degrees) is:",
                 "easy",
-                [("(√6 + √2) / 4", True), ("(√6 − √2) / 4", False), ("(√3 + 1) / 2√2", False), ("√3 / 2", False)],
-                "sin75° = sin(45°+30°) = sin45°cos30° + cos45°sin30° = (√6+√2)/4.",
+                [
+                    ("(sqrt6 + sqrt2) / 4", True),
+                    ("(sqrt6 - sqrt2) / 4", False),
+                    ("(sqrt3 + 1) / 2*sqrt2", False),
+                    ("sqrt3 / 2", False),
+                ],
+                "sin75 = sin(45+30) = sin45*cos30 + cos45*sin30 = (sqrt6+sqrt2)/4.",
             ),
             (
-                "The number of terms in the expansion of (x + y + z)¹⁰ is:",
+                "The number of terms in the expansion of (x + y + z)^10 is:",
                 "medium",
                 [("66", True), ("55", False), ("110", False), ("100", False)],
                 "Number of terms = C(n+r-1, r-1) = C(12,2) = 66.",
             ),
             (
-                "If f(x) = x³ − 3x + 2, the number of real roots is:",
+                "If f(x) = x3 - 3x + 2, the number of real roots is:",
                 "medium",
                 [("3", True), ("1", False), ("2", False), ("0", False)],
-                "f'(x)=3x²-3=0 gives x=±1. f(1)=0, f(-1)=4. Since f has a root at x=1 and changes sign, it has 3 real roots (1 is a repeated root, so f=(x-1)²(x+2)).",
+                "f'(x)=3x2-3=0 gives x=+-1. f(1)=0, f(-1)=4. f=(x-1)2(x+2), so 3 real roots.",
             ),
             (
-                "∫₀^π x sin(x) dx equals:",
+                "Integral from 0 to pi of x*sin(x) dx equals:",
                 "hard",
-                [("π", True), ("2π", False), ("0", False), ("π/2", False)],
-                "Using integration by parts: = [-x cos x]₀^π + ∫cos x dx = π + [sin x]₀^π = π.",
+                [("pi", True), ("2*pi", False), ("0", False), ("pi/2", False)],
+                "Using integration by parts: = [-x cos x] from 0 to pi + integral of cos x dx = pi + [sin x] from 0 to pi = pi.",
             ),
         ]
 
@@ -408,7 +452,7 @@ class Command(BaseCommand):
                 week=week,
                 course=course,
                 exam_type="weekly",
-                title=f"{course.title} — {week.name} Test",
+                title=f"{course.title} -- {week.name} Test",
                 duration_minutes=30,
                 total_marks=20,
                 passing_percentage=Decimal("50.00"),
@@ -437,7 +481,7 @@ class Command(BaseCommand):
             exam = Exam.objects.create(
                 level=level,
                 exam_type="level_final",
-                title=f"{level.name} — Level Final Exam",
+                title=f"{level.name} -- Level Final Exam",
                 duration_minutes=90,
                 total_marks=100,
                 passing_percentage=level.passing_percentage,
@@ -461,33 +505,34 @@ class Command(BaseCommand):
                 for otext, correct in opts:
                     Option.objects.create(question=q, text=otext, is_correct=correct)
 
-        # Onboarding exam
-        onboarding_exam = Exam.objects.create(
-            level=levels[0],
-            exam_type="onboarding",
-            title="Placement Assessment",
-            duration_minutes=45,
-            total_marks=60,
-            passing_percentage=Decimal("40.00"),
-            num_questions=15,
-            is_proctored=False,
-        )
-        all_exams.append(onboarding_exam)
-        for _qi, (text, diff, opts, expl) in enumerate(
-            (physics_questions + chemistry_questions + maths_questions)[:15]
-        ):
-            q = Question.objects.create(
-                exam=onboarding_exam,
-                level=levels[0],
-                text=f"[Placement] {text}",
-                difficulty=diff,
-                question_type="mcq",
-                marks=4,
-                negative_marks=Decimal("0"),
-                explanation=expl,
+        # Onboarding exam for each level
+        for level in levels:
+            onboarding_exam = Exam.objects.create(
+                level=level,
+                exam_type="onboarding",
+                title=f"{level.name} Placement Assessment",
+                duration_minutes=30,
+                total_marks=20,
+                passing_percentage=Decimal("50.00"),
+                num_questions=5,
+                is_proctored=False,
             )
-            for otext, correct in opts:
-                Option.objects.create(question=q, text=otext, is_correct=correct)
+            all_exams.append(onboarding_exam)
+
+            all_q = physics_questions + chemistry_questions + maths_questions
+            for _qi, (text, diff, opts, expl) in enumerate(all_q[:5]):
+                q = Question.objects.create(
+                    exam=onboarding_exam,
+                    level=level,
+                    text=f"[Placement] {text}",
+                    difficulty=diff,
+                    question_type="mcq",
+                    marks=4,
+                    negative_marks=Decimal("0"),
+                    explanation=expl,
+                )
+                for otext, correct in opts:
+                    Option.objects.create(question=q, text=otext, is_correct=correct)
 
         self.stdout.write(f"  Created {len(all_exams)} exams with questions")
 
@@ -605,7 +650,6 @@ class Command(BaseCommand):
             gender = sd.pop("gender")
             pwd = sd.pop("password")
             user = User.objects.create_user(password=pwd, **sd)
-            # Signal auto-creates StudentProfile, so update it
             profile = user.student_profile
             profile.gender = gender
             profile.is_onboarding_completed = True
@@ -614,13 +658,26 @@ class Command(BaseCommand):
             UserPreference.objects.get_or_create(user=user)
             profiles.append(profile)
 
-        self.stdout.write(f"  Created {len(profiles)} students")
+        # Fresh student for onboarding/e2e journey
+        fresh_user = User.objects.create_user(
+            email="amit.tiwari@gmail.com",
+            password="Student@123",
+            full_name="Amit Tiwari",
+            phone="+919001000016",
+        )
+        fresh_profile = fresh_user.student_profile
+        fresh_profile.gender = "male"
+        fresh_profile.is_onboarding_completed = False
+        fresh_profile.is_onboarding_exam_attempted = False
+        fresh_profile.save()
+        UserPreference.objects.get_or_create(user=fresh_user)
+
+        self.stdout.write(f"  Created {len(profiles) + 1} students")
 
         # ── Purchases & Payments ────────────────────────────────
-        # All students get Foundation (free). Top students progress further.
         purchases = []
         for i, profile in enumerate(profiles):
-            # Foundation — free for everyone
+            # Foundation -- free for everyone
             p = Purchase.objects.create(
                 student=profile,
                 level=levels[0],
@@ -755,7 +812,6 @@ class Command(BaseCommand):
 
         # ── Level Progress ──────────────────────────────────────
         for i, profile in enumerate(profiles):
-            # Foundation progress
             lp_status = "exam_passed" if i < 10 else ("in_progress" if i < 13 else "not_started")
             LevelProgress.objects.create(
                 student=profile,
@@ -807,7 +863,6 @@ class Command(BaseCommand):
                 if total == 0:
                     continue
 
-                # More advanced students complete more
                 completion_ratio = (
                     random.uniform(0.4, 1.0)
                     if course.level.order <= profile.current_level.order - 1
@@ -836,7 +891,6 @@ class Command(BaseCommand):
                         is_completed=True,
                         completed_at=now - timedelta(days=random.randint(1, 50)),
                     )
-                # Some sessions in progress
                 if completed_count < total:
                     in_progress_sessions = list(sessions[completed_count : completed_count + 2])
                     for session in in_progress_sessions:
@@ -856,7 +910,6 @@ class Command(BaseCommand):
         final_exams = Exam.objects.filter(exam_type="level_final")
 
         for i, profile in enumerate(profiles):
-            # Weekly exam attempts
             accessible_weekly = weekly_exams.filter(level__order__lte=profile.current_level.order)
             for exam in accessible_weekly[: random.randint(2, min(6, accessible_weekly.count()))]:
                 questions = list(exam.questions.all())
@@ -877,9 +930,8 @@ class Command(BaseCommand):
                 )
 
                 for qi, question in enumerate(questions):
-                    q_options: list[Option] = list(question.options.all())
+                    q_options = list(question.options.all())
                     correct_opt = next((o for o in q_options if o.is_correct), None)
-                    # Simulate answer — weighted toward correct
                     got_right = random.random() < 0.6
                     selected = (
                         correct_opt if got_right and correct_opt else (random.choice(q_options) if q_options else None)
@@ -908,8 +960,8 @@ class Command(BaseCommand):
                         is_passed=True,
                     )
                     for qi, question in enumerate(questions[:15]):
-                        q_options2: list[Option] = list(question.options.all())
-                        correct_opt = next((o for o in q_options2 if o.is_correct), None)
+                        q_options = list(question.options.all())
+                        correct_opt = next((o for o in q_options if o.is_correct), None)
                         AttemptQuestion.objects.create(
                             attempt=attempt,
                             question=question,
@@ -994,8 +1046,8 @@ class Command(BaseCommand):
                 "in_review",
             ),
             (
-                "Integration by parts — choosing u and dv",
-                "I know the LIATE rule but it doesn't always work. For ∫ eˣ sin(x) dx, how do I decide?",
+                "Integration by parts -- choosing u and dv",
+                "I know the LIATE rule but it doesn't always work. For integral of e^x * sin(x) dx, how do I decide?",
                 "session",
                 "answered",
             ),
@@ -1013,13 +1065,13 @@ class Command(BaseCommand):
             ),
             (
                 "Complex number argument range",
-                "Why is the principal argument defined in (-π, π] and not [0, 2π)? Does it matter for JEE?",
+                "Why is the principal argument defined in (-pi, pi] and not [0, 2*pi)? Does it matter for JEE?",
                 "session",
                 "open",
             ),
             (
                 "Matrix question from PYQ",
-                "In JEE 2023 Paper 1, Q12 about matrix A² = A, I got a different answer. Can you explain the approach?",
+                "In JEE 2023 Paper 1, Q12 about matrix A^2 = A, I got a different answer. Can you explain the approach?",
                 "exam_question",
                 "in_review",
             ),
@@ -1046,7 +1098,7 @@ class Command(BaseCommand):
                 DoubtReply.objects.create(
                     ticket=ticket,
                     author=staff,
-                    message="Great question! Let me explain this step by step. The key concept here is…",
+                    message="Great question! Let me explain this step by step. The key concept here is...",
                 )
                 DoubtReply.objects.create(
                     ticket=ticket,
@@ -1064,7 +1116,7 @@ class Command(BaseCommand):
                 DoubtReply.objects.create(
                     ticket=ticket,
                     author=staff,
-                    message="I've received your doubt. Let me prepare a detailed explanation — will reply within 24 hours.",
+                    message="I've received your doubt. Let me prepare a detailed explanation -- will reply within 24 hours.",
                 )
 
         self.stdout.write(f"  Created {len(doubt_data)} doubt tickets with replies")
@@ -1104,12 +1156,12 @@ class Command(BaseCommand):
                 "Video not loading on Session 3",
                 "The video player shows a blank screen with a spinner. I've tried refreshing multiple times. Using Chrome on Android.",
                 True,
-                "We've identified the issue — the video CDN was down in your region. It should work now. Please try again.",
+                "We've identified the issue -- the video CDN was down in your region. It should work now. Please try again.",
             ),
             (
                 "payment",
                 "Double charged for Level 2",
-                "I was charged ₹1999 twice for the Intermediate level. Transaction IDs: pay_xyz123 and pay_xyz124. Please refund the duplicate.",
+                "I was charged 1999 twice for the Intermediate level. Transaction IDs: pay_xyz123 and pay_xyz124. Please refund the duplicate.",
                 False,
                 "",
             ),
@@ -1212,7 +1264,7 @@ class Command(BaseCommand):
             order=1,
         )
         Banner.objects.create(
-            title="Foundation Level — Free Access",
+            title="Foundation Level -- Free Access",
             subtitle="Start your IIT-JEE journey today at zero cost",
             image_url="https://images.unsplash.com/photo-1546410531-og48a8e14ee2?w=1200",
             link_type="level",
@@ -1221,7 +1273,7 @@ class Command(BaseCommand):
         )
         Banner.objects.create(
             title="Weekly Doubt Sessions Live",
-            subtitle="Every Saturday 4 PM — get your doubts resolved by IITians",
+            subtitle="Every Saturday 4 PM -- get your doubts resolved by IITians",
             image_url="https://images.unsplash.com/photo-1501504905252-473c47e087f8?w=1200",
             link_type="url",
             link_url="https://meet.google.com/example",
@@ -1254,7 +1306,7 @@ class Command(BaseCommand):
         self.stdout.write("  Created 30 days of analytics data")
 
         # ── Summary ─────────────────────────────────────────────
-        self.stdout.write(self.style.SUCCESS("\nSeeding complete!\n"))
+        self.stdout.write(self.style.SUCCESS("\nFlush + Reseed complete!\n"))
         self.stdout.write("=" * 55)
         self.stdout.write("  CREDENTIALS")
         self.stdout.write("=" * 55)

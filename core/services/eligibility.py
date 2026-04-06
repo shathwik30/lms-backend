@@ -16,6 +16,21 @@ from core.constants import NextAction, NextActionMessage
 
 class EligibilityService:
     @staticmethod
+    def get_onboarding_target_level(student: StudentProfile) -> Level | None:
+        if student.current_level and student.current_level.is_active:
+            return student.current_level
+
+        if student.highest_cleared_level:
+            next_level = Level.objects.filter(
+                order=student.highest_cleared_level.order + 1,
+                is_active=True,
+            ).first()
+            if next_level:
+                return next_level
+
+        return Level.objects.filter(is_active=True).order_by("order").first()
+
+    @staticmethod
     def is_syllabus_complete(student: StudentProfile, level: Level) -> bool:
         total_sessions = Session.objects.filter(
             week__course__level=level,
@@ -91,7 +106,10 @@ class EligibilityService:
     @classmethod
     def can_attempt_exam(cls, student: StudentProfile, exam: Exam) -> bool:
         if exam.exam_type == Exam.ExamType.ONBOARDING:
-            return not student.is_onboarding_exam_attempted
+            if student.is_onboarding_exam_attempted:
+                return False
+            target_level = cls.get_onboarding_target_level(student)
+            return bool(target_level and exam.level_id == target_level.id)
 
         level = exam.level
 
@@ -161,8 +179,8 @@ class EligibilityService:
     def get_next_action(cls, student: StudentProfile) -> dict[str, Any]:
         # Check onboarding status
         if not student.is_onboarding_exam_attempted:
-            first_level = Level.objects.filter(is_active=True).order_by("order").first()
-            if not first_level:
+            onboarding_level = cls.get_onboarding_target_level(student)
+            if not onboarding_level:
                 return {
                     "action": NextAction.NO_LEVELS,
                     "level": None,
@@ -171,13 +189,14 @@ class EligibilityService:
             onboarding_exam = Exam.objects.filter(
                 exam_type=Exam.ExamType.ONBOARDING,
                 is_active=True,
+                level=onboarding_level,
             ).first()
             return {
                 "action": NextAction.TAKE_ONBOARDING_EXAM,
                 "level": {
-                    "id": first_level.id,
-                    "name": first_level.name,
-                    "order": first_level.order,
+                    "id": onboarding_level.id,
+                    "name": onboarding_level.name,
+                    "order": onboarding_level.order,
                 },
                 "exam_id": onboarding_exam.id if onboarding_exam else None,
                 "message": NextActionMessage.take_onboarding(),

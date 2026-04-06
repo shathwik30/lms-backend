@@ -88,6 +88,19 @@ def check(label, status, body, expected_status, required_fields=None, list_item_
     return status, body
 
 
+def build_answers_from_attempt(attempt_body, pick_correct=True):
+    answers = []
+    for aq in attempt_body.get("questions", []):
+        question = aq.get("question", {})
+        q_id = question.get("id")
+        options = question.get("options", [])
+        if not q_id or not options:
+            continue
+        option = options[0] if pick_correct else options[-1]
+        answers.append({"question_id": q_id, "option_id": option["id"]})
+    return answers
+
+
 # ────────────────────────────────────────────────────────────────
 # JOURNEY 1: Fresh student — register → onboarding → full flow
 # ────────────────────────────────────────────────────────────────
@@ -221,6 +234,53 @@ print("\n--- Onboarding Flow ---")
 # 14. Complete onboarding
 s, b = req("POST", "/auth/onboarding/complete/", token=token)
 check("Complete onboarding", s, b, 200, ["detail"])
+
+s, b = req("GET", "/progress/dashboard/", token=token)
+check("Dashboard after onboarding complete", s, b, 200)
+onboarding_exam_id = b.get("exam_id")
+
+if onboarding_exam_id:
+    s, b = req("GET", f"/exams/{onboarding_exam_id}/", token=token)
+    check("Level 1 onboarding exam detail", s, b, 200, ["id", "level", "exam_type"])
+
+    s, b = req("POST", f"/exams/{onboarding_exam_id}/start/", token=token)
+    check("Start level 1 onboarding exam", s, b, 201, ["id", "questions"])
+    attempt_id = b.get("id")
+    answers = build_answers_from_attempt(b, pick_correct=True)
+
+    if attempt_id and answers:
+        s, b = req("POST", f"/exams/attempts/{attempt_id}/submit/", {"answers": answers}, token=token)
+        check("Submit level 1 onboarding exam", s, b, 200, ["id", "status", "is_passed"])
+
+        s, b = req("GET", "/progress/dashboard/", token=token)
+        check("Dashboard after passing level 1 onboarding", s, b, 200)
+        if b.get("current_level", {}).get("order") != 2:
+            check("Expected current level 2 after level 1 onboarding pass", 500, {}, 200)
+        if b.get("next_action") != "take_onboarding_exam":
+            check("Expected next onboarding exam after level 1 onboarding pass", 500, {}, 200)
+
+        level2_exam_id = b.get("exam_id")
+        if level2_exam_id:
+            s, b = req("POST", f"/exams/{level2_exam_id}/start/", token=token)
+            if s in (200, 201):
+                check("Start level 2 onboarding exam", s, b, s, ["id", "questions"])
+                attempt_id = b.get("id")
+                wrong_answers = build_answers_from_attempt(b, pick_correct=False)
+                if attempt_id and wrong_answers:
+                    s, b = req(
+                        "POST",
+                        f"/exams/attempts/{attempt_id}/submit/",
+                        {"answers": wrong_answers},
+                        token=token,
+                    )
+                    check("Submit level 2 onboarding exam", s, b, 200, ["id", "status", "is_passed"])
+
+                    s, b = req("GET", "/progress/dashboard/", token=token)
+                    check("Dashboard after failing level 2 onboarding", s, b, 200)
+                    if b.get("current_level", {}).get("order") != 2:
+                        check("Expected current level 2 after level 2 onboarding fail", 500, {}, 200)
+                    if b.get("next_action") != "purchase_level":
+                        check("Expected purchase_level after level 2 onboarding fail", 500, {}, 200)
 
 # ── Login as existing student (Arjun — has purchases & progress) ──
 print("\n" + "=" * 65)

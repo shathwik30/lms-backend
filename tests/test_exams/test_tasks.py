@@ -134,6 +134,40 @@ class AutoSubmitTimedOutExamsTests(TestCase):
         expected_deadline = started_at + timedelta(minutes=self.exam.duration_minutes)
         self.assertEqual(attempt.submitted_at, expected_deadline)
 
+    def test_auto_submit_onboarding_updates_profile_state(self):
+        level2 = self.factory.create_level(order=2, passing_percentage=50)
+        onboarding_exam = self.factory.create_exam(
+            self.data["level"],
+            exam_type="onboarding",
+            num_questions=1,
+            duration=30,
+            passing_percentage=50,
+        )
+        question, correct_option = self.factory.create_question(onboarding_exam, level=self.data["level"], marks=4)
+
+        attempt = ExamAttempt.objects.create(
+            student=self.profile,
+            exam=onboarding_exam,
+            status=ExamAttempt.Status.IN_PROGRESS,
+            total_marks=4,
+        )
+        _create_aq(attempt, question, order=1, selected_option=correct_option)
+        ExamAttempt.objects.filter(pk=attempt.pk).update(
+            started_at=timezone.now() - timedelta(minutes=120),
+        )
+
+        count = auto_submit_timed_out_exams()
+
+        self.assertEqual(count, 1)
+        attempt.refresh_from_db()
+        self.assertEqual(attempt.status, ExamAttempt.Status.TIMED_OUT)
+        self.assertTrue(attempt.is_passed)
+
+        self.profile.refresh_from_db()
+        self.assertFalse(self.profile.is_onboarding_exam_attempted)
+        self.assertEqual(self.profile.highest_cleared_level, self.data["level"])
+        self.assertEqual(self.profile.current_level, level2)
+
 
 @override_settings(CELERY_TASK_ALWAYS_EAGER=True, CELERY_TASK_EAGER_PROPAGATES=True)
 class ScoreAttemptTests(TestCase):

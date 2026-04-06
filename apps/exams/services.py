@@ -25,6 +25,14 @@ logger = logging.getLogger(__name__)
 
 
 class ExamService:
+    @classmethod
+    def _apply_attempt_outcome(cls, user: UserModel, attempt: ExamAttempt) -> None:
+        """Apply profile/progress side effects after an attempt is finalized."""
+        if attempt.exam.exam_type == Exam.ExamType.ONBOARDING:
+            cls._process_onboarding_result(user, attempt)
+        elif attempt.exam.exam_type == Exam.ExamType.LEVEL_FINAL:
+            cls._update_level_progress(user, attempt)
+
     @staticmethod
     def get_exam_with_eligibility(student_profile: StudentProfile, exam_pk: int) -> tuple[Exam | None, bool]:
         try:
@@ -39,6 +47,8 @@ class ExamService:
         if exam.exam_type == Exam.ExamType.ONBOARDING:
             if student_profile.is_onboarding_exam_attempted:
                 raise OnboardingAlreadyAttempted()
+            if not EligibilityService.can_attempt_exam(student_profile, exam):
+                raise LevelLocked()
         elif not EligibilityService.can_attempt_exam(student_profile, exam):
             if exam.exam_type == Exam.ExamType.LEVEL_FINAL:
                 progress = LevelProgress.objects.filter(student=student_profile, level=exam.level).first()
@@ -109,6 +119,7 @@ class ExamService:
             attempt.score = timed_score
             attempt.is_passed = timed_score >= pass_score
             attempt.save(update_fields=["status", "submitted_at", "score", "is_passed"])
+            cls._apply_attempt_outcome(user, attempt)
             return None, ErrorMessage.SUBMISSION_DEADLINE_PASSED
 
         answers_map = {a["question_id"]: a for a in answers_data}
@@ -153,10 +164,7 @@ class ExamService:
         attempt.is_passed = total_score >= pass_score
         attempt.save(update_fields=["score", "submitted_at", "status", "is_passed"])
 
-        if attempt.exam.exam_type == Exam.ExamType.ONBOARDING:
-            cls._process_onboarding_result(user, attempt)
-        elif attempt.exam.exam_type == Exam.ExamType.LEVEL_FINAL:
-            cls._update_level_progress(user, attempt)
+        cls._apply_attempt_outcome(user, attempt)
 
         from core.tasks import fire_and_forget, send_exam_result_task
 
@@ -174,60 +182,36 @@ class ExamService:
 
     @staticmethod
     def _process_onboarding_result(user: UserModel, attempt: ExamAttempt) -> None:
-        from apps.levels.models import Level
-
         profile = user.student_profile
-        profile.is_onboarding_exam_attempted = True
+        level = attempt.exam.level
 
-        # Group questions by level, score per-level
-        attempt_questions = list(attempt.attempt_questions.select_related("question__level"))
+        update_fields = ["is_onboarding_exam_attempted", "current_level"]
 
-        level_scores: dict[int, dict] = {}
-        for attempt_question in attempt_questions:
-            level_id = attempt_question.question.level_id
-            if level_id not in level_scores:
-                level_scores[level_id] = {"scored": Decimal(0), "total": Decimal(0)}
-            level_scores[level_id]["total"] += attempt_question.question.marks
-            if attempt_question.marks_awarded > 0:
-                level_scores[level_id]["scored"] += attempt_question.marks_awarded
+        if attempt.is_passed:
+            LevelProgress.objects.update_or_create(
+                student=profile,
+                level=level,
+                defaults={
+                    "status": LevelProgress.Status.EXAM_PASSED,
+                    "completed_at": timezone.now(),
+                },
+            )
 
-        levels = Level.objects.filter(id__in=level_scores.keys(), is_active=True).order_by("order")
+            profile.highest_cleared_level = level
+            update_fields.append("highest_cleared_level")
 
-        highest_cleared = None
-        for level in levels:
-            score_data = level_scores.get(level.id)
-            if not score_data or score_data["total"] == 0:
-                continue
-            percentage = (score_data["scored"] / score_data["total"]) * 100
-            if percentage >= level.passing_percentage:
-                LevelProgress.objects.update_or_create(
-                    student=profile,
-                    level=level,
-                    defaults={
-                        "status": LevelProgress.Status.EXAM_PASSED,
-                        "completed_at": timezone.now(),
-                    },
-                )
-                highest_cleared = level
-            else:
-                # Failed this level — stop clearing subsequent levels
-                break
-
-        if highest_cleared:
-            profile.highest_cleared_level = highest_cleared
-            # Set current level to the next one after highest cleared
-            next_level = Level.objects.filter(order=highest_cleared.order + 1, is_active=True).first()
+            next_level = Level.objects.filter(order=level.order + 1, is_active=True).first()
             if next_level:
                 profile.current_level = next_level
+                profile.is_onboarding_exam_attempted = False
             else:
-                profile.current_level = highest_cleared
+                profile.current_level = level
+                profile.is_onboarding_exam_attempted = True
         else:
-            # Failed level 1 — start at level 1
-            first_level = Level.objects.filter(is_active=True).order_by("order").first()
-            if first_level:
-                profile.current_level = first_level
+            profile.current_level = level
+            profile.is_onboarding_exam_attempted = True
 
-        profile.save(update_fields=["is_onboarding_exam_attempted", "highest_cleared_level", "current_level"])
+        profile.save(update_fields=update_fields)
 
         NotificationService.create(
             user=user,

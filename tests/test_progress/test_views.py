@@ -182,15 +182,33 @@ class DashboardTests(APITestCase):
         self.data2 = self.factory.setup_full_level(order=2)
 
     def test_dashboard_new_student(self):
+        from apps.exams.models import Exam
+
+        onboarding_exam = self.factory.create_exam(self.data1["level"], exam_type=Exam.ExamType.ONBOARDING)
         response = self.client.get("/api/v1/progress/dashboard/")
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         self.assertEqual(response.data["next_action"], NextAction.TAKE_ONBOARDING_EXAM)
+        self.assertEqual(response.data["exam_id"], onboarding_exam.id)
 
     def test_dashboard_after_onboarding_no_purchase(self):
         self.profile.is_onboarding_exam_attempted = True
         self.profile.save()
         response = self.client.get("/api/v1/progress/dashboard/")
         self.assertEqual(response.data["next_action"], NextAction.PURCHASE_LEVEL)
+
+    def test_dashboard_after_passing_level1_onboarding_shows_level2_exam(self):
+        from apps.exams.models import Exam
+
+        self.factory.create_exam(self.data1["level"], exam_type=Exam.ExamType.ONBOARDING)
+        level2_exam = self.factory.create_exam(self.data2["level"], exam_type=Exam.ExamType.ONBOARDING)
+        self.profile.current_level = self.data2["level"]
+        self.profile.highest_cleared_level = self.data1["level"]
+        self.profile.save(update_fields=["current_level", "highest_cleared_level"])
+
+        response = self.client.get("/api/v1/progress/dashboard/")
+        self.assertEqual(response.data["next_action"], NextAction.TAKE_ONBOARDING_EXAM)
+        self.assertEqual(response.data["current_level"]["order"], 2)
+        self.assertEqual(response.data["exam_id"], level2_exam.id)
 
     def test_dashboard_after_pass(self):
         self.profile.is_onboarding_exam_attempted = True
