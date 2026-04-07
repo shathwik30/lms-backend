@@ -131,6 +131,8 @@ class CourseCurriculumView(APIView):
                         "resource_type": session.resource_type or None,
                         "duration_seconds": session.duration_seconds,
                         "thumbnail_url": session.thumbnail_url or None,
+                        "video_url": session.video_url or None,
+                        "file_url": session.file_url or None,
                         "exam_id": session.exam_id,
                         # lock / progress
                         "is_locked": lock_map[session.id],

@@ -203,18 +203,30 @@ class Command(BaseCommand):
         self.stdout.write(f"  Created {len(all_courses)} courses")
 
         # ── Weeks & Sessions ────────────────────────────────────
-        video_urls = [
-            "https://www.youtube.com/watch?v=ZM7wVpHSdGE",
-            "https://www.youtube.com/watch?v=3Md8GRCOONE",
-            "https://www.youtube.com/watch?v=kpOEBGrtEhA",
-            "https://www.youtube.com/watch?v=fNk_zzaMoSs",
+        # Real MP4s hosted by Google (publicly available sample videos used by
+        # Google Cast / video player demos). The frontend can stream these
+        # directly with a <video> tag for end-to-end playback testing.
+        _gcs_sample = "https://commondatastorage.googleapis.com/gtv-videos-bucket/sample"
+        video_assets = [
+            (f"{_gcs_sample}/BigBuckBunny.mp4", f"{_gcs_sample}/images/BigBuckBunny.jpg"),
+            (f"{_gcs_sample}/ElephantsDream.mp4", f"{_gcs_sample}/images/ElephantsDream.jpg"),
+            (f"{_gcs_sample}/ForBiggerBlazes.mp4", f"{_gcs_sample}/images/ForBiggerBlazes.jpg"),
+            (f"{_gcs_sample}/ForBiggerEscapes.mp4", f"{_gcs_sample}/images/ForBiggerEscapes.jpg"),
+            (f"{_gcs_sample}/ForBiggerFun.mp4", f"{_gcs_sample}/images/ForBiggerFun.jpg"),
+            (f"{_gcs_sample}/ForBiggerJoyrides.mp4", f"{_gcs_sample}/images/ForBiggerJoyrides.jpg"),
+            (f"{_gcs_sample}/ForBiggerMeltdowns.mp4", f"{_gcs_sample}/images/ForBiggerMeltdowns.jpg"),
+            (f"{_gcs_sample}/Sintel.mp4", f"{_gcs_sample}/images/Sintel.jpg"),
+            (
+                f"{_gcs_sample}/SubaruOutbackOnStreetAndDirt.mp4",
+                f"{_gcs_sample}/images/SubaruOutbackOnStreetAndDirt.jpg",
+            ),
+            (f"{_gcs_sample}/TearsOfSteel.mp4", f"{_gcs_sample}/images/TearsOfSteel.jpg"),
+            (f"{_gcs_sample}/VolkswagenGTIReview.mp4", f"{_gcs_sample}/images/VolkswagenGTIReview.jpg"),
+            (f"{_gcs_sample}/WeAreGoingOnBullrun.mp4", f"{_gcs_sample}/images/WeAreGoingOnBullrun.jpg"),
+            (f"{_gcs_sample}/WhatCarCanYouGetForAGrand.mp4", f"{_gcs_sample}/images/WhatCarCanYouGetForAGrand.jpg"),
         ]
-        thumbnails = [
-            "https://img.youtube.com/vi/ZM7wVpHSdGE/hqdefault.jpg",
-            "https://img.youtube.com/vi/3Md8GRCOONE/hqdefault.jpg",
-            "https://img.youtube.com/vi/kpOEBGrtEhA/hqdefault.jpg",
-            "https://img.youtube.com/vi/fNk_zzaMoSs/hqdefault.jpg",
-        ]
+        # Real, publicly hosted sample PDF for resource sessions.
+        sample_pdf_url = "https://www.w3.org/WAI/ER/tests/xhtml/testfiles/resources/pdf/dummy.pdf"
 
         session_titles_by_subject = {
             "Physics": [
@@ -314,17 +326,18 @@ class Command(BaseCommand):
                 titles = week_sessions[wi]
                 for si, stitle in enumerate(titles):
                     is_practice = "Practice" in stitle
+                    video_url, thumbnail_url = ("", "") if is_practice else random.choice(video_assets)
                     s = Session.objects.create(
                         week=week,
                         title=stitle,
                         description=f"{stitle} -- detailed lecture covering key concepts with solved examples.",
-                        video_url="" if is_practice else random.choice(video_urls),
-                        thumbnail_url="" if is_practice else random.choice(thumbnails),
+                        video_url=video_url,
+                        thumbnail_url=thumbnail_url,
                         duration_seconds=0 if is_practice else random.randint(1200, 3600),
                         order=si + 1,
                         session_type="resource" if is_practice else "video",
                         resource_type="pdf" if is_practice else "",
-                        file_url="https://drive.google.com/file/d/example/view" if is_practice else "",
+                        file_url=sample_pdf_url if is_practice else "",
                     )
                     all_sessions.append(s)
 
