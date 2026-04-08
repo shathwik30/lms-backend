@@ -2,6 +2,7 @@ from rest_framework import status
 from rest_framework.test import APITestCase
 
 from apps.courses.models import Session
+from apps.exams.models import Exam
 from core.test_utils import TestFactory
 
 
@@ -56,6 +57,27 @@ class CourseAccessTests(APITestCase):
         self.factory.create_purchase(self.profile, self.data["level"])
         response = self.client.get(f"/api/v1/courses/{self.data['course'].pk}/sessions/")
         self.assertEqual(response.status_code, status.HTTP_200_OK)
+
+    def test_course_sessions_include_weekly_exam_as_practice_session(self):
+        weekly_exam = self.factory.create_exam(
+            self.data["level"],
+            week=self.data["week"],
+            course=self.data["course"],
+            exam_type=Exam.ExamType.WEEKLY,
+            num_questions=3,
+        )
+        for _ in range(3):
+            self.factory.create_question(weekly_exam)
+
+        self.factory.create_purchase(self.profile, self.data["level"])
+        response = self.client.get(f"/api/v1/courses/{self.data['course'].pk}/sessions/")
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        sessions = response.data["weeks"][0]["sessions"]
+        exam_session = next(item for item in sessions if item["exam_id"] == weekly_exam.pk)
+        self.assertEqual(exam_session["session_type"], "practice_exam")
+        self.assertEqual(exam_session["title"], weekly_exam.title)
+        self.assertTrue(exam_session["is_locked"])
 
     def test_session_detail_nonexistent_returns_404(self):
         self.factory.create_purchase(self.profile, self.data["level"])

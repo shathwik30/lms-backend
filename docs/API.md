@@ -588,6 +588,8 @@ List sessions for a purchased course. Returns `402 Payment Required` if no activ
 
 Get full session details including `video_url`, `file_url`, `resource_type`, `markdown_content`, and `exam` FK. Returns `402` if no purchase, `403` if session is not yet accessible.
 
+Weekly exams are exposed here through auto-created exam-linked sessions. Non-proctored weekly exams appear as `practice_exam`; proctored weekly exams appear as `proctored_exam`.
+
 ---
 
 ### `POST /api/v1/courses/sessions/<id>/complete-resource/`
@@ -686,6 +688,8 @@ List or create sessions. On GET, `markdown_content` is deferred for performance.
 
 **Session types:** `video`, `resource`, `practice_exam`, `proctored_exam`.
 **Resource types:** `pdf`, `note`, `markdown`.
+
+For weekly exams, the backend automatically creates and maintains the linked session row. Creating a weekly exam is enough for it to appear in session-based APIs.
 
 ### `GET|PUT|PATCH|DELETE /api/v1/courses/admin/sessions/<id>/`
 **Permission:** Admin

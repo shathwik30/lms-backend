@@ -62,6 +62,7 @@ class CourseCurriculumView(APIView):
         },
     )
     def get(self, request, course_pk):
+        from apps.exams.session_sync import ExamSessionSyncService
         from apps.levels.models import Week
         from apps.progress.models import SessionProgress
 
@@ -74,6 +75,8 @@ class CourseCurriculumView(APIView):
             course = Course.objects.select_related("level").get(pk=course_pk, is_active=True)
         except Course.DoesNotExist:
             raise Http404 from None
+
+        ExamSessionSyncService.sync_weekly_exam_sessions_for_course(course.pk)
 
         # Query 1: weeks + sessions (2 queries via prefetch, counts as 1 round-trip block)
         weeks = list(

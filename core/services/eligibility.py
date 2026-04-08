@@ -122,7 +122,15 @@ class EligibilityService:
             return not (progress and progress.final_exam_attempts_used >= level.max_final_exam_attempts)
 
         if exam.exam_type == Exam.ExamType.WEEKLY:
-            return cls.has_active_purchase(student, level)
+            if not cls.has_active_purchase(student, level):
+                return False
+
+            from apps.exams.session_sync import ExamSessionSyncService
+
+            session = ExamSessionSyncService.sync_exam_session(exam)
+            if session is None:
+                return True
+            return cls.is_session_accessible(student, session)
 
         return False
 

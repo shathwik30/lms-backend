@@ -654,6 +654,12 @@ GET /api/v1/courses/<course_id>/sessions/
 }
 ```
 
+Weekly exams also arrive through this endpoint as exam-linked sessions:
+
+- `session_type: "practice_exam"` for non-proctored weekly exams
+- `session_type: "proctored_exam"` for proctored weekly exams
+- `exam` contains the linked exam ID to use with `/api/v1/exams/<exam_id>/start/`
+
 ### Session Progress for Level
 
 ```

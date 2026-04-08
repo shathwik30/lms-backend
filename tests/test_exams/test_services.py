@@ -15,12 +15,13 @@ from apps.exams.models import (
 )
 from apps.exams.services import ExamService
 from apps.notifications.models import Notification
-from apps.progress.models import LevelProgress
+from apps.progress.models import LevelProgress, SessionProgress
 from core.constants import ErrorMessage, ExamConstants
 from core.exceptions import (
     FinalExamAttemptsExhausted,
     LevelLocked,
     OnboardingAlreadyAttempted,
+    SessionNotAccessible,
 )
 from core.test_utils import TestFactory
 
@@ -124,6 +125,48 @@ class StartExamLevelLockedTests(TestCase):
         # No purchase means not eligible; no progress means not exhausted -> LevelLocked
         with self.assertRaises(LevelLocked):
             ExamService.start_exam(self.profile, self.exam)
+
+
+class WeeklyExamSessionIntegrationTests(TestCase):
+    def setUp(self):
+        self.factory = TestFactory()
+        self.user, self.profile = self.factory.create_student()
+        self.level = self.factory.create_level(order=1)
+        self.course = self.factory.create_course(self.level)
+        self.week = self.factory.create_week(self.course, order=1)
+        self.lesson = self.factory.create_session(self.week, order=1)
+        self.exam = self.factory.create_exam(
+            self.level,
+            week=self.week,
+            course=self.course,
+            exam_type=Exam.ExamType.WEEKLY,
+            num_questions=1,
+        )
+        self.question, self.correct_option = self.factory.create_question(self.exam)
+        self.factory.create_purchase(self.profile, self.level)
+
+    def test_start_weekly_exam_requires_prior_sessions(self):
+        with self.assertRaises(SessionNotAccessible):
+            ExamService.start_exam(self.profile, self.exam)
+
+    def test_submit_weekly_exam_pass_marks_linked_session_completed(self):
+        self.factory.complete_session(self.profile, self.lesson)
+
+        attempt, is_new = ExamService.start_exam(self.profile, self.exam)
+        self.assertTrue(is_new)
+        assert attempt is not None
+
+        result, error = ExamService.submit_exam(
+            self.user,
+            attempt,
+            [{"question_id": self.question.pk, "option_id": self.correct_option.pk}],
+        )
+        self.assertIsNone(error)
+        self.assertIsNotNone(result)
+
+        progress = SessionProgress.objects.get(student=self.profile, session__exam=self.exam)
+        self.assertTrue(progress.is_completed)
+        self.assertTrue(progress.is_exam_passed)
 
 
 class StartExamOnboardingQuestionPoolTests(TestCase):

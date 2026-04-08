@@ -499,6 +499,8 @@ List sessions for a purchased course. Returns `402 Payment Required` if no activ
 
 Get full session details including `video_url`, `file_url`, `resource_type`, `markdown_content`, and `exam` FK. Returns `402` if no purchase, `403` if session is not yet accessible.
 
+Weekly exams are surfaced here through auto-created exam-linked sessions. Non-proctored weekly exams appear as `practice_exam`; proctored weekly exams appear as `proctored_exam`.
+
 ---
 
 ### `POST /api/v1/courses/sessions/<id>/complete-resource/`

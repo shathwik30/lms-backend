@@ -16,10 +16,11 @@ from apps.progress.models import LevelProgress
 from apps.users.models import StudentProfile
 from apps.users.models import User as UserModel
 from core.constants import ErrorMessage, ExamConstants
-from core.exceptions import FinalExamAttemptsExhausted, LevelLocked, OnboardingAlreadyAttempted
+from core.exceptions import FinalExamAttemptsExhausted, LevelLocked, OnboardingAlreadyAttempted, SessionNotAccessible
 from core.services.eligibility import EligibilityService
 
 from .models import AttemptQuestion, Exam, ExamAttempt, ProctoringViolation, Question
+from .session_sync import ExamSessionSyncService
 
 logger = logging.getLogger(__name__)
 
@@ -32,6 +33,8 @@ class ExamService:
             cls._process_onboarding_result(user, attempt)
         elif attempt.exam.exam_type == Exam.ExamType.LEVEL_FINAL:
             cls._update_level_progress(user, attempt)
+        elif attempt.exam.exam_type == Exam.ExamType.WEEKLY:
+            cls._update_weekly_exam_session_progress(user, attempt)
 
     @staticmethod
     def get_exam_with_eligibility(student_profile: StudentProfile, exam_pk: int) -> tuple[Exam | None, bool]:
@@ -49,6 +52,12 @@ class ExamService:
                 raise OnboardingAlreadyAttempted()
             if not EligibilityService.can_attempt_exam(student_profile, exam):
                 raise LevelLocked()
+        elif exam.exam_type == Exam.ExamType.WEEKLY:
+            if not EligibilityService.has_active_purchase(student_profile, exam.level):
+                raise LevelLocked()
+            session = ExamSessionSyncService.sync_exam_session(exam)
+            if session and not EligibilityService.is_session_accessible(student_profile, session):
+                raise SessionNotAccessible()
         elif not EligibilityService.can_attempt_exam(student_profile, exam):
             if exam.exam_type == Exam.ExamType.LEVEL_FINAL:
                 progress = LevelProgress.objects.filter(student=student_profile, level=exam.level).first()
@@ -306,6 +315,7 @@ class ExamService:
                 attempt.score = 0
                 attempt.is_passed = False
                 attempt.save(update_fields=["is_disqualified", "status", "submitted_at", "score", "is_passed"])
+                ExamService._apply_attempt_outcome(attempt.student.user, attempt)
 
                 NotificationService.create(
                     user=attempt.student.user,
@@ -440,3 +450,17 @@ class ExamService:
                     notification_type=Notification.NotificationType.EXAM_RESULT,
                     data={"level_id": level.id, "attempt_id": attempt.id},
                 )
+
+    @staticmethod
+    def _update_weekly_exam_session_progress(user: UserModel, attempt: ExamAttempt) -> None:
+        from apps.progress.services import ProgressService
+
+        session = ExamSessionSyncService.sync_exam_session(attempt.exam)
+        if session is None or attempt.is_passed is None:
+            return
+
+        ProgressService.complete_exam_session(
+            user.student_profile,
+            session,
+            is_passed=attempt.is_passed,
+        )

@@ -625,20 +625,15 @@ POST /api/v1/exams/admin/
 }
 ```
 
-**Step 2 — Create session linking to exam:**
-```
-POST /api/v1/courses/admin/sessions/
-```
-```json
-{
-  "week": 1,
-  "title": "Motion Quiz",
-  "session_type": "practice_exam",
-  "exam": 5,
-  "order": 3,
-  "is_active": true
-}
-```
+**Step 2 — No separate session create is required:**
+
+When `exam_type` is `weekly`, the backend automatically creates and maintains the linked course session for you.
+
+- `is_proctored=false` -> session appears as `practice_exam`
+- `is_proctored=true` -> session appears as `proctored_exam`
+- The session is attached to the same `week` and linked through the `exam` FK
+
+You can still update the generated session later from `/api/v1/courses/admin/sessions/` if you need to change ordering or other session-level display fields.
 
 **Step 3 — Add questions:**
 ```

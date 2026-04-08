@@ -134,11 +134,25 @@ class EligibilityServiceTests(TestCase):
         weekly_exam = self.factory.create_exam(
             self.data1["level"],
             week=self.data1["week"],
+            course=self.data1["course"],
             exam_type=Exam.ExamType.WEEKLY,
             num_questions=3,
         )
         self.factory.create_purchase(self.profile, self.data1["level"])
+        for session in self.data1["sessions"]:
+            self.factory.complete_session(self.profile, session)
         self.assertTrue(EligibilityService.can_attempt_exam(self.profile, weekly_exam))
+
+    def test_weekly_exam_with_purchase_but_incomplete_prior_sessions_blocked(self):
+        weekly_exam = self.factory.create_exam(
+            self.data1["level"],
+            week=self.data1["week"],
+            course=self.data1["course"],
+            exam_type=Exam.ExamType.WEEKLY,
+            num_questions=3,
+        )
+        self.factory.create_purchase(self.profile, self.data1["level"])
+        self.assertFalse(EligibilityService.can_attempt_exam(self.profile, weekly_exam))
 
     # ── can_attempt_exam: onboarding ──
 

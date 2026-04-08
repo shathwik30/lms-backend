@@ -1,6 +1,7 @@
 from rest_framework import status
 from rest_framework.test import APITestCase
 
+from apps.courses.models import Session
 from core.test_utils import TestFactory
 
 ADMIN_EXAMS_URL = "/api/v1/exams/admin/"
@@ -42,6 +43,28 @@ class AdminExamEnrichedFieldsTests(APITestCase):
             },
         )
         self.assertEqual(response.status_code, status.HTTP_201_CREATED)
+
+    def test_admin_create_weekly_exam_auto_creates_session(self):
+        response = self.admin_client.post(
+            ADMIN_EXAMS_URL,
+            {
+                "level": self.data["level"].pk,
+                "week": self.data["week"].pk,
+                "course": self.data["course"].pk,
+                "exam_type": "weekly",
+                "title": "Kinematics Quiz",
+                "duration_minutes": 15,
+                "total_marks": 20,
+                "passing_percentage": 50,
+                "num_questions": 5,
+            },
+        )
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED)
+
+        session = Session.objects.get(exam_id=response.data["id"])
+        self.assertEqual(session.week_id, self.data["week"].pk)
+        self.assertEqual(session.session_type, Session.SessionType.PRACTICE_EXAM)
+        self.assertEqual(session.title, "Kinematics Quiz")
 
     def test_subjects_included_excludes_inactive_courses(self):
         # Deactivate the course

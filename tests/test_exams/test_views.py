@@ -336,6 +336,41 @@ class ExamEligibilityTests(APITestCase):
         response = anon.get(f"/api/v1/exams/{self.data1['exam'].pk}/")
         self.assertEqual(response.status_code, status.HTTP_401_UNAUTHORIZED)
 
+    def test_weekly_exam_start_blocked_until_prior_sessions_completed(self):
+        weekly_exam = self.factory.create_exam(
+            self.data1["level"],
+            week=self.data1["week"],
+            course=self.data1["course"],
+            exam_type=Exam.ExamType.WEEKLY,
+            num_questions=2,
+        )
+        for _ in range(2):
+            self.factory.create_question(weekly_exam)
+        self.factory.create_purchase(self.profile, self.data1["level"])
+
+        response = self.client.post(f"/api/v1/exams/{weekly_exam.pk}/start/")
+
+        self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
+        self.assertIn("prior sessions", str(response.data["detail"]).lower())
+
+    def test_weekly_exam_start_allowed_after_prior_sessions_completed(self):
+        weekly_exam = self.factory.create_exam(
+            self.data1["level"],
+            week=self.data1["week"],
+            course=self.data1["course"],
+            exam_type=Exam.ExamType.WEEKLY,
+            num_questions=2,
+        )
+        for _ in range(2):
+            self.factory.create_question(weekly_exam)
+        self.factory.create_purchase(self.profile, self.data1["level"])
+        for session in self.data1["sessions"]:
+            self.factory.complete_session(self.profile, session)
+
+        response = self.client.post(f"/api/v1/exams/{weekly_exam.pk}/start/")
+
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED)
+
 
 class AdminExamAPITests(APITestCase):
     def setUp(self):
