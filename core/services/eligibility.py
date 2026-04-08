@@ -142,8 +142,11 @@ class EligibilityService:
 
     @staticmethod
     def is_session_accessible(student: StudentProfile, session: Session) -> bool:
+        from apps.progress.services import ProgressService
+
         week = session.week
         course = week.course
+        ProgressService.sync_passed_weekly_exam_progress(student, course=course)
 
         # Bulk check: count total vs completed sessions for all prior weeks
         prior_week_ids = list(course.weeks.filter(order__lt=week.order, is_active=True).values_list("id", flat=True))

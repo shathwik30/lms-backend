@@ -100,6 +100,17 @@ class AdminIssueReportUpdateViewTests(TestCase):
             description="Something broke",
         )
 
+    def test_get_issue_detail(self):
+        response = self.admin_client.get(f"/api/v1/auth/admin/issues/{self.report.pk}/")
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(response.data["id"], self.report.pk)
+        self.assertEqual(response.data["subject"], "Test bug")
+
+    def test_get_issue_detail_not_found(self):
+        response = self.admin_client.get("/api/v1/auth/admin/issues/99999/")
+        self.assertEqual(response.status_code, status.HTTP_404_NOT_FOUND)
+        self.assertEqual(response.data["detail"], ErrorMessage.NOT_FOUND)
+
     def test_resolve_issue(self):
         response = self.admin_client.patch(
             f"/api/v1/auth/admin/issues/{self.report.pk}/",
@@ -125,6 +136,10 @@ class AdminIssueReportUpdateViewTests(TestCase):
             data={"is_resolved": True},
             format="json",
         )
+        self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
+
+    def test_student_cannot_get_issue_detail(self):
+        response = self.student_client.get(f"/api/v1/auth/admin/issues/{self.report.pk}/")
         self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
 
     def test_read_only_fields_not_changed(self):

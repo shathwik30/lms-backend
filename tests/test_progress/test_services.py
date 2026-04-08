@@ -196,6 +196,28 @@ class CompleteExamSessionTests(TestCase):
         self.assertFalse(progress.is_completed)
         self.assertIsNone(progress.completed_at)
 
+    def test_fail_after_passing_proctored_exam_does_not_reset_or_downgrade_progress(self):
+        lesson = self.factory.create_session(self.week, order=1, session_type=Session.SessionType.VIDEO)
+        exam_session = self.factory.create_session(self.week, order=2, session_type=Session.SessionType.PROCTORED_EXAM)
+
+        self.factory.complete_session(self.profile, lesson)
+        passed_progress, error = ProgressService.complete_exam_session(self.profile, exam_session, is_passed=True)
+        self.assertIsNone(error)
+        assert passed_progress is not None
+        completed_at = passed_progress.completed_at
+
+        progress, error = ProgressService.complete_exam_session(self.profile, exam_session, is_passed=False)
+        self.assertIsNone(error)
+        assert progress is not None
+
+        progress.refresh_from_db()
+        self.assertTrue(progress.is_completed)
+        self.assertTrue(progress.is_exam_passed)
+        self.assertEqual(progress.completed_at, completed_at)
+        self.assertTrue(
+            SessionProgress.objects.filter(student=self.profile, session=lesson, is_completed=True).exists()
+        )
+
 
 class CheckCascadingCompletionTests(TestCase):
     def setUp(self):

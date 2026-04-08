@@ -89,19 +89,86 @@ class ProgressService:
                 student=profile,
                 session=session,
             )
-            progress.is_exam_passed = is_passed
             if is_passed:
-                progress.is_completed = True
-                progress.completed_at = timezone.now()
-                progress.save(update_fields=["is_exam_passed", "is_completed", "completed_at"])
+                update_fields: list[str] = []
+                if progress.is_exam_passed is not True:
+                    progress.is_exam_passed = True
+                    update_fields.append("is_exam_passed")
+                if not progress.is_completed:
+                    progress.is_completed = True
+                    update_fields.append("is_completed")
+                if progress.completed_at is None:
+                    progress.completed_at = timezone.now()
+                    update_fields.append("completed_at")
+                if update_fields:
+                    progress.save(update_fields=update_fields)
                 ProgressService._check_cascading_completion(profile, session)
             else:
-                progress.save(update_fields=["is_exam_passed"])
+                # A later failed retake should not undo an already-cleared exam session.
+                if progress.is_exam_passed is True or progress.is_completed:
+                    return progress, None
+
+                if progress.is_exam_passed is not False:
+                    progress.is_exam_passed = False
+                    progress.save(update_fields=["is_exam_passed"])
                 # Proctored exam failure → reset week progress
                 if session.session_type == Session.SessionType.PROCTORED_EXAM:
                     ProgressService.reset_week_progress(profile, session.week)
 
         return progress, None
+
+    @staticmethod
+    def sync_passed_weekly_exam_progress(
+        profile: StudentProfile,
+        *,
+        course: Course | None = None,
+        session_ids: list[int] | None = None,
+    ) -> None:
+        from apps.exams.models import Exam, ExamAttempt
+
+        session_qs = Session.objects.filter(
+            is_active=True,
+            exam__isnull=False,
+            exam__exam_type=Exam.ExamType.WEEKLY,
+            exam__is_active=True,
+        ).select_related("week__course__level")
+
+        if course is not None:
+            session_qs = session_qs.filter(week__course=course)
+
+        if session_ids is not None:
+            if not session_ids:
+                return
+            session_qs = session_qs.filter(pk__in=session_ids)
+
+        sessions = list(session_qs)
+        if not sessions:
+            return
+
+        progress_map = {
+            progress.session_id: progress
+            for progress in SessionProgress.objects.filter(
+                student=profile,
+                session_id__in=[session.id for session in sessions],
+            )
+        }
+
+        passed_exam_ids = set(
+            ExamAttempt.objects.filter(
+                student=profile,
+                exam_id__in=[session.exam_id for session in sessions if session.exam_id],
+                status__in=[ExamAttempt.Status.SUBMITTED, ExamAttempt.Status.TIMED_OUT],
+                is_passed=True,
+            )
+            .values_list("exam_id", flat=True)
+            .distinct()
+        )
+
+        for session in sessions:
+            progress = progress_map.get(session.id)
+            needs_repair = progress is None or progress.is_exam_passed is not True or not progress.is_completed
+            if session.exam_id in passed_exam_ids and needs_repair:
+                ProgressService.complete_exam_session(profile, session, is_passed=True)
 
     @staticmethod
     def _check_cascading_completion(profile: StudentProfile, session: Session) -> None:

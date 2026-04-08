@@ -2,17 +2,27 @@ from __future__ import annotations
 
 import contextlib
 import logging
+from datetime import timedelta
 
 from django.conf import settings
 from django.contrib.auth import authenticate, get_user_model
 from django.contrib.auth.tokens import default_token_generator
+from django.db import transaction
+from django.utils import timezone
 from django.utils.encoding import force_bytes, force_str
 from django.utils.http import urlsafe_base64_decode, urlsafe_base64_encode
 from rest_framework_simplejwt.tokens import RefreshToken
 
+from apps.levels.models import Level
+from apps.notifications.models import Notification
+from apps.notifications.services import NotificationService
+from apps.payments.models import Purchase
+from apps.payments.services import PaymentService
+from apps.progress.models import LevelProgress
+from apps.users.models import AdminStudentActionLog, StudentProfile, UserPreference
 from apps.users.models import User as UserModel
-from apps.users.models import UserPreference
 from core.constants import ErrorMessage, SuccessMessage
+from core.services.eligibility import EligibilityService
 
 logger = logging.getLogger(__name__)
 
@@ -197,3 +207,244 @@ class ProfileService:
         profile.is_onboarding_completed = True
         profile.save(update_fields=["is_onboarding_completed"])
         return True, None
+
+
+class AdminStudentManagementService:
+    @staticmethod
+    def _get_level(level_id: int) -> Level | None:
+        return Level.objects.filter(pk=level_id, is_active=True).first()
+
+    @staticmethod
+    def _log_action(
+        *,
+        profile: StudentProfile,
+        admin_user: UserModel,
+        action_type: str,
+        reason: str,
+        level: Level | None = None,
+        purchase: Purchase | None = None,
+        metadata: dict | None = None,
+    ) -> None:
+        AdminStudentActionLog.objects.create(
+            student=profile,
+            admin_user=admin_user,
+            action_type=action_type,
+            level=level,
+            purchase=purchase,
+            reason=reason,
+            metadata=metadata or {},
+        )
+
+    @staticmethod
+    def reset_exam_attempts(
+        profile: StudentProfile,
+        level_id: int,
+        admin_user: UserModel,
+        reason: str,
+    ) -> tuple[LevelProgress | None, str | None]:
+        level = AdminStudentManagementService._get_level(level_id)
+        if level is None:
+            return None, ErrorMessage.LEVEL_NOT_FOUND
+
+        with transaction.atomic():
+            progress, _ = LevelProgress.objects.get_or_create(
+                student=profile,
+                level=level,
+                defaults={
+                    "status": LevelProgress.Status.IN_PROGRESS,
+                    "started_at": timezone.now(),
+                },
+            )
+
+            previous_attempts_used = progress.final_exam_attempts_used
+            previous_status = progress.status
+            update_fields: list[str] = []
+
+            if progress.started_at is None:
+                progress.started_at = timezone.now()
+                update_fields.append("started_at")
+
+            if progress.final_exam_attempts_used != 0:
+                progress.final_exam_attempts_used = 0
+                update_fields.append("final_exam_attempts_used")
+
+            if progress.status != LevelProgress.Status.EXAM_PASSED:
+                next_status = (
+                    LevelProgress.Status.SYLLABUS_COMPLETE
+                    if EligibilityService.is_syllabus_complete(profile, level)
+                    else LevelProgress.Status.IN_PROGRESS
+                )
+                if progress.status != next_status:
+                    progress.status = next_status
+                    update_fields.append("status")
+                if progress.completed_at is not None:
+                    progress.completed_at = None
+                    update_fields.append("completed_at")
+
+            if update_fields:
+                progress.save(update_fields=update_fields)
+
+            AdminStudentManagementService._log_action(
+                profile=profile,
+                admin_user=admin_user,
+                action_type=AdminStudentActionLog.ActionType.RESET_EXAM_ATTEMPTS,
+                reason=reason,
+                level=level,
+                purchase=progress.purchase,
+                metadata={
+                    "previous_attempts_used": previous_attempts_used,
+                    "new_attempts_used": progress.final_exam_attempts_used,
+                    "previous_status": previous_status,
+                    "new_status": progress.status,
+                },
+            )
+
+        NotificationService.create(
+            user=profile.user,
+            title=f"Exam Attempts Reset: {level.name}",
+            message=f"Your final exam attempts for {level.name} were reset by the admin team.",
+            notification_type=Notification.NotificationType.EXAM_RESULT,
+            data={"level_id": level.id},
+        )
+        return progress, None
+
+    @staticmethod
+    def unlock_level(
+        profile: StudentProfile,
+        level_id: int,
+        admin_user: UserModel,
+        reason: str,
+    ) -> tuple[Purchase | None, str | None]:
+        level = AdminStudentManagementService._get_level(level_id)
+        if level is None:
+            return None, ErrorMessage.LEVEL_NOT_FOUND
+
+        with transaction.atomic():
+            purchase = (
+                Purchase.objects.filter(
+                    student=profile,
+                    level=level,
+                    status=Purchase.Status.ACTIVE,
+                    expires_at__gt=timezone.now(),
+                )
+                .order_by("-expires_at")
+                .first()
+            )
+            created_purchase = False
+            if purchase is None:
+                purchase = Purchase.objects.create(
+                    student=profile,
+                    level=level,
+                    amount_paid=0,
+                    expires_at=timezone.now() + timedelta(days=level.validity_days),
+                )
+                created_purchase = True
+
+            PaymentService._provision_access(profile, level, purchase)
+
+            AdminStudentManagementService._log_action(
+                profile=profile,
+                admin_user=admin_user,
+                action_type=AdminStudentActionLog.ActionType.UNLOCK_LEVEL,
+                reason=reason,
+                level=level,
+                purchase=purchase,
+                metadata={
+                    "purchase_id": purchase.id,
+                    "purchase_created": created_purchase,
+                    "expires_at": purchase.expires_at.isoformat(),
+                },
+            )
+
+        NotificationService.create(
+            user=profile.user,
+            title=f"Level Unlocked: {level.name}",
+            message=f"Access to {level.name} has been unlocked by the admin team.",
+            notification_type=Notification.NotificationType.LEVEL_UNLOCK,
+            data={"level_id": level.id, "purchase_id": purchase.id},
+        )
+        return purchase, None
+
+    @staticmethod
+    def manual_pass_level(
+        profile: StudentProfile,
+        level_id: int,
+        admin_user: UserModel,
+        reason: str,
+    ) -> tuple[LevelProgress | None, str | None]:
+        level = AdminStudentManagementService._get_level(level_id)
+        if level is None:
+            return None, ErrorMessage.LEVEL_NOT_FOUND
+
+        latest_purchase = (
+            Purchase.objects.filter(student=profile, level=level).order_by("-expires_at", "-purchased_at").first()
+        )
+
+        with transaction.atomic():
+            progress, created = LevelProgress.objects.get_or_create(
+                student=profile,
+                level=level,
+                defaults={
+                    "purchase": latest_purchase,
+                    "status": LevelProgress.Status.EXAM_PASSED,
+                    "started_at": timezone.now(),
+                    "completed_at": timezone.now(),
+                    "final_exam_attempts_used": 0,
+                },
+            )
+
+            previous_status = progress.status
+            previous_attempts_used = progress.final_exam_attempts_used
+            update_fields: list[str] = []
+
+            if not created:
+                if progress.purchase_id is None and latest_purchase is not None:
+                    progress.purchase = latest_purchase
+                    update_fields.append("purchase")
+                if progress.started_at is None:
+                    progress.started_at = timezone.now()
+                    update_fields.append("started_at")
+                if progress.status != LevelProgress.Status.EXAM_PASSED:
+                    progress.status = LevelProgress.Status.EXAM_PASSED
+                    update_fields.append("status")
+                progress.completed_at = timezone.now()
+                update_fields.append("completed_at")
+                if progress.final_exam_attempts_used != 0:
+                    progress.final_exam_attempts_used = 0
+                    update_fields.append("final_exam_attempts_used")
+                if update_fields:
+                    progress.save(update_fields=update_fields)
+
+            profile_update_fields: list[str] = []
+            if profile.highest_cleared_level is None or profile.highest_cleared_level.order < level.order:
+                profile.highest_cleared_level = level
+                profile_update_fields.append("highest_cleared_level")
+            if profile.current_level is None or profile.current_level.order < level.order:
+                profile.current_level = level
+                profile_update_fields.append("current_level")
+            if profile_update_fields:
+                profile.save(update_fields=profile_update_fields)
+
+            AdminStudentManagementService._log_action(
+                profile=profile,
+                admin_user=admin_user,
+                action_type=AdminStudentActionLog.ActionType.MANUAL_PASS,
+                reason=reason,
+                level=level,
+                purchase=latest_purchase,
+                metadata={
+                    "previous_status": previous_status,
+                    "new_status": progress.status,
+                    "previous_attempts_used": previous_attempts_used,
+                    "new_attempts_used": progress.final_exam_attempts_used,
+                },
+            )
+
+        NotificationService.create(
+            user=profile.user,
+            title=f"Level Marked Passed: {level.name}",
+            message=f"{level.name} has been marked as passed by the admin team.",
+            notification_type=Notification.NotificationType.EXAM_RESULT,
+            data={"level_id": level.id},
+        )
+        return progress, None

@@ -87,6 +87,53 @@ class StudentProfile(TimeStampedModel):
         return f"Profile: {self.user.email}"
 
 
+class AdminStudentActionLog(TimeStampedModel):
+    class ActionType(models.TextChoices):
+        RESET_EXAM_ATTEMPTS = "reset_exam_attempts", "Reset Exam Attempts"
+        UNLOCK_LEVEL = "unlock_level", "Unlock Level"
+        MANUAL_PASS = "manual_pass", "Manual Pass"
+        EXTEND_VALIDITY = "extend_validity", "Extend Validity"
+
+    student = models.ForeignKey(
+        StudentProfile,
+        on_delete=models.CASCADE,
+        related_name="admin_action_logs",
+    )
+    admin_user = models.ForeignKey(
+        User,
+        on_delete=models.CASCADE,
+        related_name="student_admin_action_logs",
+    )
+    action_type = models.CharField(max_length=30, choices=ActionType.choices, db_index=True)
+    level = models.ForeignKey(
+        "levels.Level",
+        null=True,
+        blank=True,
+        on_delete=models.SET_NULL,
+        related_name="admin_student_action_logs",
+    )
+    purchase = models.ForeignKey(
+        "payments.Purchase",
+        null=True,
+        blank=True,
+        on_delete=models.SET_NULL,
+        related_name="admin_action_logs",
+    )
+    reason = models.TextField()
+    metadata = models.JSONField(default=dict, blank=True)
+
+    class Meta:
+        db_table = "admin_student_action_logs"
+        ordering = ["-created_at"]
+        indexes = [
+            models.Index(fields=["student", "created_at"], name="idx_admin_action_student"),
+            models.Index(fields=["action_type", "created_at"], name="idx_admin_action_type"),
+        ]
+
+    def __str__(self):
+        return f"{self.admin_user.email} → {self.student.user.email} ({self.action_type})"
+
+
 class IssueReport(TimeStampedModel):
     class Category(models.TextChoices):
         BUG = "bug", "Bug"

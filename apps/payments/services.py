@@ -97,14 +97,10 @@ class PaymentService:
 
         with transaction.atomic():
             try:
-                txn = (
-                    PaymentTransaction.objects.select_related("level")
-                    .select_for_update()
-                    .get(
-                        razorpay_order_id=data["razorpay_order_id"],
-                        student=profile,
-                        status=PaymentTransaction.Status.PENDING,
-                    )
+                txn = PaymentTransaction.objects.select_for_update().get(
+                    razorpay_order_id=data["razorpay_order_id"],
+                    student=profile,
+                    status=PaymentTransaction.Status.PENDING,
                 )
             except PaymentTransaction.DoesNotExist:
                 return None, ErrorMessage.TRANSACTION_NOT_FOUND
@@ -184,11 +180,7 @@ class PaymentService:
         """
         with transaction.atomic():
             try:
-                txn = (
-                    PaymentTransaction.objects.select_related("level", "student__user")
-                    .select_for_update()
-                    .get(razorpay_order_id=razorpay_order_id)
-                )
+                txn = PaymentTransaction.objects.select_for_update().get(razorpay_order_id=razorpay_order_id)
             except PaymentTransaction.DoesNotExist:
                 logger.warning("Webhook: unknown order_id %s", razorpay_order_id)
                 return False
@@ -327,17 +319,37 @@ class PaymentService:
         return purchase, None
 
     @staticmethod
-    def extend_validity(purchase_id: int, extra_days: int, admin_user: UserModel) -> tuple[Purchase | None, str | None]:
+    def extend_validity(
+        purchase_id: int, extra_days: int, admin_user: UserModel, reason: str = ""
+    ) -> tuple[Purchase | None, str | None]:
         try:
             purchase = Purchase.objects.get(pk=purchase_id)
         except Purchase.DoesNotExist:
             return None, ErrorMessage.PURCHASE_NOT_FOUND
 
+        previous_expires_at = purchase.expires_at
         purchase.expires_at += timedelta(days=extra_days)
         purchase.extended_by_days += extra_days
         purchase.extended_by = admin_user
         if purchase.status == Purchase.Status.EXPIRED:
             purchase.status = Purchase.Status.ACTIVE
         purchase.save(update_fields=["expires_at", "extended_by_days", "extended_by", "status"])
+
+        if reason:
+            from apps.users.models import AdminStudentActionLog
+
+            AdminStudentActionLog.objects.create(
+                student=purchase.student,
+                admin_user=admin_user,
+                action_type=AdminStudentActionLog.ActionType.EXTEND_VALIDITY,
+                level=purchase.level,
+                purchase=purchase,
+                reason=reason,
+                metadata={
+                    "extra_days": extra_days,
+                    "previous_expires_at": previous_expires_at.isoformat(),
+                    "new_expires_at": purchase.expires_at.isoformat(),
+                },
+            )
 
         return purchase, None

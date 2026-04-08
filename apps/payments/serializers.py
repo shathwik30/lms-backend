@@ -50,3 +50,4 @@ class PaymentTransactionSerializer(serializers.ModelSerializer):
 class AdminExtendValiditySerializer(serializers.Serializer):
     purchase_id = serializers.IntegerField()
     extra_days = serializers.IntegerField(min_value=1)
+    reason = serializers.CharField(required=False, allow_blank=True)

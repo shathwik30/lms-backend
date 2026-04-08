@@ -10,6 +10,9 @@ from rest_framework.views import APIView
 
 from apps.levels.models import Level
 from apps.payments.models import Purchase
+from apps.payments.serializers import PurchaseSerializer
+from apps.payments.services import PaymentService
+from apps.progress.serializers import LevelProgressSerializer
 from core.constants import ErrorMessage, SuccessMessage
 from core.decorators import swagger_safe
 from core.pagination import LargePagination, SmallPagination
@@ -20,6 +23,8 @@ from .models import IssueReport, StudentProfile, UserPreference
 from .serializers import (
     AdminIssueReportSerializer,
     AdminStudentDetailSerializer,
+    AdminStudentExtendValiditySerializer,
+    AdminStudentLevelActionSerializer,
     AdminStudentListSerializer,
     AdminStudentUpdateSerializer,
     ChangePasswordSerializer,
@@ -36,7 +41,7 @@ from .serializers import (
     UserSerializer,
     VerifyOTPSerializer,
 )
-from .services import AuthService, PasswordResetService, ProfileService
+from .services import AdminStudentManagementService, AuthService, PasswordResetService, ProfileService
 
 
 @extend_schema_view(
@@ -409,6 +414,189 @@ class AdminBlockStudentView(APIView):
         return Response({"detail": f"Student {action} successfully.", "is_active": is_active})
 
 
+class AdminResetExamAttemptsView(APIView):
+    permission_classes = [IsAdmin]
+
+    @extend_schema(
+        request=AdminStudentLevelActionSerializer,
+        responses={
+            200: inline_serializer(
+                "AdminResetExamAttemptsResponse",
+                fields={
+                    "detail": drf_serializers.CharField(),
+                    "level_progress": LevelProgressSerializer(),
+                },
+            )
+        },
+        tags=["Admin - Users"],
+        summary="Reset a student's final exam attempts for a level",
+    )
+    def post(self, request, pk):
+        try:
+            profile = StudentProfile.objects.select_related("user").get(pk=pk)
+        except StudentProfile.DoesNotExist:
+            return Response({"detail": ErrorMessage.NOT_FOUND}, status=status.HTTP_404_NOT_FOUND)
+
+        serializer = AdminStudentLevelActionSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+
+        progress, error = AdminStudentManagementService.reset_exam_attempts(
+            profile,
+            serializer.validated_data["level_id"],
+            request.user,
+            serializer.validated_data["reason"],
+        )
+        if error == ErrorMessage.LEVEL_NOT_FOUND:
+            return Response({"detail": error}, status=status.HTTP_404_NOT_FOUND)
+
+        return Response(
+            {
+                "detail": "Exam attempts reset successfully.",
+                "level_progress": LevelProgressSerializer(progress).data,
+            }
+        )
+
+
+class AdminUnlockLevelOverrideView(APIView):
+    permission_classes = [IsAdmin]
+
+    @extend_schema(
+        request=AdminStudentLevelActionSerializer,
+        responses={
+            200: inline_serializer(
+                "AdminUnlockLevelResponse",
+                fields={
+                    "detail": drf_serializers.CharField(),
+                    "purchase": PurchaseSerializer(),
+                },
+            )
+        },
+        tags=["Admin - Users"],
+        summary="Unlock a level for a student by granting access manually",
+    )
+    def post(self, request, pk):
+        try:
+            profile = StudentProfile.objects.select_related("user").get(pk=pk)
+        except StudentProfile.DoesNotExist:
+            return Response({"detail": ErrorMessage.NOT_FOUND}, status=status.HTTP_404_NOT_FOUND)
+
+        serializer = AdminStudentLevelActionSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+
+        purchase, error = AdminStudentManagementService.unlock_level(
+            profile,
+            serializer.validated_data["level_id"],
+            request.user,
+            serializer.validated_data["reason"],
+        )
+        if error == ErrorMessage.LEVEL_NOT_FOUND:
+            return Response({"detail": error}, status=status.HTTP_404_NOT_FOUND)
+
+        return Response(
+            {
+                "detail": "Level unlocked successfully.",
+                "purchase": PurchaseSerializer(purchase).data,
+            }
+        )
+
+
+class AdminManualPassOverrideView(APIView):
+    permission_classes = [IsAdmin]
+
+    @extend_schema(
+        request=AdminStudentLevelActionSerializer,
+        responses={
+            200: inline_serializer(
+                "AdminManualPassResponse",
+                fields={
+                    "detail": drf_serializers.CharField(),
+                    "level_progress": LevelProgressSerializer(),
+                },
+            )
+        },
+        tags=["Admin - Users"],
+        summary="Mark a level as passed manually for a student",
+    )
+    def post(self, request, pk):
+        try:
+            profile = StudentProfile.objects.select_related("user").get(pk=pk)
+        except StudentProfile.DoesNotExist:
+            return Response({"detail": ErrorMessage.NOT_FOUND}, status=status.HTTP_404_NOT_FOUND)
+
+        serializer = AdminStudentLevelActionSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+
+        progress, error = AdminStudentManagementService.manual_pass_level(
+            profile,
+            serializer.validated_data["level_id"],
+            request.user,
+            serializer.validated_data["reason"],
+        )
+        if error == ErrorMessage.LEVEL_NOT_FOUND:
+            return Response({"detail": error}, status=status.HTTP_404_NOT_FOUND)
+
+        return Response(
+            {
+                "detail": "Level marked as passed successfully.",
+                "level_progress": LevelProgressSerializer(progress).data,
+            }
+        )
+
+
+class AdminStudentExtendValidityView(APIView):
+    permission_classes = [IsAdmin]
+
+    @extend_schema(
+        request=AdminStudentExtendValiditySerializer,
+        responses={
+            200: inline_serializer(
+                "AdminStudentExtendValidityResponse",
+                fields={
+                    "detail": drf_serializers.CharField(),
+                    "purchase": PurchaseSerializer(),
+                },
+            )
+        },
+        tags=["Admin - Users"],
+        summary="Extend a student's level validity from student management",
+    )
+    def post(self, request, pk):
+        try:
+            profile = StudentProfile.objects.select_related("user").get(pk=pk)
+        except StudentProfile.DoesNotExist:
+            return Response({"detail": ErrorMessage.NOT_FOUND}, status=status.HTTP_404_NOT_FOUND)
+
+        serializer = AdminStudentExtendValiditySerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+
+        purchase = (
+            Purchase.objects.filter(
+                student=profile,
+                level_id=serializer.validated_data["level_id"],
+            )
+            .order_by("-expires_at", "-purchased_at")
+            .first()
+        )
+        if purchase is None:
+            return Response({"detail": ErrorMessage.PURCHASE_NOT_FOUND}, status=status.HTTP_404_NOT_FOUND)
+
+        purchase, error = PaymentService.extend_validity(
+            purchase.id,
+            serializer.validated_data["extra_days"],
+            request.user,
+            serializer.validated_data["reason"],
+        )
+        if error == ErrorMessage.PURCHASE_NOT_FOUND:
+            return Response({"detail": error}, status=status.HTTP_404_NOT_FOUND)
+
+        return Response(
+            {
+                "detail": "Validity extended successfully.",
+                "purchase": PurchaseSerializer(purchase).data,
+            }
+        )
+
+
 # ── Password Reset ──
 
 
@@ -632,6 +820,18 @@ class AdminIssueReportListView(generics.ListAPIView):
 
 class AdminIssueReportUpdateView(APIView):
     permission_classes = [IsAdmin]
+
+    @extend_schema(
+        responses={200: AdminIssueReportSerializer},
+        tags=["Admin - Users"],
+        summary="Get an issue report (admin)",
+    )
+    def get(self, request, pk):
+        try:
+            report = IssueReport.objects.select_related("user").get(pk=pk)
+        except IssueReport.DoesNotExist:
+            return Response({"detail": ErrorMessage.NOT_FOUND}, status=status.HTTP_404_NOT_FOUND)
+        return Response(AdminIssueReportSerializer(report).data)
 
     @extend_schema(
         request=AdminIssueReportSerializer,

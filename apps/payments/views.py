@@ -293,6 +293,7 @@ class AdminExtendValidityView(APIView):
             serializer.validated_data["purchase_id"],
             serializer.validated_data["extra_days"],
             request.user,
+            serializer.validated_data.get("reason", "").strip(),
         )
         if error:
             return Response({"detail": error}, status=status.HTTP_404_NOT_FOUND)

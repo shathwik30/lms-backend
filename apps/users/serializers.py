@@ -1,7 +1,7 @@
 from django.contrib.auth import get_user_model
 from rest_framework import serializers
 
-from .models import IssueReport, StudentProfile, UserPreference
+from .models import AdminStudentActionLog, IssueReport, StudentProfile, UserPreference
 
 User = get_user_model()
 
@@ -149,6 +149,7 @@ class AdminStudentDetailSerializer(serializers.ModelSerializer):
     last_active = serializers.SerializerMethodField()
     curriculum_progress = serializers.SerializerMethodField()
     exam_history = serializers.SerializerMethodField()
+    admin_action_history = serializers.SerializerMethodField()
 
     class Meta:
         model = StudentProfile
@@ -168,6 +169,7 @@ class AdminStudentDetailSerializer(serializers.ModelSerializer):
             "last_active",
             "curriculum_progress",
             "exam_history",
+            "admin_action_history",
             "created_at",
         ]
         read_only_fields = fields
@@ -284,10 +286,50 @@ class AdminStudentDetailSerializer(serializers.ModelSerializer):
             )
         return result
 
+    def get_admin_action_history(self, obj: StudentProfile) -> list[dict]:
+        logs = obj.admin_action_logs.select_related("admin_user", "level", "purchase")[:10]
+        return AdminStudentActionLogSerializer(logs, many=True).data
+
 
 class AdminStudentUpdateSerializer(serializers.Serializer):
     current_level = serializers.IntegerField(required=False)
     highest_cleared_level = serializers.IntegerField(required=False)
+
+
+class AdminStudentLevelActionSerializer(serializers.Serializer):
+    level_id = serializers.IntegerField()
+    reason = serializers.CharField()
+
+    def validate_reason(self, value: str) -> str:
+        value = value.strip()
+        if not value:
+            raise serializers.ValidationError("reason field is required.")
+        return value
+
+
+class AdminStudentExtendValiditySerializer(AdminStudentLevelActionSerializer):
+    extra_days = serializers.IntegerField(min_value=1)
+
+
+class AdminStudentActionLogSerializer(serializers.ModelSerializer):
+    admin_email = serializers.EmailField(source="admin_user.email", read_only=True)
+    level_name = serializers.CharField(source="level.name", read_only=True, default=None)
+
+    class Meta:
+        model = AdminStudentActionLog
+        fields = [
+            "id",
+            "action_type",
+            "admin_user",
+            "admin_email",
+            "level",
+            "level_name",
+            "purchase",
+            "reason",
+            "metadata",
+            "created_at",
+        ]
+        read_only_fields = fields
 
 
 class UpdateProfileSerializer(serializers.Serializer):

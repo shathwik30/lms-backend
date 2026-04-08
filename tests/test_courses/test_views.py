@@ -3,6 +3,8 @@ from rest_framework.test import APITestCase
 
 from apps.courses.models import Session
 from apps.exams.models import Exam
+from apps.exams.services import ExamService
+from apps.progress.models import SessionProgress
 from core.test_utils import TestFactory
 
 
@@ -78,6 +80,78 @@ class CourseAccessTests(APITestCase):
         self.assertEqual(exam_session["session_type"], "practice_exam")
         self.assertEqual(exam_session["title"], weekly_exam.title)
         self.assertTrue(exam_session["is_locked"])
+
+    def test_course_sessions_restore_passed_weekly_exam_after_session_recreation(self):
+        weekly_exam = self.factory.create_exam(
+            self.data["level"],
+            week=self.data["week"],
+            course=self.data["course"],
+            exam_type=Exam.ExamType.WEEKLY,
+            num_questions=1,
+        )
+        question, correct_option = self.factory.create_question(weekly_exam)
+        week2 = self.factory.create_week(self.data["course"], order=2)
+        self.factory.create_session(week2, order=1)
+
+        self.factory.create_purchase(self.profile, self.data["level"])
+        for session in self.data["sessions"]:
+            self.factory.complete_session(self.profile, session)
+
+        attempt, is_new = ExamService.start_exam(self.profile, weekly_exam)
+        self.assertTrue(is_new)
+        assert attempt is not None
+
+        result, error = ExamService.submit_exam(
+            self.user,
+            attempt,
+            [{"question_id": question.pk, "option_id": correct_option.pk}],
+        )
+        self.assertIsNone(error)
+        self.assertIsNotNone(result)
+
+        Session.objects.get(exam=weekly_exam).delete()
+
+        response = self.client.get(f"/api/v1/courses/{self.data['course'].pk}/sessions/")
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+
+        week1_exam = next(item for item in response.data["weeks"][0]["sessions"] if item["exam_id"] == weekly_exam.pk)
+        self.assertTrue(week1_exam["is_completed"])
+        self.assertTrue(week1_exam["is_exam_passed"])
+
+        self.assertFalse(response.data["weeks"][1]["sessions"][0]["is_locked"])
+
+    def test_session_detail_restores_passed_weekly_exam_after_progress_loss(self):
+        weekly_exam = self.factory.create_exam(
+            self.data["level"],
+            week=self.data["week"],
+            course=self.data["course"],
+            exam_type=Exam.ExamType.WEEKLY,
+            num_questions=1,
+        )
+        question, correct_option = self.factory.create_question(weekly_exam)
+        week2 = self.factory.create_week(self.data["course"], order=2)
+        week2_session = self.factory.create_session(week2, order=1)
+
+        self.factory.create_purchase(self.profile, self.data["level"])
+        for session in self.data["sessions"]:
+            self.factory.complete_session(self.profile, session)
+
+        attempt, is_new = ExamService.start_exam(self.profile, weekly_exam)
+        self.assertTrue(is_new)
+        assert attempt is not None
+
+        result, error = ExamService.submit_exam(
+            self.user,
+            attempt,
+            [{"question_id": question.pk, "option_id": correct_option.pk}],
+        )
+        self.assertIsNone(error)
+        self.assertIsNotNone(result)
+
+        SessionProgress.objects.filter(student=self.profile, session__exam=weekly_exam).delete()
+
+        detail_response = self.client.get(f"/api/v1/courses/sessions/{week2_session.pk}/")
+        self.assertEqual(detail_response.status_code, status.HTTP_200_OK)
 
     def test_session_detail_nonexistent_returns_404(self):
         self.factory.create_purchase(self.profile, self.data["level"])

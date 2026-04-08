@@ -65,6 +65,7 @@ class CourseCurriculumView(APIView):
         from apps.exams.session_sync import ExamSessionSyncService
         from apps.levels.models import Week
         from apps.progress.models import SessionProgress
+        from apps.progress.services import ProgressService
 
         profile = request.user.student_profile
 
@@ -93,6 +94,7 @@ class CourseCurriculumView(APIView):
 
         # Query 2: all progress for this student on this course in one shot
         all_session_ids = [s.id for w in weeks for s in w.active_sessions]
+        ProgressService.sync_passed_weekly_exam_progress(profile, session_ids=all_session_ids)
         progress_map: dict[int, SessionProgress] = {
             sp.session_id: sp
             for sp in SessionProgress.objects.filter(
