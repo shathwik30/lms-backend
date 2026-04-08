@@ -39,17 +39,8 @@ class ProgressTrackingTests(APITestCase):
         )
         self.assertEqual(response.data["watched_seconds"], 2000)
 
-    def test_auto_complete_at_90_percent_with_feedback(self):
+    def test_auto_complete_at_90_percent_without_feedback(self):
         session = self.data["sessions"][0]
-        from apps.feedback.models import SessionFeedback
-
-        SessionFeedback.objects.create(
-            student=self.profile,
-            session=session,
-            overall_rating=5,
-            difficulty_rating=3,
-            clarity_rating=4,
-        )
         threshold = int(session.duration_seconds * 0.95)
         response = self.client.post(
             f"/api/v1/progress/sessions/{session.pk}/",
@@ -57,9 +48,9 @@ class ProgressTrackingTests(APITestCase):
         )
         self.assertTrue(response.data["is_completed"])
 
-    def test_no_complete_without_feedback(self):
+    def test_no_complete_below_threshold(self):
         session = self.data["sessions"][0]
-        threshold = int(session.duration_seconds * 0.95)
+        threshold = int(session.duration_seconds * 0.89)
         response = self.client.post(
             f"/api/v1/progress/sessions/{session.pk}/",
             {"watched_seconds": threshold},
@@ -67,17 +58,8 @@ class ProgressTrackingTests(APITestCase):
         self.assertFalse(response.data["is_completed"])
 
     def test_no_complete_at_89_percent(self):
-        """Progress at 89% should NOT auto-complete even with feedback."""
+        """Progress at 89% should NOT auto-complete."""
         session = self.data["sessions"][0]
-        from apps.feedback.models import SessionFeedback
-
-        SessionFeedback.objects.create(
-            student=self.profile,
-            session=session,
-            overall_rating=5,
-            difficulty_rating=3,
-            clarity_rating=4,
-        )
         below_threshold = int(session.duration_seconds * 0.89)
         response = self.client.post(
             f"/api/v1/progress/sessions/{session.pk}/",
@@ -119,16 +101,7 @@ class ProgressTrackingTests(APITestCase):
             level=self.data["level"],
             status=LevelProgress.Status.IN_PROGRESS,
         )
-        from apps.feedback.models import SessionFeedback
-
         for s in self.data["sessions"]:
-            SessionFeedback.objects.create(
-                student=self.profile,
-                session=s,
-                overall_rating=5,
-                difficulty_rating=3,
-                clarity_rating=4,
-            )
             self.client.post(
                 f"/api/v1/progress/sessions/{s.pk}/",
                 {"watched_seconds": s.duration_seconds},

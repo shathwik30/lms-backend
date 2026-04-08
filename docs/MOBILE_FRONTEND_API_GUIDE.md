@@ -741,7 +741,7 @@ POST /api/v1/progress/sessions/<session_id>/
 }
 ```
 
-Session auto-completes at 90% watch + feedback submitted.
+Session auto-completes at 90% watch progress.
 
 ---
 

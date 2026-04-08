@@ -34,8 +34,8 @@ class EligibilityServiceTests(TestCase):
         empty_level = self.factory.create_level(order=99)
         self.assertTrue(EligibilityService.is_syllabus_complete(self.profile, empty_level))
 
-    def test_syllabus_incomplete_videos_done_no_feedback(self):
-        """All videos watched but no feedback submitted — not completed via service."""
+    def test_syllabus_incomplete_when_progress_records_not_completed(self):
+        """Watched seconds alone do not count unless the progress record is marked completed."""
         from django.utils import timezone
 
         from apps.progress.models import SessionProgress

@@ -43,6 +43,24 @@ class UpdateSessionProgressTests(TestCase):
         self.assertIsNone(error)
         self.assertEqual(progress.watched_seconds, 100)
 
+    def test_video_session_auto_completes_at_threshold_without_feedback(self):
+        session = self.factory.create_session(self.week, order=1, session_type=Session.SessionType.VIDEO)
+        watched_seconds = int(session.duration_seconds * 0.95)
+        progress, error = ProgressService.update_session_progress(self.profile, session.pk, watched_seconds)
+        self.assertIsNotNone(progress)
+        self.assertIsNone(error)
+        self.assertTrue(progress.is_completed)
+        self.assertIsNotNone(progress.completed_at)
+
+    def test_video_session_below_threshold_does_not_complete(self):
+        session = self.factory.create_session(self.week, order=1, session_type=Session.SessionType.VIDEO)
+        watched_seconds = int(session.duration_seconds * 0.89)
+        progress, error = ProgressService.update_session_progress(self.profile, session.pk, watched_seconds)
+        self.assertIsNotNone(progress)
+        self.assertIsNone(error)
+        self.assertFalse(progress.is_completed)
+        self.assertIsNone(progress.completed_at)
+
 
 class CompleteResourceSessionTests(TestCase):
     def setUp(self):

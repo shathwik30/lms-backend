@@ -43,14 +43,8 @@ class ProgressService:
             progress.watched_seconds = max(progress.watched_seconds, capped)
 
             if not progress.is_completed and session.duration_seconds > 0:
-                from apps.feedback.models import SessionFeedback
-
                 threshold = session.duration_seconds * ProgressConstants.SESSION_COMPLETION_THRESHOLD
-                has_feedback = SessionFeedback.objects.filter(
-                    student=profile,
-                    session=session,
-                ).exists()
-                if progress.watched_seconds >= threshold and has_feedback:
+                if progress.watched_seconds >= threshold:
                     progress.is_completed = True
                     progress.completed_at = timezone.now()
 

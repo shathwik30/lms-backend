@@ -1146,7 +1146,7 @@ Get student dashboard with current level, progress overview, and next recommende
 }
 ```
 
-`next_action` values: `purchase_course`, `watch_sessions`, `submit_feedback`, `attempt_exam`, `all_complete`.
+`next_action` values: `purchase_course`, `watch_sessions`, `attempt_exam`, `all_complete`.
 
 ---
 
@@ -1154,7 +1154,7 @@ Get student dashboard with current level, progress overview, and next recommende
 **Permission:** Student
 **Rate Limit:** `progress_update` (120/min)
 
-Update watch progress. Auto-completes at 90% if feedback is submitted.
+Update watch progress. Auto-completes at 90% watch progress.
 
 **Request:**
 ```json
@@ -1425,7 +1425,7 @@ Award bonus marks to the student.
 **Permission:** Student (requires active purchase for the session's level)
 **Rate Limit:** `feedback` (20/min)
 
-Submit mandatory session feedback (required for session completion). The session ID comes from the URL, not the request body.
+Submit session feedback. The session ID comes from the URL, not the request body.
 
 **Request:**
 ```json
