@@ -112,12 +112,16 @@ class AttemptQuestionResultSerializer(serializers.ModelSerializer):
     question_level_name = serializers.CharField(source="question.level.name", read_only=True)
     explanation = serializers.CharField(source="question.explanation", read_only=True)
     correct_text_answer = serializers.CharField(source="question.correct_text_answer", read_only=True)
+    selected_option_detail = OptionSerializer(source="selected_option", read_only=True)
     selected_option_ids = serializers.PrimaryKeyRelatedField(  # type: ignore[var-annotated]
         source="selected_options",
         many=True,
         read_only=True,
     )
+    selected_options_detail = OptionSerializer(source="selected_options", many=True, read_only=True)
     correct_option_ids = serializers.SerializerMethodField()
+    correct_options = serializers.SerializerMethodField()
+    options = serializers.SerializerMethodField()
 
     class Meta:
         model = AttemptQuestion
@@ -129,7 +133,9 @@ class AttemptQuestionResultSerializer(serializers.ModelSerializer):
             "question_level",
             "question_level_name",
             "selected_option",
+            "selected_option_detail",
             "selected_option_ids",
+            "selected_options_detail",
             "text_answer",
             "is_correct",
             "marks_awarded",
@@ -137,11 +143,32 @@ class AttemptQuestionResultSerializer(serializers.ModelSerializer):
             "explanation",
             "correct_text_answer",
             "correct_option_ids",
+            "correct_options",
+            "options",
         ]
         read_only_fields = fields
 
     def get_correct_option_ids(self, obj):
         return list(obj.question.options.filter(is_correct=True).values_list("id", flat=True))
+
+    def get_correct_options(self, obj):
+        return OptionSerializer(obj.question.options.filter(is_correct=True), many=True).data
+
+    def get_options(self, obj):
+        selected_ids = set(obj.selected_options.values_list("id", flat=True))
+        if obj.selected_option_id:
+            selected_ids.add(obj.selected_option_id)
+
+        return [
+            {
+                "id": option.id,
+                "text": option.text,
+                "image_url": option.image_url,
+                "is_correct": option.is_correct,
+                "is_selected": option.id in selected_ids,
+            }
+            for option in obj.question.options.all()
+        ]
 
 
 class AdminExamSerializer(ExamSerializer):

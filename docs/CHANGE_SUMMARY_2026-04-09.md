@@ -100,7 +100,33 @@ Files:
 - `apps/users/views.py`
 - `tests/test_users/test_admin_issues.py`
 
-## 6. Test Coverage Added or Updated
+## 6. Exam Attempt Result Payload Fix
+
+Problem addressed:
+- The student exam result endpoint exposed only option IDs for selected and correct answers.
+- Frontend consumers could not render readable answer review data from `/api/v1/exams/attempts/<id>/result/`.
+
+What changed:
+- Kept the existing ID fields for backward compatibility.
+- Added readable selected-answer and correct-answer payloads:
+  - `selected_option_detail`
+  - `selected_options_detail`
+  - `correct_options`
+  - `options`
+- `options` now returns each option with:
+  - `id`
+  - `text`
+  - `image_url`
+  - `is_correct`
+  - `is_selected`
+- Updated the result view query to prefetch the option relations used by the serializer.
+
+Files:
+- `apps/exams/serializers.py`
+- `apps/exams/views.py`
+- `tests/test_exams/test_views.py`
+
+## 7. Test Coverage Added or Updated
 
 Covered:
 - weekly exam session recreation and progress repair
@@ -126,7 +152,16 @@ python manage.py test tests.test_users.test_admin_student_detail \
 Result:
 - 44 tests passed
 
-## 7. Notes
+Additional targeted verification:
+
+```bash
+python manage.py test tests.test_exams.test_views --keepdb --noinput
+```
+
+Result:
+- 59 tests passed
+
+## 8. Notes
 
 - These changes include both the admin student-management work and the earlier weekly exam progression fix because both were still pending in the local worktree.
 - Database migration required:

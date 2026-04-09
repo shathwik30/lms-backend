@@ -838,7 +838,7 @@ class QuestionExplanationTests(APITestCase):
             text="4",
             is_correct=True,
         )
-        Option.objects.create(
+        self.wrong_option = Option.objects.create(
             question=self.question,
             text="5",
             is_correct=False,
@@ -870,6 +870,37 @@ class QuestionExplanationTests(APITestCase):
             question_result["explanation"],
             "2+2 equals 4 because of basic arithmetic.",
         )
+
+    @override_settings(EMAIL_BACKEND="django.core.mail.backends.locmem.EmailBackend")
+    def test_result_includes_selected_and_correct_option_details(self):
+        start = self.client.post(f"/api/v1/exams/{self.exam.pk}/start/")
+        attempt_id = start.data["id"]
+        answers = [
+            {
+                "question_id": self.question.pk,
+                "option_id": self.wrong_option.pk,
+            }
+        ]
+        self.client.post(
+            f"/api/v1/exams/attempts/{attempt_id}/submit/",
+            {"answers": answers},
+            format="json",
+        )
+
+        response = self.client.get(f"/api/v1/exams/attempts/{attempt_id}/result/")
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+
+        question_result = response.data["questions"][0]
+        self.assertEqual(question_result["selected_option"], self.wrong_option.pk)
+        self.assertEqual(question_result["selected_option_detail"]["text"], "5")
+        self.assertEqual(question_result["correct_option_ids"], [self.correct_option.pk])
+        self.assertEqual(question_result["correct_options"][0]["text"], "4")
+
+        options = {item["id"]: item for item in question_result["options"]}
+        self.assertTrue(options[self.correct_option.pk]["is_correct"])
+        self.assertFalse(options[self.correct_option.pk]["is_selected"])
+        self.assertFalse(options[self.wrong_option.pk]["is_correct"])
+        self.assertTrue(options[self.wrong_option.pk]["is_selected"])
 
 
 class ProctoringTests(APITestCase):

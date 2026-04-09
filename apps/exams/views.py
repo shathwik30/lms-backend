@@ -115,7 +115,14 @@ class AttemptResultView(APIView):
                 status=status.HTTP_400_BAD_REQUEST,
             )
 
-        questions = attempt.attempt_questions.select_related("question", "question__level")
+        questions = attempt.attempt_questions.select_related(
+            "question",
+            "question__level",
+            "selected_option",
+        ).prefetch_related(
+            "question__options",
+            "selected_options",
+        )
         data = ExamAttemptSerializer(attempt).data
         data["questions"] = AttemptQuestionResultSerializer(questions, many=True).data
         return Response(data)
