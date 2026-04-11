@@ -15,3 +15,5 @@ media/
 .vscode/
 .DS_Store
 .coverage
+certbot/conf/
+certbot/www/

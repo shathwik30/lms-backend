@@ -7,6 +7,8 @@ DOMAIN="${1:?Usage: $0 <domain> <email>}"
 EMAIL="${2:?Usage: $0 <domain> <email>}"
 CERT_PATH="./certbot/conf/live/$DOMAIN"
 
+mkdir -p ./certbot/conf ./certbot/www
+
 # ── 1. Update nginx/default.conf with actual domain ──
 if grep -q "example.com" nginx/default.conf; then
     sed -i "s/example\.com/$DOMAIN/g" nginx/default.conf
@@ -28,7 +30,11 @@ docker compose up -d nginx db redis
 # Give nginx a moment to start
 sleep 3
 
-# ── 4. Request the real certificate from Let's Encrypt ──
+# ── 4. Delete temp self-signed cert so certbot doesn't prompt ──
+echo "Removing temporary self-signed certificate..."
+docker compose run --rm --entrypoint "sh -c 'rm -rf /etc/letsencrypt/live/$DOMAIN /etc/letsencrypt/archive/$DOMAIN /etc/letsencrypt/renewal/$DOMAIN.conf'" certbot
+
+# ── 5. Request the real certificate from Let's Encrypt ──
 echo "Requesting Let's Encrypt certificate for $DOMAIN..."
 docker compose run --rm certbot certonly \
     --webroot \
@@ -36,9 +42,10 @@ docker compose run --rm certbot certonly \
     --email "$EMAIL" \
     --agree-tos \
     --no-eff-email \
+    --non-interactive \
     -d "$DOMAIN"
 
-# ── 5. Reload nginx with the real certificate ──
+# ── 6. Reload nginx with the real certificate ──
 echo "Reloading nginx..."
 docker compose exec nginx nginx -s reload
 

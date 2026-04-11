@@ -288,7 +288,7 @@ class AdminStudentDetailSerializer(serializers.ModelSerializer):
 
     def get_admin_action_history(self, obj: StudentProfile) -> list[dict]:
         logs = obj.admin_action_logs.select_related("admin_user", "level", "purchase")[:10]
-        return AdminStudentActionLogSerializer(logs, many=True).data
+        return list(AdminStudentActionLogSerializer(logs, many=True).data)
 
 
 class AdminStudentUpdateSerializer(serializers.Serializer):

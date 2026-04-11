@@ -7,18 +7,8 @@ DEBUG = False
 ALLOWED_HOSTS = env.list("ALLOWED_HOSTS", default=[])  # noqa: F405
 CSRF_TRUSTED_ORIGINS = env.list("CSRF_TRUSTED_ORIGINS", default=[])  # noqa: F405
 
-# ── Railway support ──
-# Railway health checks use hostname "healthcheck.railway.app".
-ALLOWED_HOSTS.append("healthcheck.railway.app")
-
-# Railway sets RAILWAY_PUBLIC_DOMAIN when a domain is assigned to the service.
-RAILWAY_PUBLIC_DOMAIN = env("RAILWAY_PUBLIC_DOMAIN", default="")  # noqa: F405
-if RAILWAY_PUBLIC_DOMAIN:
-    ALLOWED_HOSTS.append(RAILWAY_PUBLIC_DOMAIN)
-    CSRF_TRUSTED_ORIGINS.append(f"https://{RAILWAY_PUBLIC_DOMAIN}")
-
 SECURE_SSL_REDIRECT = True
-SECURE_REDIRECT_EXEMPT = [r"^api/v1/health/$"]  # Railway health probes may not send X-Forwarded-Proto
+SECURE_REDIRECT_EXEMPT = [r"^api/v1/health/$"]  # Health probes may not carry X-Forwarded-Proto
 SECURE_HSTS_SECONDS = 31536000
 SECURE_HSTS_INCLUDE_SUBDOMAINS = True
 SECURE_HSTS_PRELOAD = True
