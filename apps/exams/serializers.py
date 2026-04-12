@@ -153,6 +153,24 @@ class ExamSerializer(serializers.ModelSerializer):
         ]
         read_only_fields = ["id", "created_at", "pool_size"]
 
+    def _deactivate_other_level_finals(self, exam: Exam) -> None:
+        if exam.exam_type == Exam.ExamType.LEVEL_FINAL and exam.is_active:
+            Exam.objects.filter(
+                level=exam.level,
+                exam_type=Exam.ExamType.LEVEL_FINAL,
+                is_active=True,
+            ).exclude(pk=exam.pk).update(is_active=False)
+
+    def create(self, validated_data):
+        exam = super().create(validated_data)
+        self._deactivate_other_level_finals(exam)
+        return exam
+
+    def update(self, instance, validated_data):
+        exam = super().update(instance, validated_data)
+        self._deactivate_other_level_finals(exam)
+        return exam
+
     def get_pool_size(self, obj: Exam) -> int:
         return obj.questions.filter(is_active=True).count()
 
