@@ -16,6 +16,7 @@ from .serializers import (
     AdminExamAttemptSerializer,
     AdminExamSerializer,
     AttemptQuestionResultSerializer,
+    BulkQuestionCreateSerializer,
     ExamAttemptDetailSerializer,
     ExamAttemptSerializer,
     ExamSerializer,
@@ -246,6 +247,25 @@ class AdminOptionListCreateView(generics.ListCreateAPIView):
 
     def perform_create(self, serializer):
         serializer.save(question_id=self.kwargs["question_pk"])
+
+
+class AdminBulkQuestionCreateView(APIView):
+    permission_classes = [IsAdmin]
+
+    @extend_schema(
+        request=BulkQuestionCreateSerializer,
+        responses={201: QuestionAdminSerializer(many=True)},
+        tags=["Exams"],
+        summary="Bulk create questions with options",
+    )
+    def post(self, request):
+        serializer = BulkQuestionCreateSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        questions = serializer.save()
+        return Response(
+            QuestionAdminSerializer(questions, many=True).data,
+            status=status.HTTP_201_CREATED,
+        )
 
 
 @extend_schema_view(

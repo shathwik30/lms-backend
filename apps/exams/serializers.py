@@ -1,3 +1,5 @@
+from decimal import Decimal
+
 from rest_framework import serializers
 
 from .models import AttemptQuestion, Exam, ExamAttempt, Option, ProctoringViolation, Question
@@ -55,6 +57,70 @@ class QuestionAdminSerializer(serializers.ModelSerializer):
         if "level" not in validated_data or validated_data["level"] is None:
             validated_data["level"] = validated_data["exam"].level
         return super().create(validated_data)
+
+
+class BulkOptionSerializer(serializers.Serializer):
+    text = serializers.CharField()
+    image_url = serializers.URLField(required=False, default="", allow_blank=True)
+    is_correct = serializers.BooleanField(default=False)
+
+
+class BulkQuestionSerializer(serializers.Serializer):
+    text = serializers.CharField()
+    image_url = serializers.URLField(required=False, default="", allow_blank=True)
+    difficulty = serializers.ChoiceField(choices=Question.Difficulty.choices)
+    question_type = serializers.ChoiceField(
+        choices=Question.QuestionType.choices,
+        default=Question.QuestionType.MCQ,
+    )
+    marks = serializers.IntegerField(default=4, min_value=1)
+    negative_marks = serializers.DecimalField(max_digits=5, decimal_places=2, default=Decimal(0))
+    explanation = serializers.CharField(required=False, default="", allow_blank=True)
+    correct_text_answer = serializers.CharField(required=False, default="", allow_blank=True)
+    is_active = serializers.BooleanField(default=True)
+    options = BulkOptionSerializer(many=True, required=False, default=list)
+
+
+class BulkQuestionCreateSerializer(serializers.Serializer):
+    exam = serializers.PrimaryKeyRelatedField(queryset=Exam.objects.all())
+    questions = BulkQuestionSerializer(many=True)
+
+    def validate_questions(self, questions: list[dict]) -> list[dict]:
+        if len(questions) == 0:
+            raise serializers.ValidationError("At least one question is required.")
+        for i, q in enumerate(questions):
+            qtype = q.get("question_type", Question.QuestionType.MCQ)
+            options = q.get("options", [])
+            if qtype in (Question.QuestionType.MCQ, Question.QuestionType.MULTI_MCQ):
+                if len(options) < 2:
+                    raise serializers.ValidationError(
+                        {str(i): f"MCQ question must have at least 2 options, got {len(options)}."}
+                    )
+                correct_count = sum(1 for o in options if o.get("is_correct"))
+                if correct_count == 0:
+                    raise serializers.ValidationError({str(i): "At least one option must be marked as correct."})
+        return questions
+
+    def create(self, validated_data):
+        from django.db import transaction
+
+        exam = validated_data["exam"]
+        questions_data = validated_data["questions"]
+
+        created_questions = []
+        with transaction.atomic():
+            for q_data in questions_data:
+                options_data = q_data.pop("options", [])
+                question = Question.objects.create(
+                    exam=exam,
+                    level=exam.level,
+                    **q_data,
+                )
+                if options_data:
+                    Option.objects.bulk_create([Option(question=question, **opt) for opt in options_data])
+                created_questions.append(question)
+
+        return created_questions
 
 
 class ExamSerializer(serializers.ModelSerializer):

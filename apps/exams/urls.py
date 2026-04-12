@@ -15,6 +15,7 @@ urlpatterns = [
     path("attempts/", views.StudentAttemptListView.as_view(), name="student-attempts"),
     # Admin
     path("admin/questions/", views.AdminQuestionListCreateView.as_view(), name="admin-question-list"),
+    path("admin/questions/bulk/", views.AdminBulkQuestionCreateView.as_view(), name="admin-question-bulk-create"),
     path("admin/questions/<int:pk>/", views.AdminQuestionDetailView.as_view(), name="admin-question-detail"),
     path(
         "admin/questions/<int:question_pk>/options/",
