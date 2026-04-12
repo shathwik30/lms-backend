@@ -68,7 +68,7 @@ class AuthService:
         except ValueError:
             return None, None, ErrorMessage.INVALID_GOOGLE_TOKEN
 
-        email = token_info.get("email")
+        email = (token_info.get("email") or "").lower()
         if not email or not token_info.get("email_verified"):
             return None, None, ErrorMessage.GOOGLE_EMAIL_NOT_VERIFIED
 
@@ -136,7 +136,7 @@ class PasswordResetService:
     @staticmethod
     def request_reset(email: str) -> None:
         try:
-            user = User.objects.get(email=email)
+            user = User.objects.get(email=email.lower())
         except User.DoesNotExist:
             return
 

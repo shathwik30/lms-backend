@@ -22,6 +22,9 @@ class LoginSerializer(serializers.Serializer):
     email = serializers.EmailField()
     password = serializers.CharField(write_only=True)
 
+    def validate_email(self, value: str) -> str:
+        return value.lower()
+
 
 class UserSerializer(serializers.ModelSerializer):
     class Meta:
@@ -374,6 +377,9 @@ class ChangePasswordSerializer(serializers.Serializer):
 class PasswordResetRequestSerializer(serializers.Serializer):
     email = serializers.EmailField()
 
+    def validate_email(self, value: str) -> str:
+        return value.lower()
+
 
 class PasswordResetConfirmSerializer(serializers.Serializer):
     uid = serializers.CharField()
@@ -403,6 +409,9 @@ class SendOTPSerializer(serializers.Serializer):
         default="verify",
     )
 
+    def validate_email(self, value: str) -> str:
+        return value.lower()
+
 
 class VerifyOTPSerializer(serializers.Serializer):
     email = serializers.EmailField()
@@ -411,6 +420,9 @@ class VerifyOTPSerializer(serializers.Serializer):
         choices=["verify", "password_reset"],
         default="verify",
     )
+
+    def validate_email(self, value: str) -> str:
+        return value.lower()
 
 
 class GoogleAuthSerializer(serializers.Serializer):
