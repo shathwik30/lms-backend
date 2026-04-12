@@ -51,3 +51,13 @@ class AdminExtendValiditySerializer(serializers.Serializer):
     purchase_id = serializers.IntegerField()
     extra_days = serializers.IntegerField(min_value=1)
     reason = serializers.CharField(required=False, allow_blank=True)
+
+
+class LevelPurchasePreviewSerializer(serializers.Serializer):
+    level_id = serializers.IntegerField()
+    level_name = serializers.CharField()
+    price = serializers.DecimalField(max_digits=10, decimal_places=2)
+    validity_days = serializers.IntegerField()
+    access = serializers.CharField()
+    whats_included = serializers.ListField(child=serializers.CharField())
+    syllabus = serializers.ListField(child=serializers.DictField())

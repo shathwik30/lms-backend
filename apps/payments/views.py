@@ -23,6 +23,7 @@ from .models import PaymentTransaction, Purchase
 from .serializers import (
     AdminExtendValiditySerializer,
     InitiatePaymentSerializer,
+    LevelPurchasePreviewSerializer,
     PaymentTransactionSerializer,
     PurchaseSerializer,
     VerifyPaymentSerializer,
@@ -163,6 +164,59 @@ class DevPurchaseView(APIView):
             return Response({"detail": error}, status=status.HTTP_400_BAD_REQUEST)
 
         return Response(PurchaseSerializer(purchase).data, status=status.HTTP_201_CREATED)
+
+
+class LevelPurchasePreviewView(APIView):
+    permission_classes = [IsStudent]
+
+    @extend_schema(
+        tags=["Payments"],
+        summary="Get purchase preview for a level",
+        responses={200: LevelPurchasePreviewSerializer},
+    )
+    def get(self, request, level_id):
+        from apps.courses.models import Course, Session
+        from apps.exams.models import Question
+        from apps.levels.models import Level
+
+        try:
+            level = Level.objects.get(pk=level_id, is_active=True)
+        except Level.DoesNotExist:
+            return Response({"detail": ErrorMessage.LEVEL_NOT_FOUND}, status=status.HTTP_404_NOT_FOUND)
+
+        courses = Course.objects.filter(level=level, is_active=True)
+
+        video_count = Session.objects.filter(
+            week__course__in=courses,
+            session_type=Session.SessionType.VIDEO,
+            is_active=True,
+        ).count()
+
+        question_count = Question.objects.filter(
+            level=level,
+            is_active=True,
+        ).count()
+
+        whats_included = []
+        if video_count:
+            whats_included.append(f"{video_count}+ Video Lectures")
+        if question_count:
+            whats_included.append(f"{question_count}+ Practice Questions")
+        whats_included.append("Full Level Exam Access")
+        whats_included.append("Doubt Clearing Support")
+
+        syllabus = [{"id": c.id, "title": c.title} for c in courses]
+
+        data = {
+            "level_id": level.id,
+            "level_name": level.name,
+            "price": level.price,
+            "validity_days": level.validity_days,
+            "access": "Full Level",
+            "whats_included": whats_included,
+            "syllabus": syllabus,
+        }
+        return Response(LevelPurchasePreviewSerializer(data).data)
 
 
 @extend_schema_view(
