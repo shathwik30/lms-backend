@@ -62,6 +62,7 @@ class AdminStudentListSerializer(serializers.ModelSerializer):
     """
 
     user = UserSerializer(read_only=True)
+    name = serializers.CharField(source="user.full_name", read_only=True)
     current_level_name = serializers.CharField(source="current_level.name", default=None)
     highest_cleared_level_name = serializers.CharField(
         source="highest_cleared_level.name",
@@ -77,6 +78,7 @@ class AdminStudentListSerializer(serializers.ModelSerializer):
         model = StudentProfile
         fields = [
             "id",
+            "name",
             "user",
             "current_level",
             "current_level_name",
@@ -138,6 +140,7 @@ class AdminStudentDetailSerializer(serializers.ModelSerializer):
     """Rich detail serializer used by AdminStudentDetailView GET."""
 
     user = UserSerializer(read_only=True)
+    name = serializers.CharField(source="user.full_name", read_only=True)
     current_level_name = serializers.CharField(source="current_level.name", default=None)
     highest_cleared_level_name = serializers.CharField(
         source="highest_cleared_level.name",
@@ -155,6 +158,7 @@ class AdminStudentDetailSerializer(serializers.ModelSerializer):
         model = StudentProfile
         fields = [
             "id",
+            "name",
             "user",
             "current_level",
             "current_level_name",
