@@ -56,6 +56,7 @@ class ErrorMessage:
     ATTEMPT_ALREADY_SUBMITTED = "This attempt has already been submitted."
     SUBMISSION_DEADLINE_PASSED = "Submission deadline has passed. This attempt has been timed out."
     EXAM_NOT_PROCTORED = "This exam is not proctored."
+    VIOLATION_RULE_DISABLED = "This proctoring rule is not enabled for this exam."
     ATTEMPT_ALREADY_DISQUALIFIED = "Attempt already disqualified."
     ONBOARDING_ALREADY_ATTEMPTED = "You have already taken the placement test."
     FINAL_EXAM_ATTEMPTS_EXHAUSTED = "All final exam attempts have been used. Level progress has been reset."

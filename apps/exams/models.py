@@ -102,6 +102,8 @@ class Exam(TimeStampedModel):
     passing_percentage = models.DecimalField(max_digits=5, decimal_places=2)
     num_questions = models.PositiveIntegerField()
     is_proctored = models.BooleanField(default=False)
+    require_fullscreen = models.BooleanField(default=False)
+    detect_tab_switch = models.BooleanField(default=False)
     max_warnings = models.PositiveIntegerField(
         default=3,
         help_text="Max proctoring warnings before disqualification",
@@ -200,6 +202,7 @@ class ProctoringViolation(TimeStampedModel):
         TAB_SWITCH = "tab_switch", "Tab Switch"
         VOICE_DETECTED = "voice_detected", "Voice Detected"
         MULTI_FACE = "multi_face", "Multiple Faces Detected"
+        NO_FACE = "no_face", "No Face Detected"
         EXTENSION_DETECTED = "extension_detected", "Extension Detected"
 
     attempt = models.ForeignKey(

@@ -298,6 +298,13 @@ class ExamService:
         if attempt.is_disqualified:
             return None, ErrorMessage.ATTEMPT_ALREADY_DISQUALIFIED
 
+        rule_enabled: dict[str, bool] = {
+            ProctoringViolation.ViolationType.FULL_SCREEN_EXIT.value: attempt.exam.require_fullscreen,
+            ProctoringViolation.ViolationType.TAB_SWITCH.value: attempt.exam.detect_tab_switch,
+        }
+        if rule_enabled.get(violation_type) is False:
+            return None, ErrorMessage.VIOLATION_RULE_DISABLED
+
         with transaction.atomic():
             warning_count = attempt.violations.count() + 1
 

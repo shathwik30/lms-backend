@@ -197,11 +197,15 @@ class EligibilityService:
                     "level": None,
                     "message": NextActionMessage.NO_LEVELS,
                 }
-            onboarding_exam = Exam.objects.filter(
-                exam_type=Exam.ExamType.ONBOARDING,
-                is_active=True,
-                level=onboarding_level,
-            ).first()
+            onboarding_exam = (
+                Exam.objects.filter(
+                    exam_type=Exam.ExamType.ONBOARDING,
+                    is_active=True,
+                    level=onboarding_level,
+                )
+                .order_by("-created_at")
+                .first()
+            )
             return {
                 "action": NextAction.TAKE_ONBOARDING_EXAM,
                 "level": {

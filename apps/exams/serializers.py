@@ -147,28 +147,32 @@ class ExamSerializer(serializers.ModelSerializer):
             "num_questions",
             "pool_size",
             "is_proctored",
+            "require_fullscreen",
+            "detect_tab_switch",
             "max_warnings",
             "is_active",
             "created_at",
         ]
         read_only_fields = ["id", "created_at", "pool_size"]
 
-    def _deactivate_other_level_finals(self, exam: Exam) -> None:
-        if exam.exam_type == Exam.ExamType.LEVEL_FINAL and exam.is_active:
+    _SINGLETON_EXAM_TYPES = (Exam.ExamType.LEVEL_FINAL, Exam.ExamType.ONBOARDING)
+
+    def _deactivate_siblings(self, exam: Exam) -> None:
+        if exam.exam_type in self._SINGLETON_EXAM_TYPES and exam.is_active:
             Exam.objects.filter(
                 level=exam.level,
-                exam_type=Exam.ExamType.LEVEL_FINAL,
+                exam_type=exam.exam_type,
                 is_active=True,
             ).exclude(pk=exam.pk).update(is_active=False)
 
     def create(self, validated_data):
         exam = super().create(validated_data)
-        self._deactivate_other_level_finals(exam)
+        self._deactivate_siblings(exam)
         return exam
 
     def update(self, instance, validated_data):
         exam = super().update(instance, validated_data)
-        self._deactivate_other_level_finals(exam)
+        self._deactivate_siblings(exam)
         return exam
 
     def get_pool_size(self, obj: Exam) -> int:

@@ -74,6 +74,8 @@ class ExamAdmin(admin.ModelAdmin, ExportCsvMixin):
         "num_questions",
         "passing_percentage",
         "is_proctored",
+        "require_fullscreen",
+        "detect_tab_switch",
         "max_warnings",
         "question_count",
         "attempt_count",
