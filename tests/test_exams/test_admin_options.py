@@ -54,7 +54,7 @@ class AdminOptionDetailViewTests(TestCase):
         self.assertFalse(Option.objects.filter(pk=option_pk).exists())
 
     def test_not_found(self):
-        response = self.admin_client.get("/api/v1/exams/admin/options/99999/")
+        response = self.admin_client.get("/api/v1/exams/admin/options/00000000-0000-0000-0000-000000000000/")
         self.assertEqual(response.status_code, status.HTTP_404_NOT_FOUND)
 
     def test_student_cannot_access(self):

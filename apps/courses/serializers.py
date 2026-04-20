@@ -43,7 +43,7 @@ class SessionDetailSerializer(serializers.ModelSerializer):
 
 class BookmarkSerializer(serializers.ModelSerializer):
     session_title = serializers.CharField(source="session.title", read_only=True)
-    session_week = serializers.IntegerField(source="session.week_id", read_only=True)
+    session_week = serializers.UUIDField(source="session.week_id", read_only=True)
 
     class Meta:
         model = Bookmark

@@ -15,7 +15,7 @@ class SessionDetailViewTests(TestCase):
 
     def test_session_not_found_returns_404(self):
         """Requesting a non-existent session returns 404."""
-        response = self.client.get("/api/v1/courses/sessions/99999/")
+        response = self.client.get("/api/v1/courses/sessions/00000000-0000-0000-0000-000000000000/")
         self.assertEqual(response.status_code, 404)
         self.assertEqual(response.data["detail"], ErrorMessage.NOT_FOUND)
 
@@ -71,7 +71,7 @@ class CompleteResourceSessionViewTests(TestCase):
 
     def test_complete_resource_session_not_found(self):
         """Completing a non-existent session returns 404."""
-        response = self.client.post("/api/v1/courses/sessions/99999/complete-resource/")
+        response = self.client.post("/api/v1/courses/sessions/00000000-0000-0000-0000-000000000000/complete-resource/")
         self.assertEqual(response.status_code, 404)
         self.assertEqual(response.data["detail"], ErrorMessage.SESSION_NOT_FOUND)
 

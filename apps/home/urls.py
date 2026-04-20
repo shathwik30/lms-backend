@@ -10,5 +10,5 @@ urlpatterns = [
     path("featured/", views.FeaturedCoursesView.as_view(), name="featured"),
     # Admin
     path("admin/banners/", views.AdminBannerListCreateView.as_view(), name="admin-banner-list"),
-    path("admin/banners/<int:pk>/", views.AdminBannerDetailView.as_view(), name="admin-banner-detail"),
+    path("admin/banners/<uuid:pk>/", views.AdminBannerDetailView.as_view(), name="admin-banner-detail"),
 ]

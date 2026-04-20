@@ -209,7 +209,7 @@ class AdminStudentAPITests(APITestCase):
         self.assertEqual(response.status_code, status.HTTP_200_OK)
 
     def test_admin_student_detail_404(self):
-        response = self.admin_client.get("/api/v1/auth/admin/students/99999/")
+        response = self.admin_client.get("/api/v1/auth/admin/students/00000000-0000-0000-0000-000000000000/")
         self.assertEqual(response.status_code, status.HTTP_404_NOT_FOUND)
 
     def test_admin_promote_student(self):

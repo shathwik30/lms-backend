@@ -69,7 +69,7 @@ class NotificationAPITests(APITestCase):
         self.assertTrue(n.is_read)
 
     def test_mark_read_not_found(self):
-        response = self.client.patch("/api/v1/notifications/99999/read/")
+        response = self.client.patch("/api/v1/notifications/00000000-0000-0000-0000-000000000000/read/")
         self.assertEqual(response.status_code, status.HTTP_404_NOT_FOUND)
 
     def test_mark_read_other_user_404(self):

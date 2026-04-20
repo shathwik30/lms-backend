@@ -44,7 +44,7 @@ class BookmarkAPITests(APITestCase):
         self.assertFalse(Bookmark.objects.filter(pk=bm.pk).exists())
 
     def test_delete_bookmark_not_found(self):
-        response = self.client.delete("/api/v1/courses/bookmarks/99999/")
+        response = self.client.delete("/api/v1/courses/bookmarks/00000000-0000-0000-0000-000000000000/")
         self.assertEqual(response.status_code, status.HTTP_404_NOT_FOUND)
 
     def test_delete_other_users_bookmark_404(self):

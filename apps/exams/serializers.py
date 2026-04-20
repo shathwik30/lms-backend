@@ -196,7 +196,7 @@ class AttemptQuestionSerializer(serializers.ModelSerializer):
 class AttemptQuestionResultSerializer(serializers.ModelSerializer):
     question_text = serializers.CharField(source="question.text", read_only=True)
     question_type = serializers.CharField(source="question.question_type", read_only=True)
-    question_level = serializers.IntegerField(source="question.level_id", read_only=True)
+    question_level = serializers.UUIDField(source="question.level_id", read_only=True)
     question_level_name = serializers.CharField(source="question.level.name", read_only=True)
     explanation = serializers.CharField(source="question.explanation", read_only=True)
     correct_text_answer = serializers.CharField(source="question.correct_text_answer", read_only=True)

@@ -29,7 +29,7 @@ class NotificationDeleteViewTests(APITestCase):
         self.assertFalse(Notification.objects.filter(pk=n.pk).exists())
 
     def test_delete_nonexistent_returns_404(self):
-        response = self.client.delete("/api/v1/notifications/99999/")
+        response = self.client.delete("/api/v1/notifications/00000000-0000-0000-0000-000000000000/")
         self.assertEqual(response.status_code, status.HTTP_404_NOT_FOUND)
 
     def test_cannot_delete_others_notification(self):

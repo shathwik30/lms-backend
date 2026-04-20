@@ -35,9 +35,6 @@ class FeedbackService:
         if not has_purchase:
             return None, ErrorMessage.PURCHASE_REQUIRED_FOR_FEEDBACK
 
-        if SessionFeedback.objects.filter(student=profile, session=session).exists():
-            return None, ErrorMessage.FEEDBACK_ALREADY_SUBMITTED
-
         feedback = SessionFeedback.objects.create(
             student=profile,
             session=session,

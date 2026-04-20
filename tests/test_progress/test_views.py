@@ -79,7 +79,7 @@ class ProgressTrackingTests(APITestCase):
 
     def test_progress_nonexistent_session_returns_404(self):
         response = self.client.post(
-            "/api/v1/progress/sessions/99999/",
+            "/api/v1/progress/sessions/00000000-0000-0000-0000-000000000000/",
             {"watched_seconds": 100},
         )
         self.assertEqual(response.status_code, status.HTTP_404_NOT_FOUND)

@@ -41,7 +41,7 @@ class LevelPublicAPITests(APITestCase):
         self.assertEqual(response.status_code, status.HTTP_404_NOT_FOUND)
 
     def test_level_detail_nonexistent_returns_404(self):
-        response = self.client.get("/api/v1/levels/99999/")
+        response = self.client.get("/api/v1/levels/00000000-0000-0000-0000-000000000000/")
         self.assertEqual(response.status_code, status.HTTP_404_NOT_FOUND)
 
 

@@ -21,17 +21,18 @@ class FeedbackTests(APITestCase):
         )
         self.assertEqual(response.status_code, status.HTTP_201_CREATED)
 
-    def test_cannot_submit_duplicate_feedback(self):
+    def test_can_submit_multiple_feedbacks(self):
         session = self.data["sessions"][0]
-        self.client.post(
+        first = self.client.post(
             f"/api/v1/feedback/sessions/{session.pk}/",
             {"overall_rating": 5, "difficulty_rating": 3, "clarity_rating": 4},
         )
-        response = self.client.post(
+        self.assertEqual(first.status_code, status.HTTP_201_CREATED)
+        second = self.client.post(
             f"/api/v1/feedback/sessions/{session.pk}/",
             {"overall_rating": 4, "difficulty_rating": 2, "clarity_rating": 3},
         )
-        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertEqual(second.status_code, status.HTTP_201_CREATED)
 
     def test_rating_zero_rejected(self):
         session = self.data["sessions"][0]
@@ -100,7 +101,7 @@ class FeedbackTests(APITestCase):
 
     def test_feedback_nonexistent_session_returns_404(self):
         response = self.client.post(
-            "/api/v1/feedback/sessions/99999/",
+            "/api/v1/feedback/sessions/00000000-0000-0000-0000-000000000000/",
             {"overall_rating": 5, "difficulty_rating": 3, "clarity_rating": 4},
         )
         self.assertEqual(response.status_code, status.HTTP_404_NOT_FOUND)

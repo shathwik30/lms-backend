@@ -703,8 +703,8 @@ class Command(BaseCommand):
                 purchase=p,
                 student=profile,
                 level=levels[0],
-                razorpay_order_id=f"order_free_{profile.pk:04d}",
-                razorpay_payment_id=f"pay_free_{profile.pk:04d}",
+                razorpay_order_id=f"order_free_{profile.pk.hex[:12]}",
+                razorpay_payment_id=f"pay_free_{profile.pk.hex[:12]}",
                 amount=Decimal("0"),
                 status="success",
             )
@@ -723,8 +723,8 @@ class Command(BaseCommand):
                     purchase=p2,
                     student=profile,
                     level=levels[1],
-                    razorpay_order_id=f"order_L2_{profile.pk:04d}",
-                    razorpay_payment_id=f"pay_L2_{profile.pk:04d}",
+                    razorpay_order_id=f"order_L2_{profile.pk.hex[:12]}",
+                    razorpay_payment_id=f"pay_L2_{profile.pk.hex[:12]}",
                     amount=Decimal("1999.00"),
                     status="success",
                 )
@@ -743,8 +743,8 @@ class Command(BaseCommand):
                     purchase=p3,
                     student=profile,
                     level=levels[2],
-                    razorpay_order_id=f"order_L3_{profile.pk:04d}",
-                    razorpay_payment_id=f"pay_L3_{profile.pk:04d}",
+                    razorpay_order_id=f"order_L3_{profile.pk.hex[:12]}",
+                    razorpay_payment_id=f"pay_L3_{profile.pk.hex[:12]}",
                     amount=Decimal("2999.00"),
                     status="success",
                 )
@@ -763,8 +763,8 @@ class Command(BaseCommand):
                     purchase=p4,
                     student=profile,
                     level=levels[3],
-                    razorpay_order_id=f"order_L4_{profile.pk:04d}",
-                    razorpay_payment_id=f"pay_L4_{profile.pk:04d}",
+                    razorpay_order_id=f"order_L4_{profile.pk.hex[:12]}",
+                    razorpay_payment_id=f"pay_L4_{profile.pk.hex[:12]}",
                     amount=Decimal("3999.00"),
                     status="success",
                 )

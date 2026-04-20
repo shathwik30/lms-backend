@@ -36,9 +36,6 @@ class SessionFeedback(TimeStampedModel):
     class Meta:
         db_table = "session_feedbacks"
         ordering = ["-created_at"]
-        constraints = [
-            models.UniqueConstraint(fields=["student", "session"], name="unique_feedback_per_session"),
-        ]
 
     def __str__(self):
         return f"Feedback: {self.student} → {self.session.title}"

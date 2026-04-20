@@ -18,7 +18,7 @@ class Banner(TimeStampedModel):
         choices=LinkType.choices,
         default=LinkType.NONE,
     )
-    link_id = models.PositiveIntegerField(
+    link_id = models.UUIDField(
         null=True,
         blank=True,
         help_text="ID of the linked course/level (if link_type is course or level)",

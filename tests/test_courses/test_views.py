@@ -155,7 +155,7 @@ class CourseAccessTests(APITestCase):
 
     def test_session_detail_nonexistent_returns_404(self):
         self.factory.create_purchase(self.profile, self.data["level"])
-        response = self.client.get("/api/v1/courses/sessions/99999/")
+        response = self.client.get("/api/v1/courses/sessions/00000000-0000-0000-0000-000000000000/")
         self.assertEqual(response.status_code, status.HTTP_404_NOT_FOUND)
 
     def test_session_detail_inactive_returns_404(self):

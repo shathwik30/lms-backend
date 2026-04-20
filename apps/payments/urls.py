@@ -9,7 +9,7 @@ urlpatterns = [
     path("initiate/", views.InitiatePaymentView.as_view(), name="initiate"),
     path("verify/", views.VerifyPaymentView.as_view(), name="verify"),
     path("dev-purchase/", views.DevPurchaseView.as_view(), name="dev-purchase"),
-    path("preview/<int:level_id>/", views.LevelPurchasePreviewView.as_view(), name="level-purchase-preview"),
+    path("preview/<uuid:level_id>/", views.LevelPurchasePreviewView.as_view(), name="level-purchase-preview"),
     path("purchases/", views.PurchaseHistoryView.as_view(), name="purchase-history"),
     path("transactions/", views.TransactionHistoryView.as_view(), name="transaction-history"),
     # Razorpay webhook (unauthenticated, signature-verified)

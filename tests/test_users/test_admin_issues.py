@@ -107,7 +107,7 @@ class AdminIssueReportUpdateViewTests(TestCase):
         self.assertEqual(response.data["subject"], "Test bug")
 
     def test_get_issue_detail_not_found(self):
-        response = self.admin_client.get("/api/v1/auth/admin/issues/99999/")
+        response = self.admin_client.get("/api/v1/auth/admin/issues/00000000-0000-0000-0000-000000000000/")
         self.assertEqual(response.status_code, status.HTTP_404_NOT_FOUND)
         self.assertEqual(response.data["detail"], ErrorMessage.NOT_FOUND)
 
@@ -123,7 +123,7 @@ class AdminIssueReportUpdateViewTests(TestCase):
 
     def test_not_found(self):
         response = self.admin_client.patch(
-            "/api/v1/auth/admin/issues/99999/",
+            "/api/v1/auth/admin/issues/00000000-0000-0000-0000-000000000000/",
             data={"is_resolved": True},
             format="json",
         )

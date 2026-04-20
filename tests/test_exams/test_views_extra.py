@@ -15,7 +15,7 @@ class ExamStartViewTests(TestCase):
 
     def test_exam_not_found_returns_404(self):
         """Starting a non-existent exam returns 404."""
-        response = self.client.post("/api/v1/exams/99999/start/")
+        response = self.client.post("/api/v1/exams/00000000-0000-0000-0000-000000000000/start/")
         self.assertEqual(response.status_code, 404)
         self.assertEqual(response.data["detail"], ErrorMessage.NOT_FOUND)
 
@@ -42,7 +42,7 @@ class ReportViolationViewTests(TestCase):
     def test_attempt_not_found_returns_404(self):
         """Reporting a violation for a non-existent attempt returns 404."""
         response = self.client.post(
-            "/api/v1/exams/attempts/99999/report-violation/",
+            "/api/v1/exams/attempts/00000000-0000-0000-0000-000000000000/report-violation/",
             data={
                 "violation_type": ProctoringViolation.ViolationType.TAB_SWITCH,
                 "details": "Switched tab",
@@ -120,7 +120,7 @@ class AttemptViolationsViewTests(TestCase):
 
     def test_attempt_not_found_returns_404(self):
         """Fetching violations for a non-existent attempt returns 404."""
-        response = self.client.get("/api/v1/exams/attempts/99999/violations/")
+        response = self.client.get("/api/v1/exams/attempts/00000000-0000-0000-0000-000000000000/violations/")
         self.assertEqual(response.status_code, 404)
         self.assertEqual(response.data["detail"], ErrorMessage.NOT_FOUND)
 

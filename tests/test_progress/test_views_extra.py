@@ -15,7 +15,7 @@ class CourseProgressViewTests(TestCase):
 
     def test_course_progress_not_found(self):
         """Requesting progress for a course the student has no record for returns 404."""
-        response = self.client.get("/api/v1/progress/courses/99999/")
+        response = self.client.get("/api/v1/progress/courses/00000000-0000-0000-0000-000000000000/")
         self.assertEqual(response.status_code, 404)
         self.assertEqual(response.data["detail"], ErrorMessage.NOT_FOUND)
 

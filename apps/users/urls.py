@@ -24,28 +24,28 @@ urlpatterns = [
     path("my-issues/", views.IssueReportListView.as_view(), name="my-issues"),
     # Admin
     path("admin/students/", views.AdminStudentListView.as_view(), name="admin-student-list"),
-    path("admin/students/<int:pk>/", views.AdminStudentDetailView.as_view(), name="admin-student-detail"),
-    path("admin/students/<int:pk>/block/", views.AdminBlockStudentView.as_view(), name="admin-block-student"),
+    path("admin/students/<uuid:pk>/", views.AdminStudentDetailView.as_view(), name="admin-student-detail"),
+    path("admin/students/<uuid:pk>/block/", views.AdminBlockStudentView.as_view(), name="admin-block-student"),
     path(
-        "admin/students/<int:pk>/reset-exam-attempts/",
+        "admin/students/<uuid:pk>/reset-exam-attempts/",
         views.AdminResetExamAttemptsView.as_view(),
         name="admin-reset-exam-attempts",
     ),
     path(
-        "admin/students/<int:pk>/unlock-level/",
+        "admin/students/<uuid:pk>/unlock-level/",
         views.AdminUnlockLevelOverrideView.as_view(),
         name="admin-unlock-level",
     ),
     path(
-        "admin/students/<int:pk>/manual-pass/",
+        "admin/students/<uuid:pk>/manual-pass/",
         views.AdminManualPassOverrideView.as_view(),
         name="admin-manual-pass",
     ),
     path(
-        "admin/students/<int:pk>/extend-validity/",
+        "admin/students/<uuid:pk>/extend-validity/",
         views.AdminStudentExtendValidityView.as_view(),
         name="admin-student-extend-validity",
     ),
     path("admin/issues/", views.AdminIssueReportListView.as_view(), name="admin-issue-list"),
-    path("admin/issues/<int:pk>/", views.AdminIssueReportUpdateView.as_view(), name="admin-issue-update"),
+    path("admin/issues/<uuid:pk>/", views.AdminIssueReportUpdateView.as_view(), name="admin-issue-update"),
 ]
