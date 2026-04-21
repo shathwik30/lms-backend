@@ -21,6 +21,7 @@ djangorestframework_simplejwt==5.5.1
 drf-spectacular==0.29.0
 sentry-sdk[django]==2.29.1
 google-auth==2.48.0
+firebase-admin==6.5.0
 gunicorn==25.1.0
 idna==3.11
 inflection==0.5.1

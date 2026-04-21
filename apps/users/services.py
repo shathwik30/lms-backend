@@ -56,24 +56,20 @@ class AuthService:
 
     @staticmethod
     def google_auth(id_token_str: str) -> tuple[UserModel | None, dict[str, str] | None, str | bool]:
-        from google.auth.transport import requests as google_requests
-        from google.oauth2 import id_token
+        from firebase_admin import auth as firebase_auth
+        from firebase_admin.exceptions import FirebaseError
 
         try:
-            token_info = id_token.verify_oauth2_token(
-                id_token_str,
-                google_requests.Request(),
-                settings.GOOGLE_CLIENT_ID,
-            )
-        except ValueError:
+            decoded = firebase_auth.verify_id_token(id_token_str)
+        except (FirebaseError, ValueError):
             return None, None, ErrorMessage.INVALID_GOOGLE_TOKEN
 
-        email = (token_info.get("email") or "").lower()
-        if not email or not token_info.get("email_verified"):
+        email = (decoded.get("email") or "").lower()
+        if not email or not decoded.get("email_verified"):
             return None, None, ErrorMessage.GOOGLE_EMAIL_NOT_VERIFIED
 
-        google_id = token_info["sub"]
-        full_name = token_info.get("name", email.split("@")[0])
+        google_id = decoded["uid"]
+        full_name = decoded.get("name", email.split("@")[0])
 
         created = False
 

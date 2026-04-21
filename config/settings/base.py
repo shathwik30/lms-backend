@@ -280,10 +280,16 @@ RAZORPAY_KEY_SECRET = env("RAZORPAY_KEY_SECRET", default="")
 RAZORPAY_WEBHOOK_SECRET = env("RAZORPAY_WEBHOOK_SECRET", default="")
 
 # ──────────────────────────────────────────────
-# Google OAuth
+# Google OAuth (via Firebase)
 # ──────────────────────────────────────────────
 
 GOOGLE_CLIENT_ID = env("GOOGLE_CLIENT_ID", default="")
+
+# Firebase Admin credentials — supply ONE of:
+#   FIREBASE_CREDENTIALS_PATH : filesystem path to the service account JSON
+#   FIREBASE_CREDENTIALS_JSON : raw JSON string (preferred in containers / CI)
+FIREBASE_CREDENTIALS_PATH = env("FIREBASE_CREDENTIALS_PATH", default="")
+FIREBASE_CREDENTIALS_JSON = env("FIREBASE_CREDENTIALS_JSON", default="")
 
 # ──────────────────────────────────────────────
 # Logging

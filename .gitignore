@@ -17,3 +17,5 @@ media/
 .coverage
 certbot/conf/
 certbot/www/
+secrets/
+*firebase-adminsdk*.json

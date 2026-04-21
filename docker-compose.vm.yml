@@ -41,8 +41,6 @@ services:
       sh -c "python manage.py migrate &&
              python manage.py collectstatic --noinput &&
              gunicorn config.wsgi:application --config gunicorn.conf.py"
-    ports:
-      - "80:8000"
     volumes:
       - static_volume:/app/staticfiles
       - media_volume:/app/media
@@ -100,6 +98,40 @@ services:
       options:
         max-size: "5m"
         max-file: "3"
+
+  nginx:
+    image: nginx:alpine
+    restart: unless-stopped
+    command: >
+      /bin/sh -c "envsubst '$$DOMAIN'
+      < /etc/nginx/templates/default.conf.template
+      > /etc/nginx/conf.d/default.conf
+      && nginx -g 'daemon off;'"
+    ports:
+      - "80:80"
+      - "443:443"
+    env_file:
+      - .env.docker
+    volumes:
+      - ./nginx/default.conf.template:/etc/nginx/templates/default.conf.template:ro
+      - static_volume:/app/staticfiles
+      - media_volume:/app/media
+      - ./certbot/conf:/etc/letsencrypt
+      - ./certbot/www:/var/www/certbot
+    depends_on:
+      - web
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "5"
+
+  certbot:
+    image: certbot/certbot
+    volumes:
+      - ./certbot/conf:/etc/letsencrypt
+      - ./certbot/www:/var/www/certbot
+    entrypoint: "/bin/sh -c 'trap exit TERM; while :; do certbot renew --quiet; sleep 12h & wait $${!}; done'"
 
 volumes:
   postgres_data:

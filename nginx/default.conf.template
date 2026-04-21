@@ -8,7 +8,7 @@ upstream django {
 # ── HTTP — ACME challenge + redirect to HTTPS ──
 server {
     listen 80;
-    server_name example.com;  # CHANGE to your domain
+    server_name ${DOMAIN};
     server_tokens off;
 
     # Let certbot verify domain ownership
@@ -25,12 +25,12 @@ server {
 server {
     listen 443 ssl;
     http2 on;
-    server_name example.com;  # CHANGE to your domain
+    server_name ${DOMAIN};
     server_tokens off;
 
     # Certificates managed by certbot (run init-letsencrypt.sh first)
-    ssl_certificate     /etc/letsencrypt/live/example.com/fullchain.pem;
-    ssl_certificate_key /etc/letsencrypt/live/example.com/privkey.pem;
+    ssl_certificate     /etc/letsencrypt/live/${DOMAIN}/fullchain.pem;
+    ssl_certificate_key /etc/letsencrypt/live/${DOMAIN}/privkey.pem;
 
     ssl_protocols TLSv1.2 TLSv1.3;
     ssl_ciphers ECDHE-ECDSA-AES128-GCM-SHA256:ECDHE-RSA-AES128-GCM-SHA256:ECDHE-ECDSA-AES256-GCM-SHA384:ECDHE-RSA-AES256-GCM-SHA384;

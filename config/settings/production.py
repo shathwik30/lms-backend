@@ -4,7 +4,7 @@ from .base import *  # noqa: F401,F403
 
 DEBUG = False
 
-ALLOWED_HOSTS = env.list("ALLOWED_HOSTS", default=[])  # noqa: F405
+ALLOWED_HOSTS = env.list("ALLOWED_HOSTS", default=["*"])  # noqa: F405
 CSRF_TRUSTED_ORIGINS = env.list("CSRF_TRUSTED_ORIGINS", default=[])  # noqa: F405
 
 SECURE_SSL_REDIRECT = env.bool("SECURE_SSL_REDIRECT", default=True)  # noqa: F405
@@ -26,6 +26,8 @@ X_FRAME_OPTIONS = "DENY"
 # ── WhiteNoise — serve static files without nginx ──
 # Inserted after SecurityMiddleware (index 1) as recommended by WhiteNoise docs.
 MIDDLEWARE.insert(2, "whitenoise.middleware.WhiteNoiseMiddleware")  # noqa: F405
+# Deliberately disable Django's CSRF middleware in production for fully open cross-origin API access.
+MIDDLEWARE = [mw for mw in MIDDLEWARE if mw != "django.middleware.csrf.CsrfViewMiddleware"]  # noqa: F405
 STORAGES = {
     "default": {
         "BACKEND": "django.core.files.storage.FileSystemStorage",
@@ -71,7 +73,12 @@ LOGGING["loggers"]["apps"]["level"] = "INFO"  # type: ignore[index]  # noqa: F40
 
 # CORS — open to all origins for now (frontend team testing)
 CORS_ALLOW_ALL_ORIGINS = True
-CORS_ALLOW_CREDENTIALS = True
+# Public cross-origin API access works best without credentialed cookies.
+# Clients should use Authorization headers instead.
+CORS_ALLOW_CREDENTIALS = False
+
+# Production should return API payloads, not the browsable DRF HTML UI.
+REST_FRAMEWORK["DEFAULT_RENDERER_CLASSES"] = ("rest_framework.renderers.JSONRenderer",)  # noqa: F405
 
 # Upload size limits
 DATA_UPLOAD_MAX_MEMORY_SIZE = 10 * 1024 * 1024  # 10 MB
