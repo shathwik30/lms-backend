@@ -26,6 +26,7 @@ from .serializers import (
     AdminStudentExtendValiditySerializer,
     AdminStudentLevelActionSerializer,
     AdminStudentListSerializer,
+    AdminStudentReminderSerializer,
     AdminStudentUpdateSerializer,
     ChangePasswordSerializer,
     GoogleAuthSerializer,
@@ -283,7 +284,7 @@ class StudentProfileFilter(django_filters.FilterSet):
     )
     account_status = django_filters.ChoiceFilter(
         method="filter_account_status",
-        choices=[("active", "Active"), ("inactive", "Inactive")],
+        choices=[("active", "Active"), ("inactive", "Inactive"), ("blocked", "Blocked")],
     )
 
     class Meta:
@@ -303,7 +304,7 @@ class StudentProfileFilter(django_filters.FilterSet):
     def filter_account_status(self, queryset, name, value):
         if value == "active":
             return queryset.filter(user__is_active=True)
-        if value == "inactive":
+        if value in {"inactive", "blocked"}:
             return queryset.filter(user__is_active=False)
         return queryset
 
@@ -351,17 +352,29 @@ class AdminStudentDetailView(APIView):
         return Response(AdminStudentDetailSerializer(profile).data)
 
     @extend_schema(
-        request=AdminStudentUpdateSerializer, responses={200: StudentProfileSerializer}, tags=["Admin - Users"]
+        request=AdminStudentUpdateSerializer, responses={200: AdminStudentDetailSerializer}, tags=["Admin - Users"]
     )
     def patch(self, request, pk):
         try:
-            profile = StudentProfile.objects.get(pk=pk)
+            profile = StudentProfile.objects.select_related("user", "current_level", "highest_cleared_level").get(pk=pk)
         except StudentProfile.DoesNotExist:
             return Response({"detail": ErrorMessage.NOT_FOUND}, status=status.HTTP_404_NOT_FOUND)
 
-        serializer = AdminStudentUpdateSerializer(data=request.data)
+        serializer = AdminStudentUpdateSerializer(data=request.data, context={"instance": profile})
         serializer.is_valid(raise_exception=True)
 
+        user_update_fields: list[str] = []
+        for field in ("full_name", "email", "phone"):
+            if field in serializer.validated_data:
+                setattr(profile.user, field, serializer.validated_data[field])
+                user_update_fields.append(field)
+        if user_update_fields:
+            profile.user.save(update_fields=user_update_fields)
+
+        profile_update_fields: list[str] = []
+        if "gender" in serializer.validated_data:
+            profile.gender = serializer.validated_data["gender"]
+            profile_update_fields.append("gender")
         for field in ("current_level", "highest_cleared_level"):
             if field in serializer.validated_data:
                 level_id = serializer.validated_data[field]
@@ -371,13 +384,22 @@ class AdminStudentDetailView(APIView):
                         status=status.HTTP_404_NOT_FOUND,
                     )
                 setattr(profile, f"{field}_id", level_id)
+                profile_update_fields.append(f"{field}_id")
+        if profile_update_fields:
+            profile.save(update_fields=profile_update_fields)
 
-        update_fields = [
-            f"{f}_id" for f in ("current_level", "highest_cleared_level") if f in serializer.validated_data
-        ]
-        if update_fields:
-            profile.save(update_fields=update_fields)
-        return Response(StudentProfileSerializer(profile).data)
+        profile.refresh_from_db()
+        return Response(AdminStudentDetailSerializer(profile).data)
+
+    @extend_schema(responses={204: None}, tags=["Admin - Users"], summary="Delete a student permanently")
+    def delete(self, request, pk):
+        try:
+            profile = StudentProfile.objects.select_related("user").get(pk=pk)
+        except StudentProfile.DoesNotExist:
+            return Response({"detail": ErrorMessage.NOT_FOUND}, status=status.HTTP_404_NOT_FOUND)
+
+        profile.user.delete()
+        return Response(status=status.HTTP_204_NO_CONTENT)
 
 
 class AdminBlockStudentView(APIView):
@@ -595,6 +617,42 @@ class AdminStudentExtendValidityView(APIView):
                 "purchase": PurchaseSerializer(purchase).data,
             }
         )
+
+
+class AdminSendEngagementReminderView(APIView):
+    permission_classes = [IsAdmin]
+
+    @extend_schema(
+        request=AdminStudentReminderSerializer,
+        responses={
+            200: inline_serializer(
+                "AdminStudentReminderResponse",
+                fields={
+                    "detail": drf_serializers.CharField(),
+                    "title": drf_serializers.CharField(),
+                    "message": drf_serializers.CharField(),
+                    "email_sent": drf_serializers.BooleanField(),
+                },
+            )
+        },
+        tags=["Admin - Users"],
+        summary="Send an engagement reminder to a student",
+    )
+    def post(self, request, pk):
+        try:
+            profile = StudentProfile.objects.select_related("user", "current_level").get(pk=pk)
+        except StudentProfile.DoesNotExist:
+            return Response({"detail": ErrorMessage.NOT_FOUND}, status=status.HTTP_404_NOT_FOUND)
+
+        serializer = AdminStudentReminderSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+
+        result = AdminStudentManagementService.send_engagement_reminder(
+            profile,
+            request.user,
+            serializer.validated_data.get("message", ""),
+        )
+        return Response({"detail": "Reminder sent successfully.", **result})
 
 
 # ── Password Reset ──

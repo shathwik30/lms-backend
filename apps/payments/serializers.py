@@ -1,11 +1,15 @@
 from rest_framework import serializers
 
 from core.serializer_fields import UUIDOrLegacyIntegerField
+
 from .models import PaymentTransaction, Purchase
 
 
 class PurchaseSerializer(serializers.ModelSerializer):
     level_name = serializers.CharField(source="level.name", read_only=True)
+    student_name = serializers.CharField(source="student.user.full_name", read_only=True)
+    student_email = serializers.EmailField(source="student.user.email", read_only=True)
+    student_profile_picture = serializers.ImageField(source="student.user.profile_picture", read_only=True)
     is_valid = serializers.BooleanField(read_only=True)  # type: ignore[assignment]
 
     class Meta:
@@ -14,6 +18,10 @@ class PurchaseSerializer(serializers.ModelSerializer):
             "id",
             "level",
             "level_name",
+            "student",
+            "student_name",
+            "student_email",
+            "student_profile_picture",
             "amount_paid",
             "purchased_at",
             "expires_at",
@@ -35,10 +43,22 @@ class VerifyPaymentSerializer(serializers.Serializer):
 
 
 class PaymentTransactionSerializer(serializers.ModelSerializer):
+    level_name = serializers.CharField(source="level.name", read_only=True, default=None)
+    student_name = serializers.CharField(source="student.user.full_name", read_only=True)
+    student_email = serializers.EmailField(source="student.user.email", read_only=True)
+    student_profile_picture = serializers.ImageField(source="student.user.profile_picture", read_only=True)
+
     class Meta:
         model = PaymentTransaction
         fields = [
             "id",
+            "purchase",
+            "student",
+            "student_name",
+            "student_email",
+            "student_profile_picture",
+            "level",
+            "level_name",
             "razorpay_order_id",
             "razorpay_payment_id",
             "amount",

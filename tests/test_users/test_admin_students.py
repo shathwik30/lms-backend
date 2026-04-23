@@ -23,7 +23,20 @@ class AdminStudentEnrichedFieldsTests(APITestCase):
         response = self.admin_client.get(ADMIN_STUDENTS_URL)
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         student = response.data["results"][0]
-        for field in ["validity_till", "exam_status", "streak", "last_active", "account_status"]:
+        for field in [
+            "validity_till",
+            "days_remaining",
+            "validity_status",
+            "exam_status",
+            "streak",
+            "streak_label",
+            "last_active",
+            "account_status",
+            "account_status_display",
+            "student_name",
+            "student_email",
+            "student_profile_picture",
+        ]:
             self.assertIn(field, student, f"Missing field: {field}")
 
     def test_account_status_active(self):
@@ -37,17 +50,21 @@ class AdminStudentEnrichedFieldsTests(APITestCase):
         response = self.admin_client.get(ADMIN_STUDENTS_URL)
         student = response.data["results"][0]
         self.assertEqual(student["account_status"], "inactive")
+        self.assertEqual(student["account_status_display"], "blocked")
 
     def test_validity_till_with_purchase(self):
         self.factory.create_purchase(self.profile, self.data["level"])
         response = self.admin_client.get(ADMIN_STUDENTS_URL)
         student = response.data["results"][0]
         self.assertIsNotNone(student["validity_till"])
+        self.assertEqual(student["validity_status"], "active")
 
     def test_validity_till_without_purchase(self):
         response = self.admin_client.get(ADMIN_STUDENTS_URL)
         student = response.data["results"][0]
         self.assertIsNone(student["validity_till"])
+        self.assertIsNone(student["days_remaining"])
+        self.assertEqual(student["validity_status"], "none")
 
     def test_exam_status_not_attempted(self):
         response = self.admin_client.get(ADMIN_STUDENTS_URL)
@@ -120,6 +137,7 @@ class AdminStudentEnrichedFieldsTests(APITestCase):
         response = self.admin_client.get(ADMIN_STUDENTS_URL)
         student = response.data["results"][0]
         self.assertEqual(student["streak"], 1)
+        self.assertEqual(student["streak_label"], "day")
 
     def test_streak_consecutive_days(self):
         sessions = self.data["sessions"]

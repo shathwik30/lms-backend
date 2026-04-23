@@ -90,3 +90,15 @@ class EmailService:
             ),
             recipient_list=[email],
         )
+
+    @classmethod
+    def send_engagement_reminder(cls, email, full_name, reminder_message):
+        cls._send(
+            subject="We Missed You at Think Joyful Learning",
+            message=(
+                f"Hi {full_name},\n\n"
+                f"{reminder_message}\n\n"
+                "Log in to continue your progress and complete your pending lessons."
+            ),
+            recipient_list=[email],
+        )

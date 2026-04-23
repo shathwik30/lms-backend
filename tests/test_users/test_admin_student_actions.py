@@ -3,6 +3,7 @@ from decimal import Decimal
 from django.test import TestCase
 from rest_framework import status
 
+from apps.notifications.models import Notification
 from apps.payments.models import Purchase
 from apps.progress.models import LevelProgress
 from apps.users.models import AdminStudentActionLog
@@ -137,3 +138,16 @@ class AdminStudentActionEndpointTests(TestCase):
             format="json",
         )
         self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
+
+    def test_send_reminder_endpoint_creates_notification(self):
+        response = self.admin_client.post(
+            f"/api/v1/auth/admin/students/{self.profile.pk}/send-reminder/",
+            {"message": "Please come back and finish your pending lessons."},
+            format="json",
+        )
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(response.data["detail"], "Reminder sent successfully.")
+        notification = Notification.objects.get(user=self.student_user)
+        self.assertEqual(notification.title, "Engagement Reminder")
+        self.assertIn("finish your pending lessons", notification.message)

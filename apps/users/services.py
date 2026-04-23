@@ -472,3 +472,59 @@ class AdminStudentManagementService:
             data={"level_id": str(level.id)},
         )
         return progress, None
+
+    @staticmethod
+    def send_engagement_reminder(
+        profile: StudentProfile,
+        admin_user: UserModel,
+        custom_message: str = "",
+    ) -> dict[str, str | bool | None]:
+        purchase = (
+            Purchase.objects.filter(
+                student=profile,
+                status=Purchase.Status.ACTIVE,
+                expires_at__gt=timezone.now(),
+            )
+            .select_related("level")
+            .order_by("-expires_at")
+            .first()
+        )
+        level_name = profile.current_level.name if profile.current_level else "your current level"
+
+        default_message = (
+            f"Hi {profile.user.full_name}, we noticed your learning activity has slowed down. "
+            f"Continue with {level_name} and keep your progress moving."
+        )
+        if purchase is not None and purchase.expires_at > timezone.now():
+            days_left = max((purchase.expires_at - timezone.now()).days, 0)
+            default_message = (
+                f"Hi {profile.user.full_name}, your access to {purchase.level.name} is active for {days_left} more days. "
+                "Resume your lessons and practice to stay on track."
+            )
+
+        message = custom_message.strip() or default_message
+        title = "Engagement Reminder"
+
+        NotificationService.create(
+            user=profile.user,
+            title=title,
+            message=message,
+            notification_type=Notification.NotificationType.GENERAL,
+            data={
+                "student_id": str(profile.id),
+                "sent_by_admin_id": str(admin_user.id),
+            },
+        )
+
+        prefs = getattr(profile.user, "preferences", None)
+        send_email = prefs is None or (prefs.email_notifications and prefs.feedback_reminder_notifications)
+        if send_email:
+            from core.tasks import fire_and_forget, send_engagement_reminder_task
+
+            fire_and_forget(send_engagement_reminder_task, profile.user.email, profile.user.full_name, message)
+
+        return {
+            "title": title,
+            "message": message,
+            "email_sent": send_email,
+        }

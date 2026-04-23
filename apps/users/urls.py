@@ -27,6 +27,11 @@ urlpatterns = [
     path("admin/students/<uuid:pk>/", views.AdminStudentDetailView.as_view(), name="admin-student-detail"),
     path("admin/students/<uuid:pk>/block/", views.AdminBlockStudentView.as_view(), name="admin-block-student"),
     path(
+        "admin/students/<uuid:pk>/send-reminder/",
+        views.AdminSendEngagementReminderView.as_view(),
+        name="admin-student-send-reminder",
+    ),
+    path(
         "admin/students/<uuid:pk>/reset-exam-attempts/",
         views.AdminResetExamAttemptsView.as_view(),
         name="admin-reset-exam-attempts",

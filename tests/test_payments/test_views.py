@@ -187,14 +187,33 @@ class PaymentAPITests(APITestCase):
         self.assertEqual(response.status_code, status.HTTP_404_NOT_FOUND)
 
     def test_purchase_history(self):
-        self.factory.create_purchase(self.profile, self.data["level"])
+        purchase = self.factory.create_purchase(self.profile, self.data["level"])
         response = self.client.get("/api/v1/payments/purchases/")
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         self.assertEqual(response.data["count"], 1)
+        self.assertEqual(response.data["results"][0]["id"], str(purchase.pk))
+
+    def test_purchase_detail(self):
+        purchase = self.factory.create_purchase(self.profile, self.data["level"])
+        response = self.client.get(f"/api/v1/payments/purchases/{purchase.pk}/")
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(response.data["id"], str(purchase.pk))
+        self.assertEqual(response.data["student_name"], self.user.full_name)
 
     def test_transaction_history(self):
+        init_resp = self.client.post(
+            "/api/v1/payments/initiate/",
+            {
+                "level_id": self.data["level"].pk,
+            },
+        )
         response = self.client.get("/api/v1/payments/transactions/")
         self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(response.data["count"], 1)
+        txn_id = response.data["results"][0]["id"]
+        detail = self.client.get(f"/api/v1/payments/transactions/{txn_id}/")
+        self.assertEqual(detail.status_code, status.HTTP_200_OK)
+        self.assertEqual(detail.data["razorpay_order_id"], init_resp.data["razorpay_order_id"])
 
     def test_cannot_purchase_without_eligibility(self):
         data2 = self.factory.setup_full_level(order=2)
@@ -244,6 +263,16 @@ class AdminPaymentAPITests(APITestCase):
         response = self.admin_client.get("/api/v1/payments/admin/purchases/")
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         self.assertEqual(response.data["count"], 1)
+        purchase = response.data["results"][0]
+        self.assertEqual(purchase["student_name"], "Test Student")
+        self.assertEqual(purchase["student_email"], "student@test.com")
+
+    def test_admin_purchase_detail(self):
+        purchase = self.factory.create_purchase(self.profile, self.data["level"])
+        response = self.admin_client.get(f"/api/v1/payments/admin/purchases/{purchase.pk}/")
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(response.data["id"], str(purchase.pk))
+        self.assertEqual(response.data["student_name"], "Test Student")
 
     def test_admin_extend_validity(self):
         purchase = self.factory.create_purchase(self.profile, self.data["level"])

@@ -1,7 +1,9 @@
 from django.contrib.auth import get_user_model
+from django.utils import timezone
 from rest_framework import serializers
 
 from core.serializer_fields import UUIDOrLegacyIntegerField
+
 from .models import AdminStudentActionLog, IssueReport, StudentProfile, UserPreference
 
 User = get_user_model()
@@ -67,22 +69,32 @@ class AdminStudentListSerializer(serializers.ModelSerializer):
 
     user = UserSerializer(read_only=True)
     name = serializers.CharField(source="user.full_name", read_only=True)
+    student_name = serializers.CharField(source="user.full_name", read_only=True)
+    student_email = serializers.EmailField(source="user.email", read_only=True)
+    student_profile_picture = serializers.ImageField(source="user.profile_picture", read_only=True)
     current_level_name = serializers.CharField(source="current_level.name", default=None)
     highest_cleared_level_name = serializers.CharField(
         source="highest_cleared_level.name",
         default=None,
     )
     validity_till = serializers.DateTimeField(source="_validity_till", read_only=True, default=None)
+    days_remaining = serializers.SerializerMethodField()
+    validity_status = serializers.SerializerMethodField()
     exam_status = serializers.SerializerMethodField()
     streak = serializers.SerializerMethodField()
+    streak_label = serializers.SerializerMethodField()
     last_active = serializers.DateTimeField(source="_last_active", read_only=True, default=None)
     account_status = serializers.SerializerMethodField()
+    account_status_display = serializers.SerializerMethodField()
 
     class Meta:
         model = StudentProfile
         fields = [
             "id",
             "name",
+            "student_name",
+            "student_email",
+            "student_profile_picture",
             "user",
             "current_level",
             "current_level_name",
@@ -92,13 +104,33 @@ class AdminStudentListSerializer(serializers.ModelSerializer):
             "is_onboarding_completed",
             "is_onboarding_exam_attempted",
             "validity_till",
+            "days_remaining",
+            "validity_status",
             "exam_status",
             "streak",
+            "streak_label",
             "last_active",
             "account_status",
+            "account_status_display",
             "created_at",
         ]
         read_only_fields = fields
+
+    def get_days_remaining(self, obj: StudentProfile) -> int | None:
+        validity_till = getattr(obj, "_validity_till", None)
+        if validity_till is None:
+            return None
+        return max((validity_till - timezone.now()).days, 0)
+
+    def get_validity_status(self, obj: StudentProfile) -> str:
+        validity_till = getattr(obj, "_validity_till", None)
+        if validity_till is None:
+            return "none"
+        if validity_till <= timezone.now():
+            return "expired"
+        if (validity_till - timezone.now()).days <= 7:
+            return "expiring_soon"
+        return "active"
 
     def get_exam_status(self, obj: StudentProfile) -> str:
         from apps.exams.models import ExamAttempt
@@ -114,8 +146,6 @@ class AdminStudentListSerializer(serializers.ModelSerializer):
 
     def get_streak(self, obj: StudentProfile) -> int:
         import datetime
-
-        from django.utils import timezone
 
         from apps.progress.models import SessionProgress
 
@@ -136,8 +166,15 @@ class AdminStudentListSerializer(serializers.ModelSerializer):
                 break
         return streak
 
+    def get_streak_label(self, obj: StudentProfile) -> str:
+        streak = self.get_streak(obj)
+        return "day" if streak == 1 else "days"
+
     def get_account_status(self, obj: StudentProfile) -> str:
         return "active" if obj.user.is_active else "inactive"
+
+    def get_account_status_display(self, obj: StudentProfile) -> str:
+        return "active" if obj.user.is_active else "blocked"
 
 
 class AdminStudentDetailSerializer(serializers.ModelSerializer):
@@ -145,15 +182,29 @@ class AdminStudentDetailSerializer(serializers.ModelSerializer):
 
     user = UserSerializer(read_only=True)
     name = serializers.CharField(source="user.full_name", read_only=True)
+    student_name = serializers.CharField(source="user.full_name", read_only=True)
+    student_email = serializers.EmailField(source="user.email", read_only=True)
+    student_profile_picture = serializers.ImageField(source="user.profile_picture", read_only=True)
+    student_code = serializers.SerializerMethodField()
+    registered_on = serializers.SerializerMethodField()
     current_level_name = serializers.CharField(source="current_level.name", default=None)
     highest_cleared_level_name = serializers.CharField(
         source="highest_cleared_level.name",
         default=None,
     )
     account_status = serializers.SerializerMethodField()
+    account_status_display = serializers.SerializerMethodField()
     validity_till = serializers.SerializerMethodField()
     days_remaining = serializers.SerializerMethodField()
+    validity_status = serializers.SerializerMethodField()
+    learning_streak = serializers.SerializerMethodField()
     last_active = serializers.SerializerMethodField()
+    last_login_at = serializers.DateTimeField(source="user.last_login", read_only=True, default=None)
+    last_login_ip = serializers.SerializerMethodField()
+    profile_overview = serializers.SerializerMethodField()
+    exam_access_status = serializers.SerializerMethodField()
+    exam_access_message = serializers.SerializerMethodField()
+    exam_summary = serializers.SerializerMethodField()
     curriculum_progress = serializers.SerializerMethodField()
     exam_history = serializers.SerializerMethodField()
     admin_action_history = serializers.SerializerMethodField()
@@ -163,6 +214,11 @@ class AdminStudentDetailSerializer(serializers.ModelSerializer):
         fields = [
             "id",
             "name",
+            "student_name",
+            "student_email",
+            "student_profile_picture",
+            "student_code",
+            "registered_on",
             "user",
             "current_level",
             "current_level_name",
@@ -172,9 +228,18 @@ class AdminStudentDetailSerializer(serializers.ModelSerializer):
             "is_onboarding_completed",
             "is_onboarding_exam_attempted",
             "account_status",
+            "account_status_display",
             "validity_till",
             "days_remaining",
+            "validity_status",
+            "learning_streak",
             "last_active",
+            "last_login_at",
+            "last_login_ip",
+            "profile_overview",
+            "exam_access_status",
+            "exam_access_message",
+            "exam_summary",
             "curriculum_progress",
             "exam_history",
             "admin_action_history",
@@ -194,17 +259,35 @@ class AdminStudentDetailSerializer(serializers.ModelSerializer):
     def get_account_status(self, obj: StudentProfile) -> str:
         return "active" if obj.user.is_active else "inactive"
 
+    def get_account_status_display(self, obj: StudentProfile) -> str:
+        return "active" if obj.user.is_active else "blocked"
+
+    def get_student_code(self, obj: StudentProfile) -> str:
+        return f"STU-{str(obj.pk).replace('-', '').upper()[-5:]}"
+
+    def get_registered_on(self, obj: StudentProfile) -> str:
+        return timezone.localtime(obj.created_at).date().isoformat()
+
     def get_validity_till(self, obj: StudentProfile) -> str | None:
         purchase = self._get_active_purchase(obj)
         return purchase.expires_at.isoformat() if purchase else None
 
     def get_days_remaining(self, obj: StudentProfile) -> int | None:
-        from django.utils import timezone as tz
-
         purchase = self._get_active_purchase(obj)
         if not purchase:
             return None
-        return max((purchase.expires_at - tz.now()).days, 0)
+        return max((purchase.expires_at - timezone.now()).days, 0)
+
+    def get_validity_status(self, obj: StudentProfile) -> str:
+        purchase = self._get_active_purchase(obj)
+        if not purchase:
+            latest_purchase = purchase or getattr(obj, "_latest_purchase", None) or self._get_latest_purchase(obj)
+            return "expired" if latest_purchase else "none"
+        if purchase.expires_at <= timezone.now():
+            return "expired"
+        if (purchase.expires_at - timezone.now()).days <= 7:
+            return "expiring_soon"
+        return "active"
 
     def get_last_active(self, obj: StudentProfile) -> str | None:
         from apps.progress.models import SessionProgress
@@ -216,6 +299,107 @@ class AdminStudentDetailSerializer(serializers.ModelSerializer):
             .first()
         )
         return latest.isoformat() if latest else None
+
+    def get_learning_streak(self, obj: StudentProfile) -> int:
+        from apps.progress.models import SessionProgress
+
+        today = timezone.now().date()
+        dates = list(
+            SessionProgress.objects.filter(student=obj)
+            .values_list("updated_at__date", flat=True)
+            .distinct()
+            .order_by("-updated_at__date")[:60]
+        )
+        streak = 0
+        expected = today
+        for active_date in dates:
+            if active_date == expected:
+                streak += 1
+                expected = expected.fromordinal(expected.toordinal() - 1)
+            elif active_date < expected:
+                break
+        return streak
+
+    def get_last_login_ip(self, obj: StudentProfile) -> None:
+        return None
+
+    def _get_latest_purchase(self, obj):
+        if not hasattr(obj, "_latest_purchase"):
+            from apps.payments.models import Purchase
+
+            obj._latest_purchase = Purchase.objects.filter(student=obj).order_by("-expires_at", "-purchased_at").first()
+        return obj._latest_purchase
+
+    def _get_level_progress(self, obj):
+        if not hasattr(obj, "_level_progress"):
+            from apps.progress.models import LevelProgress
+
+            obj._level_progress = (
+                LevelProgress.objects.filter(student=obj, level=obj.current_level).first()
+                if obj.current_level_id
+                else None
+            )
+        return obj._level_progress
+
+    def get_profile_overview(self, obj: StudentProfile) -> dict:
+        return {
+            "email": obj.user.email,
+            "phone": obj.user.phone,
+            "current_curriculum_level": obj.current_level_id,
+            "current_curriculum_level_name": obj.current_level.name if obj.current_level else None,
+            "validity_till": self.get_validity_till(obj),
+            "days_remaining": self.get_days_remaining(obj),
+            "last_login_at": obj.user.last_login.isoformat() if obj.user.last_login else None,
+            "last_login_ip": self.get_last_login_ip(obj),
+        }
+
+    def get_exam_access_status(self, obj: StudentProfile) -> str:
+        from apps.progress.models import LevelProgress
+        from core.services.eligibility import EligibilityService
+
+        level = obj.current_level
+        if level is None:
+            return "no_level"
+
+        purchase = self._get_active_purchase(obj)
+        if purchase is None:
+            return "locked"
+
+        progress = self._get_level_progress(obj)
+        if progress and progress.status == LevelProgress.Status.EXAM_PASSED:
+            return "passed"
+        if not EligibilityService.is_syllabus_complete(obj, level):
+            return "locked"
+        if progress and progress.final_exam_attempts_used >= level.max_final_exam_attempts:
+            return "attempt_limit_reached"
+        return "unlocked"
+
+    def get_exam_access_message(self, obj: StudentProfile) -> str | None:
+        status = self.get_exam_access_status(obj)
+        level = obj.current_level
+        if status == "no_level":
+            return None
+        if status == "locked":
+            return "Student must complete all required content before the final exam unlocks."
+        if status == "attempt_limit_reached" and level is not None:
+            return f"All {level.max_final_exam_attempts} final exam attempts have been used."
+        if status == "passed":
+            return "Student has already passed the final exam for the current level."
+        return "Final exam is available."
+
+    def get_exam_summary(self, obj: StudentProfile) -> dict | None:
+        level = obj.current_level
+        if level is None:
+            return None
+
+        progress = self._get_level_progress(obj)
+        attempts_used = progress.final_exam_attempts_used if progress else 0
+        return {
+            "attempts_used": attempts_used,
+            "attempts_allowed": level.max_final_exam_attempts,
+            "attempts_remaining": max(level.max_final_exam_attempts - attempts_used, 0),
+            "status": self.get_exam_access_status(obj),
+        }
 
     def get_curriculum_progress(self, obj: StudentProfile) -> dict | None:
         from apps.courses.models import Session
@@ -269,6 +453,10 @@ class AdminStudentDetailSerializer(serializers.ModelSerializer):
             "video_completion": round((video_done / video_total) * 100, 1) if video_total else 0,
             "practice_completion": round((practice_done / practice_total) * 100, 1) if practice_total else 0,
             "feedback_submitted": round((feedback_done / feedback_total) * 100, 1) if feedback_total else 0,
+            "completed_modules": completed,
+            "total_modules": total_sessions,
+            "exam_access_status": self.get_exam_access_status(obj),
+            "exam_access_message": self.get_exam_access_message(obj),
         }
 
     def get_exam_history(self, obj: StudentProfile) -> list[dict]:
@@ -300,8 +488,33 @@ class AdminStudentDetailSerializer(serializers.ModelSerializer):
 
 
 class AdminStudentUpdateSerializer(serializers.Serializer):
+    full_name = serializers.CharField(required=False, max_length=150)
+    email = serializers.EmailField(required=False)
+    phone = serializers.CharField(required=False, allow_blank=True, max_length=15)
+    gender = serializers.ChoiceField(required=False, choices=StudentProfile.Gender.choices)
     current_level = UUIDOrLegacyIntegerField(required=False)
     highest_cleared_level = UUIDOrLegacyIntegerField(required=False)
+
+    def validate_email(self, value: str) -> str:
+        value = value.lower()
+        instance = self.context.get("instance")
+        qs = User.objects.filter(email=value)
+        if instance is not None:
+            qs = qs.exclude(pk=instance.user_id)
+        if qs.exists():
+            raise serializers.ValidationError("This email is already in use.")
+        return value
+
+    def validate_phone(self, value: str) -> str | None:
+        if not value:
+            return None
+        instance = self.context.get("instance")
+        qs = User.objects.filter(phone=value)
+        if instance is not None:
+            qs = qs.exclude(pk=instance.user_id)
+        if qs.exists():
+            raise serializers.ValidationError("This phone number is already in use.")
+        return value
 
 
 class AdminStudentLevelActionSerializer(serializers.Serializer):
@@ -317,6 +530,10 @@ class AdminStudentLevelActionSerializer(serializers.Serializer):
 
 class AdminStudentExtendValiditySerializer(AdminStudentLevelActionSerializer):
     extra_days = serializers.IntegerField(min_value=1)
+
+
+class AdminStudentReminderSerializer(serializers.Serializer):
+    message = serializers.CharField(required=False, allow_blank=True, max_length=500)
 
 
 class AdminStudentActionLogSerializer(serializers.ModelSerializer):

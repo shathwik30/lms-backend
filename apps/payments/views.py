@@ -190,6 +190,20 @@ class PurchaseHistoryView(generics.ListAPIView):
 
 
 @extend_schema_view(
+    retrieve=extend_schema(tags=["Payments"], summary="Get one of my purchases"),
+)
+class PurchaseDetailView(generics.RetrieveAPIView):
+    permission_classes = [IsStudent]
+    serializer_class = PurchaseSerializer
+
+    @swagger_safe(Purchase)
+    def get_queryset(self):
+        return Purchase.objects.filter(
+            student=self.request.user.student_profile,  # type: ignore[union-attr]
+        ).select_related("level", "student__user")
+
+
+@extend_schema_view(
     list=extend_schema(tags=["Payments"], summary="List my transactions"),
 )
 class TransactionHistoryView(generics.ListAPIView):
@@ -202,7 +216,21 @@ class TransactionHistoryView(generics.ListAPIView):
     def get_queryset(self):
         return PaymentTransaction.objects.filter(
             student=self.request.user.student_profile,  # type: ignore[union-attr]
-        )
+        ).select_related("student__user", "level", "purchase")
+
+
+@extend_schema_view(
+    retrieve=extend_schema(tags=["Payments"], summary="Get one of my payment transactions"),
+)
+class TransactionDetailView(generics.RetrieveAPIView):
+    permission_classes = [IsStudent]
+    serializer_class = PaymentTransactionSerializer
+
+    @swagger_safe(PaymentTransaction)
+    def get_queryset(self):
+        return PaymentTransaction.objects.filter(
+            student=self.request.user.student_profile,  # type: ignore[union-attr]
+        ).select_related("student__user", "level", "purchase")
 
 
 # ── Admin views ──
@@ -318,3 +346,21 @@ class AdminPurchaseListView(generics.ListAPIView):
     queryset = Purchase.objects.select_related("level", "student__user")
     pagination_class = LargePagination
     filterset_fields = ["status", "level"]
+
+
+@extend_schema_view(
+    retrieve=extend_schema(tags=["Payments"], summary="Get a purchase (admin)"),
+)
+class AdminPurchaseDetailView(generics.RetrieveAPIView):
+    permission_classes = [IsAdmin]
+    serializer_class = PurchaseSerializer
+    queryset = Purchase.objects.select_related("level", "student__user", "extended_by")
+
+
+@extend_schema_view(
+    retrieve=extend_schema(tags=["Payments"], summary="Get a payment transaction (admin)"),
+)
+class AdminTransactionDetailView(generics.RetrieveAPIView):
+    permission_classes = [IsAdmin]
+    serializer_class = PaymentTransactionSerializer
+    queryset = PaymentTransaction.objects.select_related("student__user", "level", "purchase")

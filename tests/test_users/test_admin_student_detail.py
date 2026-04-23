@@ -31,6 +31,7 @@ class AdminStudentDetailGetTests(TestCase):
         response = self.admin_client.get(_detail_url(self.profile.pk))
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         self.assertEqual(response.data["account_status"], "inactive")
+        self.assertEqual(response.data["account_status_display"], "blocked")
 
     def test_detail_includes_validity_till(self):
         self.factory.create_purchase(self.profile, self.data["level"])
@@ -66,6 +67,9 @@ class AdminStudentDetailGetTests(TestCase):
         self.assertIn("video_completion", progress)
         self.assertIn("practice_completion", progress)
         self.assertIn("feedback_submitted", progress)
+        self.assertIn("completed_modules", progress)
+        self.assertIn("total_modules", progress)
+        self.assertIn("exam_access_status", progress)
         self.assertGreater(progress["overall_completion"], 0)
 
     def test_detail_curriculum_progress_null_without_level(self):
@@ -131,3 +135,46 @@ class AdminStudentDetailGetTests(TestCase):
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         self.profile.refresh_from_db()
         self.assertEqual(self.profile.current_level_id, level.pk)
+
+    def test_detail_includes_ui_friendly_fields(self):
+        response = self.admin_client.get(_detail_url(self.profile.pk))
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        for key in [
+            "student_name",
+            "student_email",
+            "student_profile_picture",
+            "student_code",
+            "registered_on",
+            "learning_streak",
+            "validity_status",
+            "profile_overview",
+            "exam_access_status",
+            "exam_access_message",
+            "exam_summary",
+        ]:
+            self.assertIn(key, response.data)
+
+    def test_patch_updates_basic_student_fields(self):
+        response = self.admin_client.patch(
+            _detail_url(self.profile.pk),
+            data={
+                "full_name": "Aarav Sharma",
+                "email": "aarav@example.com",
+                "phone": "+919999999999",
+                "gender": "male",
+            },
+            format="json",
+        )
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.user.refresh_from_db()
+        self.profile.refresh_from_db()
+        self.assertEqual(self.user.full_name, "Aarav Sharma")
+        self.assertEqual(self.user.email, "aarav@example.com")
+        self.assertEqual(self.user.phone, "+919999999999")
+        self.assertEqual(self.profile.gender, "male")
+
+    def test_delete_student_removes_user_and_profile(self):
+        response = self.admin_client.delete(_detail_url(self.profile.pk))
+        self.assertEqual(response.status_code, status.HTTP_204_NO_CONTENT)
+        self.assertFalse(type(self.profile).objects.filter(pk=self.profile.pk).exists())
+        self.assertFalse(type(self.user).objects.filter(pk=self.user.pk).exists())

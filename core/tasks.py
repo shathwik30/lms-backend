@@ -147,3 +147,21 @@ def send_doubt_reply_task(self, email, full_name, ticket_title, reply_author, re
         "doubt reply notification",
         lambda: EmailService.send_doubt_reply(email, full_name, ticket_title, reply_author, reply_preview),
     )
+
+
+@shared_task(
+    bind=True,
+    max_retries=TaskConfig.EMAIL_MAX_RETRIES,
+    default_retry_delay=TaskConfig.EMAIL_RETRY_DELAY,
+    soft_time_limit=TaskConfig.EMAIL_SOFT_TIME_LIMIT,
+    time_limit=TaskConfig.EMAIL_TIME_LIMIT,
+)
+def send_engagement_reminder_task(self, email, full_name, reminder_message):
+    from core.emails import EmailService
+
+    _run_email_task(
+        self,
+        email,
+        "engagement reminder",
+        lambda: EmailService.send_engagement_reminder(email, full_name, reminder_message),
+    )
