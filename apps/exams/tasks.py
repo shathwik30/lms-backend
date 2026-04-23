@@ -65,7 +65,7 @@ def auto_submit_timed_out_exams(self):
                 ExamService._apply_attempt_outcome(attempt.student.user, attempt)
 
                 logger.info(
-                    "Auto-submitted attempt %d for student %d (score=%d/%d)",
+                    "Auto-submitted attempt %s for student %s (score=%s/%d)",
                     attempt.pk,
                     attempt.student_id,
                     total_score,

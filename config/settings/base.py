@@ -277,7 +277,6 @@ if CELERY_RESULT_BACKEND.startswith("rediss://") and "ssl_cert_reqs" not in CELE
 
 RAZORPAY_KEY_ID = env("RAZORPAY_KEY_ID", default="")
 RAZORPAY_KEY_SECRET = env("RAZORPAY_KEY_SECRET", default="")
-RAZORPAY_WEBHOOK_SECRET = env("RAZORPAY_WEBHOOK_SECRET", default="")
 
 # ──────────────────────────────────────────────
 # Google OAuth (via Firebase)

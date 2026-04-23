@@ -1,5 +1,6 @@
 from rest_framework import serializers
 
+from core.serializer_fields import UUIDOrLegacyIntegerField
 from .models import PaymentTransaction, Purchase
 
 
@@ -24,7 +25,7 @@ class PurchaseSerializer(serializers.ModelSerializer):
 
 
 class InitiatePaymentSerializer(serializers.Serializer):
-    level_id = serializers.IntegerField()
+    level_id = UUIDOrLegacyIntegerField()
 
 
 class VerifyPaymentSerializer(serializers.Serializer):
@@ -48,13 +49,13 @@ class PaymentTransactionSerializer(serializers.ModelSerializer):
 
 
 class AdminExtendValiditySerializer(serializers.Serializer):
-    purchase_id = serializers.IntegerField()
+    purchase_id = UUIDOrLegacyIntegerField()
     extra_days = serializers.IntegerField(min_value=1)
     reason = serializers.CharField(required=False, allow_blank=True)
 
 
 class LevelPurchasePreviewSerializer(serializers.Serializer):
-    level_id = serializers.IntegerField()
+    level_id = serializers.UUIDField()
     level_name = serializers.CharField()
     price = serializers.DecimalField(max_digits=10, decimal_places=2)
     validity_days = serializers.IntegerField()

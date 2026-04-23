@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import logging
+import uuid
 from typing import Any
 
 from apps.users.models import User
@@ -11,6 +12,16 @@ logger = logging.getLogger(__name__)
 
 
 class NotificationService:
+    @staticmethod
+    def _json_safe(value: Any) -> Any:
+        if isinstance(value, uuid.UUID):
+            return str(value)
+        if isinstance(value, dict):
+            return {key: NotificationService._json_safe(item) for key, item in value.items()}
+        if isinstance(value, list):
+            return [NotificationService._json_safe(item) for item in value]
+        return value
+
     @staticmethod
     def create(
         user: User,
@@ -25,7 +36,7 @@ class NotificationService:
                 title=title,
                 message=message,
                 notification_type=notification_type or Notification.NotificationType.GENERAL,
-                data=data,
+                data=NotificationService._json_safe(data),
             )
         except Exception:
             logger.exception("Failed to create notification for user %s: %s", user, title)

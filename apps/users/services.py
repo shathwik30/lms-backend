@@ -7,6 +7,7 @@ from datetime import timedelta
 from django.conf import settings
 from django.contrib.auth import authenticate, get_user_model
 from django.contrib.auth.tokens import default_token_generator
+from django.core.exceptions import ValidationError
 from django.db import transaction
 from django.utils import timezone
 from django.utils.encoding import force_bytes, force_str
@@ -30,6 +31,34 @@ User = get_user_model()
 
 
 class AuthService:
+    @staticmethod
+    def _verify_google_token(id_token_str: str) -> dict | None:
+        try:
+            from firebase_admin import auth as firebase_auth
+            from firebase_admin.exceptions import FirebaseError
+
+            try:
+                return firebase_auth.verify_id_token(id_token_str)
+            except (FirebaseError, ValueError):
+                pass
+        except ImportError:
+            pass
+
+        if not settings.GOOGLE_CLIENT_ID:
+            return None
+
+        try:
+            from google.auth.transport import requests as google_requests
+            from google.oauth2 import id_token as google_id_token
+
+            return google_id_token.verify_oauth2_token(
+                id_token_str,
+                google_requests.Request(),
+                settings.GOOGLE_CLIENT_ID,
+            )
+        except Exception:
+            return None
+
     @staticmethod
     def register(user: UserModel) -> dict[str, str]:
         refresh = RefreshToken.for_user(user)
@@ -56,19 +85,18 @@ class AuthService:
 
     @staticmethod
     def google_auth(id_token_str: str) -> tuple[UserModel | None, dict[str, str] | None, str | bool]:
-        from firebase_admin import auth as firebase_auth
-        from firebase_admin.exceptions import FirebaseError
-
-        try:
-            decoded = firebase_auth.verify_id_token(id_token_str)
-        except (FirebaseError, ValueError):
+        decoded = AuthService._verify_google_token(id_token_str)
+        if not decoded:
             return None, None, ErrorMessage.INVALID_GOOGLE_TOKEN
 
         email = (decoded.get("email") or "").lower()
         if not email or not decoded.get("email_verified"):
             return None, None, ErrorMessage.GOOGLE_EMAIL_NOT_VERIFIED
 
-        google_id = decoded["uid"]
+        google_id = decoded.get("uid") or decoded.get("sub")
+        if not google_id:
+            return None, None, ErrorMessage.INVALID_GOOGLE_TOKEN
+
         full_name = decoded.get("name", email.split("@")[0])
 
         created = False
@@ -149,7 +177,7 @@ class PasswordResetService:
         try:
             uid = force_str(urlsafe_base64_decode(uid_b64))
             user = User.objects.get(pk=uid)
-        except (TypeError, ValueError, OverflowError, User.DoesNotExist):
+        except (TypeError, ValueError, OverflowError, ValidationError, User.DoesNotExist):
             return False, ErrorMessage.INVALID_RESET_LINK
 
         if not default_token_generator.check_token(user, token):
@@ -207,7 +235,7 @@ class ProfileService:
 
 class AdminStudentManagementService:
     @staticmethod
-    def _get_level(level_id: int) -> Level | None:
+    def _get_level(level_id) -> Level | None:
         return Level.objects.filter(pk=level_id, is_active=True).first()
 
     @staticmethod
@@ -234,7 +262,7 @@ class AdminStudentManagementService:
     @staticmethod
     def reset_exam_attempts(
         profile: StudentProfile,
-        level_id: int,
+        level_id,
         admin_user: UserModel,
         reason: str,
     ) -> tuple[LevelProgress | None, str | None]:
@@ -300,14 +328,14 @@ class AdminStudentManagementService:
             title=f"Exam Attempts Reset: {level.name}",
             message=f"Your final exam attempts for {level.name} were reset by the admin team.",
             notification_type=Notification.NotificationType.EXAM_RESULT,
-            data={"level_id": level.id},
+            data={"level_id": str(level.id)},
         )
         return progress, None
 
     @staticmethod
     def unlock_level(
         profile: StudentProfile,
-        level_id: int,
+        level_id,
         admin_user: UserModel,
         reason: str,
     ) -> tuple[Purchase | None, str | None]:
@@ -346,7 +374,7 @@ class AdminStudentManagementService:
                 level=level,
                 purchase=purchase,
                 metadata={
-                    "purchase_id": purchase.id,
+                    "purchase_id": str(purchase.id),
                     "purchase_created": created_purchase,
                     "expires_at": purchase.expires_at.isoformat(),
                 },
@@ -357,14 +385,14 @@ class AdminStudentManagementService:
             title=f"Level Unlocked: {level.name}",
             message=f"Access to {level.name} has been unlocked by the admin team.",
             notification_type=Notification.NotificationType.LEVEL_UNLOCK,
-            data={"level_id": level.id, "purchase_id": purchase.id},
+            data={"level_id": str(level.id), "purchase_id": str(purchase.id)},
         )
         return purchase, None
 
     @staticmethod
     def manual_pass_level(
         profile: StudentProfile,
-        level_id: int,
+        level_id,
         admin_user: UserModel,
         reason: str,
     ) -> tuple[LevelProgress | None, str | None]:
@@ -441,6 +469,6 @@ class AdminStudentManagementService:
             title=f"Level Marked Passed: {level.name}",
             message=f"{level.name} has been marked as passed by the admin team.",
             notification_type=Notification.NotificationType.EXAM_RESULT,
-            data={"level_id": level.id},
+            data={"level_id": str(level.id)},
         )
         return progress, None

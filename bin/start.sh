@@ -2,7 +2,7 @@
 set -e
 
 echo "[start] Migrating database..."
-python -u manage.py migrate --noinput 2>&1
+python -u manage.py migrate --noinput --fake-initial 2>&1
 echo "[start] Migrations done."
 
 echo "[start] Collecting static files..."

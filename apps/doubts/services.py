@@ -57,7 +57,7 @@ class DoubtService:
             title=f"New reply on: {ticket.title}",
             message=reply.message[:200],
             notification_type=Notification.NotificationType.DOUBT_REPLY,
-            data={"ticket_id": ticket.id},
+            data={"ticket_id": str(ticket.id)},
         )
 
         from core.tasks import fire_and_forget, send_doubt_reply_task
@@ -72,7 +72,7 @@ class DoubtService:
         )
 
     @staticmethod
-    def assign_ticket(ticket: DoubtTicket, faculty_id: int) -> tuple[DoubtTicket | None, str | None]:
+    def assign_ticket(ticket: DoubtTicket, faculty_id) -> tuple[DoubtTicket | None, str | None]:
         try:
             faculty = UserModel.objects.get(pk=faculty_id)
         except UserModel.DoesNotExist:

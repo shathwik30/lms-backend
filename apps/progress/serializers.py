@@ -65,7 +65,7 @@ class LevelProgressSerializer(serializers.ModelSerializer):
 
 class LeaderboardEntrySerializer(serializers.Serializer):
     rank = serializers.IntegerField()
-    student_id = serializers.IntegerField()
+    student_id = serializers.UUIDField()
     full_name = serializers.CharField()
     profile_picture = serializers.CharField(allow_blank=True)
     levels_cleared = serializers.IntegerField()

@@ -16,6 +16,10 @@ app.conf.beat_schedule = {
         "task": "apps.payments.tasks.expire_purchases",
         "schedule": crontab(hour=0, minute=30),
     },
+    "reconcile-pending-payments": {
+        "task": "apps.payments.tasks.reconcile_pending_payments",
+        "schedule": crontab(minute="*/5"),
+    },
     "auto-submit-timed-out-exams": {
         "task": "apps.exams.tasks.auto_submit_timed_out_exams",
         "schedule": crontab(minute="*/5"),

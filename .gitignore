@@ -19,3 +19,4 @@ certbot/conf/
 certbot/www/
 secrets/
 *firebase-adminsdk*.json
+firebase-credentials.json

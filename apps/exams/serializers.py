@@ -345,10 +345,10 @@ class ExamAttemptDetailSerializer(serializers.ModelSerializer):
 
 
 class SubmitAnswerSerializer(serializers.Serializer):
-    question_id = serializers.IntegerField()
-    option_id = serializers.IntegerField(allow_null=True, required=False)
+    question_id = serializers.UUIDField()
+    option_id = serializers.UUIDField(allow_null=True, required=False)
     option_ids = serializers.ListField(
-        child=serializers.IntegerField(),
+        child=serializers.UUIDField(),
         required=False,
         default=list,
         max_length=20,

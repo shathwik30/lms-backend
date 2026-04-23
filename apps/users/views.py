@@ -160,7 +160,7 @@ class MeView(APIView):
             200: inline_serializer(
                 "MeResponse",
                 fields={
-                    "id": drf_serializers.IntegerField(),
+                    "id": drf_serializers.UUIDField(),
                     "email": drf_serializers.EmailField(),
                     "full_name": drf_serializers.CharField(),
                     "phone": drf_serializers.CharField(),

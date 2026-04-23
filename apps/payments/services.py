@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import logging
+import uuid
 from datetime import timedelta
 
 from django.conf import settings
@@ -24,7 +25,7 @@ logger = logging.getLogger(__name__)
 
 class PaymentService:
     @staticmethod
-    def initiate_payment(user: UserModel, level_id: int) -> tuple[dict | None, str | None]:
+    def initiate_payment(user: UserModel, level_id: uuid.UUID) -> tuple[dict | None, str | None]:
         try:
             level = Level.objects.get(pk=level_id, is_active=True)
         except Level.DoesNotExist:
@@ -43,7 +44,8 @@ class PaymentService:
         if existing_purchase and existing_purchase.is_valid:
             return None, ErrorMessage.ACTIVE_LEVEL_PURCHASE_EXISTS
 
-        receipt = f"level_{level.id}_student_{profile.id}"
+        # Razorpay caps receipt at 40 chars; compact hex prefixes + epoch stay within.
+        receipt = f"lvl_{level.id.hex[:8]}_stu_{profile.id.hex[:8]}_{int(timezone.now().timestamp())}"
 
         if settings.RAZORPAY_KEY_ID:
             from core.services.razorpay import RazorpayService
@@ -156,7 +158,7 @@ class PaymentService:
             title=f"Purchase Confirmed: {level.name}",
             message=f"Your purchase of {level.name} is confirmed. Valid until {purchase.expires_at.strftime('%d %b %Y')}.",
             notification_type=Notification.NotificationType.PURCHASE,
-            data={"purchase_id": purchase.id, "level_id": level.id},
+            data={"purchase_id": str(purchase.id), "level_id": str(level.id)},
         )
 
         from core.tasks import fire_and_forget, send_purchase_confirmation_task
@@ -173,28 +175,30 @@ class PaymentService:
         return purchase, None
 
     @staticmethod
-    def fulfill_from_webhook(razorpay_order_id: str, razorpay_payment_id: str) -> bool:
-        """Called by the Razorpay webhook when a payment is captured.
+    def fulfill_captured_payment(razorpay_order_id: str, razorpay_payment_id: str) -> bool:
+        """Fulfill a transaction confirmed as captured by Razorpay.
 
-        Returns True if a purchase was created (or already existed).
+        Used by the reconciliation task when a student's browser never reached
+        /verify/ (e.g. tab closed after payment). Idempotent — safe to call
+        repeatedly; returns True if the purchase exists (now or already).
         """
         with transaction.atomic():
             try:
                 txn = PaymentTransaction.objects.select_for_update().get(razorpay_order_id=razorpay_order_id)
             except PaymentTransaction.DoesNotExist:
-                logger.warning("Webhook: unknown order_id %s", razorpay_order_id)
+                logger.warning("Reconcile: unknown order_id %s", razorpay_order_id)
                 return False
 
             if txn.status == PaymentTransaction.Status.SUCCESS:
                 return True  # already fulfilled by /verify/
 
             if txn.status != PaymentTransaction.Status.PENDING:
-                logger.warning("Webhook: txn %s has status %s, skipping", txn.id, txn.status)
+                logger.warning("Reconcile: txn %s has status %s, skipping", txn.id, txn.status)
                 return False
 
             level = txn.level
             if not level:
-                logger.error("Webhook: no level linked to txn %s", txn.id)
+                logger.error("Reconcile: no level linked to txn %s", txn.id)
                 return False
 
             profile = txn.student
@@ -212,7 +216,7 @@ class PaymentService:
             PaymentService._provision_access(profile, level, purchase)
 
         logger.info(
-            "Webhook fulfilled: txn=%s student=%s level=%s amount=%s",
+            "Reconciled: txn=%s student=%s level=%s amount=%s",
             txn.id,
             profile.id,
             level.id,
@@ -225,7 +229,7 @@ class PaymentService:
             title=f"Purchase Confirmed: {level.name}",
             message=f"Your purchase of {level.name} is confirmed. Valid until {purchase.expires_at.strftime('%d %b %Y')}.",
             notification_type=Notification.NotificationType.PURCHASE,
-            data={"purchase_id": purchase.id, "level_id": level.id},
+            data={"purchase_id": str(purchase.id), "level_id": str(level.id)},
         )
 
         from core.tasks import fire_and_forget, send_purchase_confirmation_task
@@ -279,7 +283,7 @@ class PaymentService:
             profile.save(update_fields=["current_level"])
 
     @staticmethod
-    def dev_purchase(user: UserModel, level_id: int) -> tuple[Purchase | None, str | None]:
+    def dev_purchase(user: UserModel, level_id: uuid.UUID) -> tuple[Purchase | None, str | None]:
         """Bypass Razorpay and create a purchase directly. For development only."""
         try:
             level = Level.objects.get(pk=level_id, is_active=True)
@@ -320,7 +324,7 @@ class PaymentService:
 
     @staticmethod
     def extend_validity(
-        purchase_id: int, extra_days: int, admin_user: UserModel, reason: str = ""
+        purchase_id: uuid.UUID, extra_days: int, admin_user: UserModel, reason: str = ""
     ) -> tuple[Purchase | None, str | None]:
         try:
             purchase = Purchase.objects.get(pk=purchase_id)

@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import logging
 import random
+import uuid
 from datetime import timedelta
 from decimal import Decimal
 from typing import Any
@@ -37,7 +38,7 @@ class ExamService:
             cls._update_weekly_exam_session_progress(user, attempt)
 
     @staticmethod
-    def get_exam_with_eligibility(student_profile: StudentProfile, exam_pk: int) -> tuple[Exam | None, bool]:
+    def get_exam_with_eligibility(student_profile: StudentProfile, exam_pk: uuid.UUID) -> tuple[Exam | None, bool]:
         try:
             exam = Exam.objects.select_related("level", "week", "course").get(pk=exam_pk, is_active=True)
         except Exam.DoesNotExist:
@@ -87,7 +88,7 @@ class ExamService:
             count = min(exam.num_questions, len(question_pool))
             if count < exam.num_questions:
                 logger.warning(
-                    "Exam %d: only %d questions available, required %d",
+                    "Exam %s: only %d questions available, required %d",
                     exam.pk,
                     count,
                     exam.num_questions,
@@ -137,7 +138,7 @@ class ExamService:
         attempt_questions = list(
             attempt.attempt_questions.select_related("question").prefetch_related("question__options")
         )
-        multi_mcq_updates: list[tuple[AttemptQuestion, list[int]]] = []
+        multi_mcq_updates: list[tuple[AttemptQuestion, list[uuid.UUID]]] = []
 
         for attempt_question in attempt_questions:
             answer = answers_map.get(attempt_question.id) or answers_map.get(attempt_question.question_id)
@@ -227,7 +228,7 @@ class ExamService:
             title="Placement Test Complete",
             message=f"Your placement test is complete. Score: {attempt.score}/{attempt.total_marks}.",
             notification_type=Notification.NotificationType.EXAM_RESULT,
-            data={"attempt_id": attempt.id},
+            data={"attempt_id": str(attempt.id)},
         )
 
     @staticmethod
@@ -298,13 +299,6 @@ class ExamService:
         if attempt.is_disqualified:
             return None, ErrorMessage.ATTEMPT_ALREADY_DISQUALIFIED
 
-        rule_enabled: dict[str, bool] = {
-            ProctoringViolation.ViolationType.FULL_SCREEN_EXIT.value: attempt.exam.require_fullscreen,
-            ProctoringViolation.ViolationType.TAB_SWITCH.value: attempt.exam.detect_tab_switch,
-        }
-        if rule_enabled.get(violation_type) is False:
-            return None, ErrorMessage.VIOLATION_RULE_DISABLED
-
         with transaction.atomic():
             warning_count = attempt.violations.count() + 1
 
@@ -329,7 +323,7 @@ class ExamService:
                     title="Exam Disqualified",
                     message=f"You were disqualified from {attempt.exam.title} due to repeated proctoring violations.",
                     notification_type=Notification.NotificationType.EXAM_RESULT,
-                    data={"attempt_id": attempt.id},
+                    data={"attempt_id": str(attempt.id)},
                 )
 
         return {
@@ -362,7 +356,7 @@ class ExamService:
     def _evaluate_multi_mcq(
         attempt_question: AttemptQuestion,
         answer: dict[str, Any],
-        multi_mcq_updates: list[tuple[AttemptQuestion, list[int]]],
+        multi_mcq_updates: list[tuple[AttemptQuestion, list[uuid.UUID]]],
     ) -> None:
         option_ids = answer.get("option_ids", [])
         if option_ids:
@@ -418,7 +412,7 @@ class ExamService:
                 title=f"Level {level.name} Cleared!",
                 message=f"Congratulations! You passed {attempt.exam.title} with {attempt.score}/{attempt.total_marks}.",
                 notification_type=Notification.NotificationType.EXAM_RESULT,
-                data={"level_id": level.id, "attempt_id": attempt.id},
+                data={"level_id": str(level.id), "attempt_id": str(attempt.id)},
             )
         else:
             from django.db.models import F
@@ -442,7 +436,7 @@ class ExamService:
                     title=f"Level {level.name} — Attempts Exhausted",
                     message=f"All {level.max_final_exam_attempts} attempts used. Level progress has been reset.",
                     notification_type=Notification.NotificationType.EXAM_RESULT,
-                    data={"level_id": level.id, "attempt_id": attempt.id},
+                    data={"level_id": str(level.id), "attempt_id": str(attempt.id)},
                 )
             else:
                 LevelProgress.objects.filter(pk=progress.pk).exclude(
@@ -455,7 +449,7 @@ class ExamService:
                     title=f"Exam Result: {attempt.exam.title}",
                     message=f"You scored {attempt.score}/{attempt.total_marks}. {remaining} attempt(s) remaining.",
                     notification_type=Notification.NotificationType.EXAM_RESULT,
-                    data={"level_id": level.id, "attempt_id": attempt.id},
+                    data={"level_id": str(level.id), "attempt_id": str(attempt.id)},
                 )
 
     @staticmethod

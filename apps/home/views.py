@@ -77,9 +77,7 @@ class LevelExamsView(APIView):
         profile = getattr(request.user, "student_profile", None) if request.user.is_authenticated else None
         if profile is not None:
             context["attempt_stats"] = self._build_attempt_stats(profile, exams)
-            context["eligibility_map"] = {
-                exam.id: EligibilityService.can_attempt_exam(profile, exam) for exam in exams
-            }
+            context["eligibility_map"] = {exam.id: EligibilityService.can_attempt_exam(profile, exam) for exam in exams}
 
         return Response(HomeLevelExamSerializer(exams, many=True, context=context).data)
 
@@ -90,8 +88,7 @@ class LevelExamsView(APIView):
             return {}
 
         stats: dict = {
-            exam_id: {"count": 0, "best_score": None, "is_passed": False, "last_status": None}
-            for exam_id in exam_ids
+            exam_id: {"count": 0, "best_score": None, "is_passed": False, "last_status": None} for exam_id in exam_ids
         }
         latest_started: dict = {}
         attempts = ExamAttempt.objects.filter(student=profile, exam_id__in=exam_ids).only(

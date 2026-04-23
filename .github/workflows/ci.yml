@@ -96,7 +96,6 @@ jobs:
       REDIS_URL: redis://localhost:6379/0
       RAZORPAY_KEY_ID: ""
       RAZORPAY_KEY_SECRET: ""
-      RAZORPAY_WEBHOOK_SECRET: ""
 
     steps:
       - uses: actions/checkout@v4
@@ -144,7 +143,6 @@ jobs:
       REDIS_URL: redis://localhost:6379/0
       RAZORPAY_KEY_ID: ""
       RAZORPAY_KEY_SECRET: ""
-      RAZORPAY_WEBHOOK_SECRET: ""
 
     steps:
       - uses: actions/checkout@v4

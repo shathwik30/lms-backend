@@ -17,8 +17,6 @@ Usage:
 
 from __future__ import annotations
 
-import hashlib
-import hmac
 from decimal import Decimal
 from typing import Any
 
@@ -116,10 +114,12 @@ class RazorpayService:
         return client.payment.refund(payment_id, data)
 
     @staticmethod
-    def verify_webhook_signature(body: bytes, signature: str) -> bool:
-        """Verify Razorpay webhook X-Razorpay-Signature header."""
-        secret = settings.RAZORPAY_WEBHOOK_SECRET
-        if not secret:
-            return False
-        expected = hmac.new(secret.encode(), body, hashlib.sha256).hexdigest()
-        return hmac.compare_digest(expected, signature)
+    def get_order_payments(order_id: str) -> list[dict[str, Any]]:
+        """List all payments attached to a given order.
+
+        Used by reconciliation to discover captured payments for orders whose
+        /verify/ call never arrived.
+        """
+        client = _get_client()
+        resp = client.order.payments(order_id)
+        return resp.get("items", []) or []

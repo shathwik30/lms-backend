@@ -1,6 +1,7 @@
 from django.contrib.auth import get_user_model
 from rest_framework import serializers
 
+from core.serializer_fields import UUIDOrLegacyIntegerField
 from .models import AdminStudentActionLog, IssueReport, StudentProfile, UserPreference
 
 User = get_user_model()
@@ -299,12 +300,12 @@ class AdminStudentDetailSerializer(serializers.ModelSerializer):
 
 
 class AdminStudentUpdateSerializer(serializers.Serializer):
-    current_level = serializers.IntegerField(required=False)
-    highest_cleared_level = serializers.IntegerField(required=False)
+    current_level = UUIDOrLegacyIntegerField(required=False)
+    highest_cleared_level = UUIDOrLegacyIntegerField(required=False)
 
 
 class AdminStudentLevelActionSerializer(serializers.Serializer):
-    level_id = serializers.IntegerField()
+    level_id = UUIDOrLegacyIntegerField()
     reason = serializers.CharField()
 
     def validate_reason(self, value: str) -> str:

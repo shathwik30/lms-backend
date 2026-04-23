@@ -157,7 +157,7 @@ class CreateDoubtSerializer(serializers.ModelSerializer):
 
 
 class AdminAssignDoubtSerializer(serializers.Serializer):
-    assigned_to = serializers.IntegerField()
+    assigned_to = serializers.UUIDField()
 
 
 class AdminBonusMarksSerializer(serializers.Serializer):
