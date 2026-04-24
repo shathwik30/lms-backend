@@ -318,11 +318,7 @@ class AdminStudentDetailSerializer(serializers.ModelSerializer):
             from apps.progress.models import SessionProgress
 
             obj._active_dates = sorted(
-                set(
-                    SessionProgress.objects.filter(student=obj)
-                    .values_list("updated_at__date", flat=True)
-                    .distinct()
-                )
+                set(SessionProgress.objects.filter(student=obj).values_list("updated_at__date", flat=True).distinct())
             )
         return obj._active_dates
 
@@ -587,9 +583,7 @@ class AdminStudentDetailSerializer(serializers.ModelSerializer):
         violations = ProctoringViolation.objects.filter(attempt__student=obj)
         total = violations.count()
         last = violations.order_by("-created_at").select_related("attempt__exam").first()
-        attempts_with_violations = (
-            ExamAttempt.objects.filter(student=obj, violations__isnull=False).distinct().count()
-        )
+        attempts_with_violations = ExamAttempt.objects.filter(student=obj, violations__isnull=False).distinct().count()
         has_disqualification = ExamAttempt.objects.filter(student=obj, is_disqualified=True).exists()
         suspicious_flag = has_disqualification or total >= 3
 
