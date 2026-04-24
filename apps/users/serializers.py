@@ -198,6 +198,9 @@ class AdminStudentDetailSerializer(serializers.ModelSerializer):
     days_remaining = serializers.SerializerMethodField()
     validity_status = serializers.SerializerMethodField()
     learning_streak = serializers.SerializerMethodField()
+    longest_streak = serializers.SerializerMethodField()
+    streak_summary = serializers.SerializerMethodField()
+    engagement_status = serializers.SerializerMethodField()
     last_active = serializers.SerializerMethodField()
     last_login_at = serializers.DateTimeField(source="user.last_login", read_only=True, default=None)
     last_login_ip = serializers.SerializerMethodField()
@@ -207,6 +210,9 @@ class AdminStudentDetailSerializer(serializers.ModelSerializer):
     exam_summary = serializers.SerializerMethodField()
     curriculum_progress = serializers.SerializerMethodField()
     exam_history = serializers.SerializerMethodField()
+    proctoring_summary = serializers.SerializerMethodField()
+    support_interaction = serializers.SerializerMethodField()
+    payment_history = serializers.SerializerMethodField()
     admin_action_history = serializers.SerializerMethodField()
 
     class Meta:
@@ -233,6 +239,9 @@ class AdminStudentDetailSerializer(serializers.ModelSerializer):
             "days_remaining",
             "validity_status",
             "learning_streak",
+            "longest_streak",
+            "streak_summary",
+            "engagement_status",
             "last_active",
             "last_login_at",
             "last_login_ip",
@@ -242,8 +251,12 @@ class AdminStudentDetailSerializer(serializers.ModelSerializer):
             "exam_summary",
             "curriculum_progress",
             "exam_history",
+            "proctoring_summary",
+            "support_interaction",
+            "payment_history",
             "admin_action_history",
             "created_at",
+            "updated_at",
         ]
         read_only_fields = fields
 
@@ -300,25 +313,95 @@ class AdminStudentDetailSerializer(serializers.ModelSerializer):
         )
         return latest.isoformat() if latest else None
 
+    def _get_active_dates(self, obj: StudentProfile) -> list:
+        if not hasattr(obj, "_active_dates"):
+            from apps.progress.models import SessionProgress
+
+            obj._active_dates = sorted(
+                set(
+                    SessionProgress.objects.filter(student=obj)
+                    .values_list("updated_at__date", flat=True)
+                    .distinct()
+                )
+            )
+        return obj._active_dates
+
     def get_learning_streak(self, obj: StudentProfile) -> int:
-        from apps.progress.models import SessionProgress
+        import datetime
 
         today = timezone.now().date()
-        dates = list(
-            SessionProgress.objects.filter(student=obj)
-            .values_list("updated_at__date", flat=True)
-            .distinct()
-            .order_by("-updated_at__date")[:60]
-        )
+        dates_desc = sorted(self._get_active_dates(obj), reverse=True)
         streak = 0
         expected = today
-        for active_date in dates:
+        for active_date in dates_desc:
             if active_date == expected:
                 streak += 1
-                expected = expected.fromordinal(expected.toordinal() - 1)
+                expected -= datetime.timedelta(days=1)
             elif active_date < expected:
                 break
         return streak
+
+    def get_longest_streak(self, obj: StudentProfile) -> int:
+        import datetime
+
+        dates = self._get_active_dates(obj)
+        if not dates:
+            return 0
+        longest = current = 1
+        for i in range(1, len(dates)):
+            if dates[i] - dates[i - 1] == datetime.timedelta(days=1):
+                current += 1
+                longest = max(longest, current)
+            else:
+                current = 1
+        return longest
+
+    def get_streak_summary(self, obj: StudentProfile) -> dict:
+        import datetime
+
+        today = timezone.now().date()
+        active_set = set(self._get_active_dates(obj))
+        days = [today - datetime.timedelta(days=offset) for offset in range(6, -1, -1)]
+        current = self.get_learning_streak(obj)
+        at_risk_threshold = 3
+        if current == 0:
+            status_label = "broken"
+        elif current < at_risk_threshold:
+            status_label = "at_risk"
+        else:
+            status_label = "healthy"
+        return {
+            "current": current,
+            "longest": self.get_longest_streak(obj),
+            "status": status_label,
+            "last_7_days": [
+                {
+                    "date": day.isoformat(),
+                    "is_active": day in active_set,
+                }
+                for day in days
+            ],
+        }
+
+    def get_engagement_status(self, obj: StudentProfile) -> dict:
+        last_active_iso = self.get_last_active(obj)
+        streak = self.get_learning_streak(obj)
+
+        if last_active_iso is None:
+            return {"status": "inactive", "label": "Inactive", "tone": "danger"}
+
+        from django.utils.dateparse import parse_datetime
+
+        last_active_dt = parse_datetime(last_active_iso)
+        days_since = (timezone.now() - last_active_dt).days if last_active_dt else None
+
+        if days_since is None or days_since >= 30:
+            return {"status": "inactive", "label": "Inactive", "tone": "danger"}
+        if days_since >= 7:
+            return {"status": "at_risk", "label": "At Risk", "tone": "warning"}
+        if streak >= 7:
+            return {"status": "healthy", "label": "Healthy", "tone": "success"}
+        return {"status": "active", "label": "Active", "tone": "neutral"}
 
     def get_last_login_ip(self, obj: StudentProfile) -> None:
         return None
@@ -460,24 +543,126 @@ class AdminStudentDetailSerializer(serializers.ModelSerializer):
         }
 
     def get_exam_history(self, obj: StudentProfile) -> list[dict]:
+        from django.db.models import Count
+
         from apps.exams.models import ExamAttempt
 
-        attempts = ExamAttempt.objects.filter(student=obj).select_related("exam").order_by("-started_at")[:10]
+        attempts = (
+            ExamAttempt.objects.filter(student=obj)
+            .select_related("exam")
+            .annotate(violations_count=Count("violations"))
+            .order_by("-started_at")[:10]
+        )
 
         result = []
         for attempt in attempts:
             attempt_number = ExamAttempt.objects.filter(
                 student=obj, exam=attempt.exam, started_at__lte=attempt.started_at
             ).count()
+            duration_seconds = None
+            if attempt.submitted_at:
+                duration_seconds = int((attempt.submitted_at - attempt.started_at).total_seconds())
             result.append(
                 {
-                    "id": attempt.id,
+                    "id": str(attempt.id),
                     "exam_title": attempt.exam.title,
                     "score": str(attempt.score) if attempt.score is not None else None,
                     "total_marks": attempt.total_marks,
                     "is_passed": attempt.is_passed,
-                    "started_at": attempt.started_at,
+                    "started_at": attempt.started_at.isoformat(),
+                    "submitted_at": attempt.submitted_at.isoformat() if attempt.submitted_at else None,
                     "attempt_number": attempt_number,
+                    "status": attempt.status,
+                    "auto_submitted": attempt.status == ExamAttempt.Status.TIMED_OUT,
+                    "is_disqualified": attempt.is_disqualified,
+                    "violations_count": attempt.violations_count,
+                    "duration_seconds": duration_seconds,
+                }
+            )
+        return result
+
+    def get_proctoring_summary(self, obj: StudentProfile) -> dict:
+        from apps.exams.models import ExamAttempt, ProctoringViolation
+
+        violations = ProctoringViolation.objects.filter(attempt__student=obj)
+        total = violations.count()
+        last = violations.order_by("-created_at").select_related("attempt__exam").first()
+        attempts_with_violations = (
+            ExamAttempt.objects.filter(student=obj, violations__isnull=False).distinct().count()
+        )
+        has_disqualification = ExamAttempt.objects.filter(student=obj, is_disqualified=True).exists()
+        suspicious_flag = has_disqualification or total >= 3
+
+        return {
+            "total_violations": total,
+            "suspicious_flag": suspicious_flag,
+            "attempts_with_violations": attempts_with_violations,
+            "last_incident_at": last.created_at.isoformat() if last else None,
+            "last_incident_type": last.violation_type if last else None,
+            "last_incident_exam_title": last.attempt.exam.title if last else None,
+        }
+
+    def get_support_interaction(self, obj: StudentProfile) -> dict:
+        user_issues = IssueReport.objects.filter(user=obj.user)
+        open_count = user_issues.filter(is_resolved=False).count()
+        resolved_count = user_issues.filter(is_resolved=True).count()
+        latest = user_issues.order_by("-created_at").first()
+
+        latest_payload = None
+        if latest:
+            latest_payload = {
+                "id": str(latest.id),
+                "subject": latest.subject,
+                "description": latest.description,
+                "category": latest.category,
+                "is_resolved": latest.is_resolved,
+                "admin_response": latest.admin_response,
+                "created_at": latest.created_at.isoformat(),
+                "updated_at": latest.updated_at.isoformat(),
+            }
+        return {
+            "open_count": open_count,
+            "resolved_count": resolved_count,
+            "total_count": open_count + resolved_count,
+            "latest": latest_payload,
+        }
+
+    def get_payment_history(self, obj: StudentProfile) -> list[dict]:
+        from apps.payments.models import Purchase
+
+        purchases = (
+            Purchase.objects.filter(student=obj)
+            .select_related("level")
+            .prefetch_related("transactions")
+            .order_by("-purchased_at")
+        )
+
+        result = []
+        for purchase in purchases:
+            successful_txn = next(
+                (txn for txn in purchase.transactions.all() if txn.status == "success"),
+                None,
+            )
+            latest_txn = successful_txn or next(iter(purchase.transactions.all()), None)
+            transaction_id = None
+            if latest_txn:
+                transaction_id = latest_txn.razorpay_payment_id or latest_txn.razorpay_order_id
+
+            result.append(
+                {
+                    "id": str(purchase.id),
+                    "transaction_id": transaction_id,
+                    "level": str(purchase.level_id) if purchase.level_id else None,
+                    "level_name": purchase.level.name if purchase.level else None,
+                    "amount": str(purchase.amount_paid),
+                    "purchased_at": purchase.purchased_at.isoformat(),
+                    "expires_at": purchase.expires_at.isoformat() if purchase.expires_at else None,
+                    "status": purchase.status,
+                    "payment_status": latest_txn.status if latest_txn else None,
+                    "payment_method": "razorpay" if latest_txn else None,
+                    "payment_gateway": "razorpay",
+                    "extended_by_days": purchase.extended_by_days,
+                    "is_valid": purchase.is_valid,
                 }
             )
         return result

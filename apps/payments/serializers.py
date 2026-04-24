@@ -11,6 +11,10 @@ class PurchaseSerializer(serializers.ModelSerializer):
     student_email = serializers.EmailField(source="student.user.email", read_only=True)
     student_profile_picture = serializers.ImageField(source="student.user.profile_picture", read_only=True)
     is_valid = serializers.BooleanField(read_only=True)  # type: ignore[assignment]
+    transaction_id = serializers.SerializerMethodField()
+    payment_status = serializers.SerializerMethodField()
+    payment_method = serializers.SerializerMethodField()
+    payment_gateway = serializers.SerializerMethodField()
 
     class Meta:
         model = Purchase
@@ -28,12 +32,54 @@ class PurchaseSerializer(serializers.ModelSerializer):
             "status",
             "is_valid",
             "extended_by_days",
+            "transaction_id",
+            "payment_status",
+            "payment_method",
+            "payment_gateway",
         ]
         read_only_fields = fields
+
+    def _get_latest_transaction(self, obj: Purchase):
+        if not hasattr(obj, "_cached_latest_txn"):
+            txns = list(obj.transactions.all())
+            txns.sort(key=lambda t: t.created_at, reverse=True)
+            successful = next((t for t in txns if t.status == PaymentTransaction.Status.SUCCESS), None)
+            obj._cached_latest_txn = successful or (txns[0] if txns else None)
+        return obj._cached_latest_txn
+
+    def get_transaction_id(self, obj: Purchase) -> str | None:
+        txn = self._get_latest_transaction(obj)
+        if not txn:
+            return None
+        return txn.razorpay_payment_id or txn.razorpay_order_id
+
+    def get_payment_status(self, obj: Purchase) -> str | None:
+        txn = self._get_latest_transaction(obj)
+        return txn.status if txn else None
+
+    def get_payment_method(self, obj: Purchase) -> str | None:
+        txn = self._get_latest_transaction(obj)
+        return "razorpay" if txn else None
+
+    def get_payment_gateway(self, obj: Purchase) -> str:
+        return "razorpay"
 
 
 class InitiatePaymentSerializer(serializers.Serializer):
     level_id = UUIDOrLegacyIntegerField()
+
+
+class InitiatePaymentResponseSerializer(serializers.Serializer):
+    transaction_id = UUIDOrLegacyIntegerField()
+    razorpay_order_id = serializers.CharField(allow_null=True)
+    amount = serializers.CharField()
+    currency = serializers.CharField()
+    level_id = UUIDOrLegacyIntegerField()
+    level_name = serializers.CharField()
+    razorpay_key = serializers.CharField(allow_null=True)
+    is_free = serializers.BooleanField()
+    purchase_id = UUIDOrLegacyIntegerField(allow_null=True, required=False)
+    expires_at = serializers.DateTimeField(allow_null=True, required=False)
 
 
 class VerifyPaymentSerializer(serializers.Serializer):

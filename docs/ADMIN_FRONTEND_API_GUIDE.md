@@ -237,12 +237,16 @@ GET /api/v1/auth/admin/students/
 GET /api/v1/auth/admin/students/<student_profile_id>/
 ```
 
+All id fields in request and response bodies are **UUID strings** (not integers). `<student_profile_id>` is the UUID from the list endpoint.
+
 **Response:**
 ```json
 {
-  "id": 1,
+  "id": "a1b2c3d4-e5f6-7890-abcd-ef1234567890",
+  "student_code": "STU-67890",
+  "registered_on": "2024-01-10",
   "user": {
-    "id": 10,
+    "id": "f9e8d7c6-b5a4-3210-fedc-ba9876543210",
     "email": "aarav@gmail.com",
     "full_name": "Aarav Sharma",
     "phone": "+919876543210",
@@ -250,45 +254,155 @@ GET /api/v1/auth/admin/students/<student_profile_id>/
     "is_student": true,
     "is_admin": false
   },
-  "current_level": 2,
+  "current_level": "11111111-2222-3333-4444-555555555555",
   "current_level_name": "Intermediate",
-  "highest_cleared_level": 1,
+  "highest_cleared_level": "aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee",
   "highest_cleared_level_name": "Foundation",
   "gender": "male",
   "is_onboarding_completed": true,
   "is_onboarding_exam_attempted": true,
   "account_status": "active",
+  "account_status_display": "active",
   "validity_till": "2024-12-15T00:00:00+05:30",
   "days_remaining": 215,
+  "validity_status": "active",
+  "learning_streak": 14,
+  "longest_streak": 32,
+  "streak_summary": {
+    "current": 14,
+    "longest": 32,
+    "status": "healthy",
+    "last_7_days": [
+      {"date": "2024-04-18", "is_active": false},
+      {"date": "2024-04-19", "is_active": true},
+      {"date": "2024-04-20", "is_active": true},
+      {"date": "2024-04-21", "is_active": true},
+      {"date": "2024-04-22", "is_active": false},
+      {"date": "2024-04-23", "is_active": true},
+      {"date": "2024-04-24", "is_active": true}
+    ]
+  },
+  "engagement_status": {
+    "status": "at_risk",
+    "label": "At Risk",
+    "tone": "warning"
+  },
+  "last_active": "2024-04-23T10:24:15+05:30",
+  "last_login_at": "2024-04-23T08:15:30+05:30",
+  "last_login_ip": null,
+  "profile_overview": {
+    "email": "aarav@gmail.com",
+    "phone": "+919876543210",
+    "current_curriculum_level": "11111111-2222-3333-4444-555555555555",
+    "current_curriculum_level_name": "Intermediate",
+    "validity_till": "2024-12-15T00:00:00+05:30",
+    "days_remaining": 215,
+    "last_login_at": "2024-04-23T08:15:30+05:30",
+    "last_login_ip": null
+  },
+  "exam_access_status": "unlocked",
+  "exam_access_message": "Final exam is available.",
+  "exam_summary": {
+    "attempts_used": 1,
+    "attempts_allowed": 3,
+    "attempts_remaining": 2,
+    "status": "unlocked"
+  },
   "curriculum_progress": {
     "overall_completion": 45.5,
     "video_completion": 60.0,
     "practice_completion": 25.0,
-    "feedback_submitted": 80.0
+    "feedback_submitted": 80.0,
+    "completed_modules": 8,
+    "total_modules": 12,
+    "exam_access_status": "unlocked",
+    "exam_access_message": "Final exam is available."
   },
   "exam_history": [
     {
-      "id": 5,
+      "id": "5aa31a4c-...",
       "exam_title": "Level 2 Final Exam",
       "score": "67.00",
       "total_marks": 100,
       "is_passed": true,
-      "started_at": "2024-05-10T10:00:00Z",
-      "attempt_number": 2
+      "started_at": "2024-05-10T10:00:00+05:30",
+      "submitted_at": "2024-05-10T11:12:45+05:30",
+      "attempt_number": 2,
+      "status": "submitted",
+      "auto_submitted": false,
+      "is_disqualified": false,
+      "violations_count": 1,
+      "duration_seconds": 4365
     }
   ],
-  "created_at": "2024-01-10T08:00:00Z"
+  "proctoring_summary": {
+    "total_violations": 2,
+    "suspicious_flag": true,
+    "attempts_with_violations": 2,
+    "last_incident_at": "2024-05-15T11:20:00+05:30",
+    "last_incident_type": "tab_switch",
+    "last_incident_exam_title": "Level 2 Final Exam"
+  },
+  "support_interaction": {
+    "open_count": 2,
+    "resolved_count": 18,
+    "total_count": 20,
+    "latest": {
+      "id": "c9d7f1a2-...",
+      "subject": "Unable to access Module 9 practice set",
+      "description": "I have completed all previous videos but the practice set remains locked with a 403 error.",
+      "category": "content",
+      "is_resolved": false,
+      "admin_response": "",
+      "created_at": "2024-04-24T08:00:00+05:30",
+      "updated_at": "2024-04-24T08:00:00+05:30"
+    }
+  },
+  "payment_history": [
+    {
+      "id": "d4f0b2c1-...",
+      "transaction_id": "pay_MabCdEfGhIjKlM",
+      "level": "11111111-2222-3333-4444-555555555555",
+      "level_name": "Intermediate",
+      "amount": "4999.00",
+      "purchased_at": "2024-03-24T10:30:00+05:30",
+      "expires_at": "2024-12-15T00:00:00+05:30",
+      "status": "active",
+      "payment_status": "success",
+      "payment_method": "razorpay",
+      "payment_gateway": "razorpay",
+      "extended_by_days": 0,
+      "is_valid": true
+    }
+  ],
+  "admin_action_history": [],
+  "created_at": "2024-01-10T08:00:00+05:30",
+  "updated_at": "2024-04-24T08:00:00+05:30"
 }
 ```
 
 | Design Element | API Field | Notes |
 |---|---|---|
-| Account Status badges (Active/Expired/At Risk) | `account_status` + `days_remaining` | `"active"` with `days_remaining < 30` = "At Risk" |
-| Profile Overview | `user.email`, `user.phone`, `current_level_name` | |
-| Validity | `validity_till` | `null` if no purchase |
-| Days Remaining | `days_remaining` | `null` if no purchase, `0` if expired |
-| Curriculum Progress | `curriculum_progress` | All values are percentages (0-100). `null` if no current_level |
-| Exam History table | `exam_history[]` | Last 10 attempts. `score` is string, parse to float |
+| Header name / avatar / registered date | `user.full_name`, `user.profile_picture`, `registered_on` (or `created_at`), `student_code` | `student_code` is `"STU-" + last 5 of UUID`. |
+| Stat card — Account Status | `account_status_display` | `"active"` or `"blocked"`. |
+| Stat card — Validity | `validity_status` + `days_remaining` | `"active" / "expiring_soon" / "expired" / "none"`. |
+| Stat card — Exam Status | `exam_access_status` | `"unlocked" / "locked" / "passed" / "attempt_limit_reached" / "no_level"`. |
+| Stat card — Engagement | `engagement_status.label` + `.tone` | Derived from last-active recency + streak. |
+| Profile Overview | `profile_overview` | Already includes email, phone, current level, validity, last_login. |
+| Validity | `validity_till`, `days_remaining` | `null` if no purchase. |
+| Curriculum Progress (percentages + modules) | `curriculum_progress` | All completion values are 0–100. `completed_modules`/`total_modules` for `"X/Y Modules Completed"` headline. `null` if no current_level. |
+| "Exam Locked" banner | `curriculum_progress.exam_access_message` | |
+| Exam History table | `exam_history[]` | Last 10 attempts. `score` is string (parse to float). `auto_submitted` maps to the "Auto-Submitted" column, `violations_count` to "Violations". |
+| "Attempts Used X/Y" label | `exam_summary.attempts_used` / `exam_summary.attempts_allowed` | |
+| "Repurchase Required" badge | `exam_access_status === "attempt_limit_reached"` | |
+| Proctoring Summary box | `proctoring_summary.total_violations`, `.suspicious_flag`, `.last_incident_at`, `.last_incident_type` | |
+| Streak Analytics — Current / Longest | `streak_summary.current`, `streak_summary.longest` | |
+| Streak Analytics — bar chart | `streak_summary.last_7_days[]` | Oldest to newest. Render `is_active` as a filled bar. |
+| Streak Analytics — "At Risk" pill | `streak_summary.status` | `"healthy" / "at_risk" / "broken"`. |
+| Support Interaction — "X Open / Y Closed" | `support_interaction.open_count` / `.resolved_count` | |
+| Support Interaction — latest ticket | `support_interaction.latest` (nullable) | |
+| Payment History table | `payment_history[]` | Columns map to `transaction_id` / `level_name` / `amount` / `expires_at` / `status`. |
+| Admin Action Log | `admin_action_history[]` | Last 10 admin actions (reset/unlock/manual-pass/extend). |
 
 ### Management Console Actions
 
@@ -297,17 +411,58 @@ GET /api/v1/auth/admin/students/<student_profile_id>/
 POST /api/v1/payments/admin/extend/
 ```
 ```json
-{ "purchase_id": 45, "extra_days": 30 }
+{
+  "purchase_id": "d4f0b2c1-...",
+  "extra_days": 30,
+  "reason": "Goodwill extension after internet outage."
+}
 ```
 
-**Update Level / Reset Attempts / Manually Mark Passed:**
+Response: `PurchaseSerializer` (now includes `transaction_id`, `payment_status`, `payment_method`, `payment_gateway`).
+
+**Reset Exam Attempts / Unlock Level / Mark Passed:**
+```
+POST /api/v1/auth/admin/students/<student_profile_id>/reset-exam-attempts/
+POST /api/v1/auth/admin/students/<student_profile_id>/unlock-level/
+POST /api/v1/auth/admin/students/<student_profile_id>/manual-pass/
+```
+```json
+{
+  "level_id": "11111111-2222-3333-4444-555555555555",
+  "reason": "Student reported a network disconnect mid-exam."
+}
+```
+
+**Send Reminder:**
+```
+POST /api/v1/auth/admin/students/<student_profile_id>/send-reminder/
+```
+```json
+{ "message": "Your Level 2 validity expires in 5 days." }
+```
+
+**Block / Unblock:**
+```
+PATCH /api/v1/auth/admin/students/<student_profile_id>/block/
+```
+```json
+{ "is_active": false }
+```
+
+**Delete Account (permanent):**
+```
+DELETE /api/v1/auth/admin/students/<student_profile_id>/
+```
+Returns `204 No Content`. Cascade-deletes the `User`, which in turn removes the linked `StudentProfile`, all purchases, exam attempts, progress rows, and issue reports.
+
+**Update Level Assignment:**
 ```
 PATCH /api/v1/auth/admin/students/<student_profile_id>/
 ```
 ```json
 {
-  "current_level": 3,
-  "highest_cleared_level": 2
+  "current_level": "11111111-2222-3333-4444-555555555555",
+  "highest_cleared_level": "aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee"
 }
 ```
 

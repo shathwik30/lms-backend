@@ -61,6 +61,30 @@ class PaymentServiceInitiateTests(TestCase):
         self.assertEqual(result["amount"], str(self.level1.price))
         self.assertEqual(result["level_id"], self.level1.id)
 
+    def test_initiate_payment_free_level_auto_grants_access(self):
+        """Free levels should bypass Razorpay and grant access immediately."""
+        from apps.payments.services import PaymentService
+
+        self.level1.name = "Foundation"
+        self.level1.price = 0
+        self.level1.save(update_fields=["name", "price"])
+
+        result, error = PaymentService.initiate_payment(self.user, self.level1.id)
+
+        self.assertIsNone(error)
+        self.assertIsNotNone(result)
+        self.assertTrue(result["is_free"])
+        self.assertIsNone(result["razorpay_order_id"])
+        self.assertIsNotNone(result["purchase_id"])
+        self.assertTrue(Purchase.objects.filter(student=self.profile, level=self.level1).exists())
+
+        txn = PaymentTransaction.objects.get(student=self.profile, level=self.level1)
+        self.assertEqual(txn.status, PaymentTransaction.Status.SUCCESS)
+        self.assertIsNotNone(txn.purchase)
+
+        progress = LevelProgress.objects.get(student=self.profile, level=self.level1)
+        self.assertEqual(progress.status, LevelProgress.Status.IN_PROGRESS)
+
 
 class PaymentServiceVerifyTests(TestCase):
     """Tests for PaymentService.verify_payment covering uncovered branches."""

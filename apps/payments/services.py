@@ -44,6 +44,9 @@ class PaymentService:
         if existing_purchase and existing_purchase.is_valid:
             return None, ErrorMessage.ACTIVE_LEVEL_PURCHASE_EXISTS
 
+        if level.price <= 0:
+            return PaymentService._grant_free_level_access(profile, level), None
+
         # Razorpay caps receipt at 40 chars; compact hex prefixes + epoch stay within.
         receipt = f"lvl_{level.id.hex[:8]}_stu_{profile.id.hex[:8]}_{int(timezone.now().timestamp())}"
 
@@ -91,7 +94,52 @@ class PaymentService:
             "level_id": level.id,
             "level_name": level.name,
             "razorpay_key": settings.RAZORPAY_KEY_ID or None,
+            "is_free": False,
+            "purchase_id": None,
+            "expires_at": None,
         }, None
+
+    @staticmethod
+    def _grant_free_level_access(profile, level) -> dict:
+        with transaction.atomic():
+            txn = PaymentTransaction.objects.create(
+                student=profile,
+                level=level,
+                razorpay_order_id=f"free_order_{timezone.now().strftime('%Y%m%d%H%M%S')}_{profile.pk}",
+                razorpay_payment_id=f"free_pay_{profile.pk}_{level.pk}",
+                amount=level.price,
+                status=PaymentTransaction.Status.SUCCESS,
+            )
+            purchase = Purchase.objects.create(
+                student=profile,
+                level=level,
+                amount_paid=level.price,
+                expires_at=timezone.now() + timedelta(days=level.validity_days),
+            )
+            txn.purchase = purchase
+            txn.save(update_fields=["purchase"])
+            PaymentService._provision_access(profile, level, purchase)
+
+        logger.info(
+            "Free level granted: txn=%s student=%s level=%s amount=%s",
+            txn.id,
+            profile.id,
+            level.id,
+            level.price,
+        )
+
+        return {
+            "transaction_id": txn.id,
+            "razorpay_order_id": None,
+            "amount": str(level.price),
+            "currency": PaymentConstants.DEFAULT_CURRENCY,
+            "level_id": level.id,
+            "level_name": level.name,
+            "razorpay_key": None,
+            "is_free": True,
+            "purchase_id": purchase.id,
+            "expires_at": purchase.expires_at,
+        }
 
     @staticmethod
     def verify_payment(user: UserModel, data: dict) -> tuple[Purchase | None, str | None]:

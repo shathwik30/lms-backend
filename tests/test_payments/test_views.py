@@ -45,6 +45,25 @@ class PaymentAPITests(APITestCase):
         self.assertEqual(response.status_code, status.HTTP_201_CREATED)
         self.assertIn("razorpay_order_id", response.data)
         self.assertTrue(response.data["razorpay_order_id"].startswith("dev_order_"))
+        self.assertFalse(response.data["is_free"])
+
+    def test_initiate_payment_free_level_auto_grants_access(self):
+        self.data["level"].name = "Foundation"
+        self.data["level"].price = 0
+        self.data["level"].save(update_fields=["name", "price"])
+
+        response = self.client.post(
+            "/api/v1/payments/initiate/",
+            {
+                "level_id": self.data["level"].pk,
+            },
+        )
+
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED)
+        self.assertTrue(response.data["is_free"])
+        self.assertIsNone(response.data["razorpay_order_id"])
+        self.assertIsNotNone(response.data["purchase_id"])
+        self.assertTrue(Purchase.objects.filter(student=self.profile, level=self.data["level"]).exists())
 
     def test_verify_payment_dev_mode(self):
         init_resp = self.client.post(

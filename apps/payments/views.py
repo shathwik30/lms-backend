@@ -20,6 +20,7 @@ from .models import PaymentTransaction, Purchase
 from .serializers import (
     AdminExtendValiditySerializer,
     InitiatePaymentSerializer,
+    InitiatePaymentResponseSerializer,
     LevelPurchasePreviewSerializer,
     PaymentTransactionSerializer,
     PurchaseSerializer,
@@ -41,20 +42,7 @@ class InitiatePaymentView(APIView):
     @extend_schema(
         tags=["Payments"],
         request=InitiatePaymentSerializer,
-        responses={
-            201: inline_serializer(
-                "InitiatePaymentResponse",
-                fields={
-                    "transaction_id": drf_serializers.IntegerField(),
-                    "razorpay_order_id": drf_serializers.CharField(),
-                    "amount": drf_serializers.CharField(),
-                    "currency": drf_serializers.CharField(),
-                    "level_id": drf_serializers.IntegerField(),
-                    "level_name": drf_serializers.CharField(),
-                    "razorpay_key": drf_serializers.CharField(allow_null=True),
-                },
-            )
-        },
+        responses={201: InitiatePaymentResponseSerializer},
     )
     def post(self, request):
         serializer = InitiatePaymentSerializer(data=request.data)

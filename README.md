@@ -167,6 +167,7 @@ mypy apps/ core/
 - **Swagger UI:** `http://localhost:8000/api/docs/`
 - **ReDoc:** `http://localhost:8000/api/redoc/`
 - **OpenAPI Schema:** `http://localhost:8000/api/schema/`
+- **Checked-in OpenAPI Snapshot:** [`docs/openapi.yaml`](docs/openapi.yaml)
 - **Detailed API Reference:** [`docs/API.md`](docs/API.md)
 
 ## API Endpoints Overview
@@ -291,7 +292,8 @@ lms-backend/
 │   ├── home/                   # 1 model: Banner
 │   └── search/                 # No models (searches across existing models)
 └── docs/
-    └── API.md                  # Detailed API reference with request/response examples
+    ├── API.md                  # Human-readable API reference and endpoint catalog
+    └── openapi.yaml            # Generated OpenAPI snapshot from current code
 ```
 
 ## License

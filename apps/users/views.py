@@ -341,12 +341,34 @@ class AdminStudentDetailView(APIView):
 
     @extend_schema(responses={200: AdminStudentDetailSerializer}, tags=["Admin - Users"])
     def get(self, request, pk):
+        from django.db.models import Prefetch
+
+        from apps.exams.models import ExamAttempt
+        from apps.payments.models import Purchase
+
         try:
-            profile = StudentProfile.objects.select_related(
-                "user",
-                "current_level",
-                "highest_cleared_level",
-            ).get(pk=pk)
+            profile = (
+                StudentProfile.objects.select_related(
+                    "user",
+                    "current_level",
+                    "highest_cleared_level",
+                )
+                .prefetch_related(
+                    Prefetch(
+                        "exam_attempts",
+                        queryset=ExamAttempt.objects.select_related("exam").prefetch_related("violations"),
+                    ),
+                    Prefetch(
+                        "purchases",
+                        queryset=Purchase.objects.select_related("level").prefetch_related("transactions"),
+                    ),
+                    "user__issue_reports",
+                    "admin_action_logs__admin_user",
+                    "admin_action_logs__level",
+                    "admin_action_logs__purchase",
+                )
+                .get(pk=pk)
+            )
         except StudentProfile.DoesNotExist:
             return Response({"detail": ErrorMessage.NOT_FOUND}, status=status.HTTP_404_NOT_FOUND)
         return Response(AdminStudentDetailSerializer(profile).data)
