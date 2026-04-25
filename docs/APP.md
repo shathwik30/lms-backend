@@ -169,7 +169,7 @@ Get a new token pair using a refresh token. Refresh token rotation is enabled â€
 ### `GET /api/v1/auth/me/`
 **Permission:** Authenticated
 
-Get current user profile. Includes student profile data (with `gender`, `is_onboarding_exam_attempted`) for student accounts.
+Get current user profile. Includes student profile data (with `gender`, `is_onboarding_completed`) for student accounts.
 
 **Response (200):**
 ```json
@@ -190,7 +190,6 @@ Get current user profile. Includes student profile data (with `gender`, `is_onbo
     "highest_cleared_level_name": null,
     "gender": "male",
     "is_onboarding_completed": false,
-    "is_onboarding_exam_attempted": false,
     "created_at": "2024-01-01T00:00:00Z"
   }
 }
@@ -905,8 +904,7 @@ Get student dashboard with current level, progress overview, and next recommende
     }
   ],
   "next_action": "attempt_exam",
-  "message": "You are ready to take the Level 1 exam.",
-  "is_onboarding_exam_attempted": true
+  "message": "You are ready to take the Level 1 exam."
 }
 ```
 

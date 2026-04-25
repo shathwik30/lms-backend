@@ -16,6 +16,33 @@ from core.constants import NextAction, NextActionMessage
 
 class EligibilityService:
     @staticmethod
+    def get_onboarding_exam(level: Level | None) -> Exam | None:
+        if level is None:
+            return None
+        return (
+            Exam.objects.filter(
+                exam_type=Exam.ExamType.ONBOARDING,
+                is_active=True,
+                level=level,
+            )
+            .order_by("-created_at")
+            .first()
+        )
+
+    @staticmethod
+    def has_completed_onboarding_attempt(student: StudentProfile, exam: Exam | None) -> bool:
+        if exam is None:
+            return False
+
+        from apps.exams.models import ExamAttempt
+
+        return (
+            ExamAttempt.objects.filter(student=student, exam=exam)
+            .exclude(status=ExamAttempt.Status.IN_PROGRESS)
+            .exists()
+        )
+
+    @staticmethod
     def get_onboarding_target_level(student: StudentProfile) -> Level | None:
         if student.current_level and student.current_level.is_active:
             return student.current_level
@@ -106,7 +133,7 @@ class EligibilityService:
     @classmethod
     def can_attempt_exam(cls, student: StudentProfile, exam: Exam) -> bool:
         if exam.exam_type == Exam.ExamType.ONBOARDING:
-            if student.is_onboarding_exam_attempted:
+            if cls.has_completed_onboarding_attempt(student, exam):
                 return False
             target_level = cls.get_onboarding_target_level(student)
             return bool(target_level and exam.level_id == target_level.id)
@@ -188,24 +215,11 @@ class EligibilityService:
 
     @classmethod
     def get_next_action(cls, student: StudentProfile) -> dict[str, Any]:
-        # Check onboarding status
-        if not student.is_onboarding_exam_attempted:
-            onboarding_level = cls.get_onboarding_target_level(student)
-            if not onboarding_level:
-                return {
-                    "action": NextAction.NO_LEVELS,
-                    "level": None,
-                    "message": NextActionMessage.NO_LEVELS,
-                }
-            onboarding_exam = (
-                Exam.objects.filter(
-                    exam_type=Exam.ExamType.ONBOARDING,
-                    is_active=True,
-                    level=onboarding_level,
-                )
-                .order_by("-created_at")
-                .first()
-            )
+        # Check onboarding status — recommend the placement test if the student
+        # has not yet attempted the onboarding exam at their target level.
+        onboarding_level = cls.get_onboarding_target_level(student)
+        onboarding_exam = cls.get_onboarding_exam(onboarding_level)
+        if onboarding_exam and not cls.has_completed_onboarding_attempt(student, onboarding_exam):
             return {
                 "action": NextAction.TAKE_ONBOARDING_EXAM,
                 "level": {
@@ -213,8 +227,14 @@ class EligibilityService:
                     "name": onboarding_level.name,
                     "order": onboarding_level.order,
                 },
-                "exam_id": onboarding_exam.id if onboarding_exam else None,
+                "exam_id": onboarding_exam.id,
                 "message": NextActionMessage.take_onboarding(),
+            }
+        if onboarding_level is None and not student.highest_cleared_level:
+            return {
+                "action": NextAction.NO_LEVELS,
+                "level": None,
+                "message": NextActionMessage.NO_LEVELS,
             }
 
         # Determine current level

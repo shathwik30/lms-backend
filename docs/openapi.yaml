@@ -4922,9 +4922,6 @@ components:
         is_onboarding_completed:
           type: boolean
           readOnly: true
-        is_onboarding_exam_attempted:
-          type: boolean
-          readOnly: true
         account_status:
           type: string
           readOnly: true
@@ -5192,7 +5189,6 @@ components:
       - highest_cleared_level
       - id
       - is_onboarding_completed
-      - is_onboarding_exam_attempted
       - last_active
       - last_login_at
       - last_login_ip
@@ -5302,9 +5298,6 @@ components:
         is_onboarding_completed:
           type: boolean
           readOnly: true
-        is_onboarding_exam_attempted:
-          type: boolean
-          readOnly: true
         validity_till:
           type: string
           format: date-time
@@ -5350,7 +5343,6 @@ components:
       - highest_cleared_level
       - id
       - is_onboarding_completed
-      - is_onboarding_exam_attempted
       - last_active
       - name
       - streak
@@ -5973,16 +5965,12 @@ components:
           type: string
         message:
           type: string
-        is_onboarding_exam_attempted:
-          type: boolean
-        exam_id:
           type: integer
           nullable: true
       required:
       - course_progress
       - current_level
       - exam_id
-      - is_onboarding_exam_attempted
       - level_progress
       - message
       - next_action
@@ -8810,9 +8798,6 @@ components:
         is_onboarding_completed:
           type: boolean
           readOnly: true
-        is_onboarding_exam_attempted:
-          type: boolean
-          readOnly: true
         created_at:
           type: string
           format: date-time
@@ -8824,7 +8809,6 @@ components:
       - highest_cleared_level
       - id
       - is_onboarding_completed
-      - is_onboarding_exam_attempted
       - user
     SubmitAnswerRequest:
       type: object

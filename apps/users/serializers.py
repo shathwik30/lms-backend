@@ -55,7 +55,6 @@ class StudentProfileSerializer(serializers.ModelSerializer):
             "highest_cleared_level_name",
             "gender",
             "is_onboarding_completed",
-            "is_onboarding_exam_attempted",
             "created_at",
         ]
         read_only_fields = fields
@@ -102,7 +101,6 @@ class AdminStudentListSerializer(serializers.ModelSerializer):
             "highest_cleared_level_name",
             "gender",
             "is_onboarding_completed",
-            "is_onboarding_exam_attempted",
             "validity_till",
             "days_remaining",
             "validity_status",
@@ -232,7 +230,6 @@ class AdminStudentDetailSerializer(serializers.ModelSerializer):
             "highest_cleared_level_name",
             "gender",
             "is_onboarding_completed",
-            "is_onboarding_exam_attempted",
             "account_status",
             "account_status_display",
             "validity_till",

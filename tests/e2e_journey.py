@@ -146,7 +146,6 @@ if profile:
             "current_level",
             "highest_cleared_level",
             "is_onboarding_completed",
-            "is_onboarding_exam_attempted",
         ],
     )
 
@@ -711,10 +710,7 @@ check("Fresh student profile", s, b, 200, ["id", "email", "profile"])
 profile = b.get("profile", {})
 if profile:
     assert profile.get("is_onboarding_completed") is False, "Should NOT be onboarded"
-    assert profile.get("is_onboarding_exam_attempted") is False, "Should NOT have attempted onboarding exam"
-    print(
-        f"  OK    Confirmed: onboarding_completed={profile.get('is_onboarding_completed')}, exam_attempted={profile.get('is_onboarding_exam_attempted')}"
-    )
+    print(f"  OK    Confirmed: onboarding_completed={profile.get('is_onboarding_completed')}")
     PASS += 1
 
 s, b = req("GET", "/progress/dashboard/", token=fresh_token)

@@ -49,7 +49,11 @@ class ExamService:
     @staticmethod
     def start_exam(student_profile: StudentProfile, exam: Exam) -> tuple[ExamAttempt | None, bool | None]:
         if exam.exam_type == Exam.ExamType.ONBOARDING:
-            if student_profile.is_onboarding_exam_attempted:
+            if (
+                ExamAttempt.objects.filter(student=student_profile, exam=exam)
+                .exclude(status=ExamAttempt.Status.IN_PROGRESS)
+                .exists()
+            ):
                 raise OnboardingAlreadyAttempted()
             if not EligibilityService.can_attempt_exam(student_profile, exam):
                 raise LevelLocked()
@@ -195,7 +199,7 @@ class ExamService:
         profile = user.student_profile
         level = attempt.exam.level
 
-        update_fields = ["is_onboarding_exam_attempted", "current_level"]
+        update_fields = ["current_level"]
 
         if attempt.is_passed:
             LevelProgress.objects.update_or_create(
@@ -211,15 +215,9 @@ class ExamService:
             update_fields.append("highest_cleared_level")
 
             next_level = Level.objects.filter(order=level.order + 1, is_active=True).first()
-            if next_level:
-                profile.current_level = next_level
-                profile.is_onboarding_exam_attempted = False
-            else:
-                profile.current_level = level
-                profile.is_onboarding_exam_attempted = True
+            profile.current_level = next_level or level
         else:
             profile.current_level = level
-            profile.is_onboarding_exam_attempted = True
 
         profile.save(update_fields=update_fields)
 

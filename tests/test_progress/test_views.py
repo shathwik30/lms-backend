@@ -1,6 +1,7 @@
 from rest_framework import status
 from rest_framework.test import APIClient, APITestCase
 
+from apps.exams.models import Exam, ExamAttempt
 from apps.progress.models import LevelProgress
 from core.constants import NextAction
 from core.test_utils import TestFactory
@@ -155,8 +156,6 @@ class DashboardTests(APITestCase):
         self.data2 = self.factory.setup_full_level(order=2)
 
     def test_dashboard_new_student(self):
-        from apps.exams.models import Exam
-
         onboarding_exam = self.factory.create_exam(self.data1["level"], exam_type=Exam.ExamType.ONBOARDING)
         response = self.client.get("/api/v1/progress/dashboard/")
         self.assertEqual(response.status_code, status.HTTP_200_OK)
@@ -164,14 +163,17 @@ class DashboardTests(APITestCase):
         self.assertEqual(response.data["exam_id"], onboarding_exam.id)
 
     def test_dashboard_after_onboarding_no_purchase(self):
-        self.profile.is_onboarding_exam_attempted = True
-        self.profile.save()
+        onboarding_exam = self.factory.create_exam(self.data1["level"], exam_type=Exam.ExamType.ONBOARDING)
+        ExamAttempt.objects.create(
+            student=self.profile,
+            exam=onboarding_exam,
+            status=ExamAttempt.Status.SUBMITTED,
+            total_marks=onboarding_exam.total_marks,
+        )
         response = self.client.get("/api/v1/progress/dashboard/")
         self.assertEqual(response.data["next_action"], NextAction.PURCHASE_LEVEL)
 
     def test_dashboard_after_passing_level1_onboarding_shows_level2_exam(self):
-        from apps.exams.models import Exam
-
         self.factory.create_exam(self.data1["level"], exam_type=Exam.ExamType.ONBOARDING)
         level2_exam = self.factory.create_exam(self.data2["level"], exam_type=Exam.ExamType.ONBOARDING)
         self.profile.current_level = self.data2["level"]
@@ -184,24 +186,18 @@ class DashboardTests(APITestCase):
         self.assertEqual(response.data["exam_id"], level2_exam.id)
 
     def test_dashboard_after_pass(self):
-        self.profile.is_onboarding_exam_attempted = True
-        self.profile.save()
         self.factory.pass_level(self.profile, self.data1["level"])
         response = self.client.get("/api/v1/progress/dashboard/")
         self.assertEqual(response.data["next_action"], NextAction.PURCHASE_LEVEL)
         self.assertEqual(response.data["current_level"]["order"], 2)
 
     def test_dashboard_all_complete(self):
-        self.profile.is_onboarding_exam_attempted = True
-        self.profile.save()
         self.factory.pass_level(self.profile, self.data1["level"])
         self.factory.pass_level(self.profile, self.data2["level"])
         response = self.client.get("/api/v1/progress/dashboard/")
         self.assertEqual(response.data["next_action"], NextAction.ALL_COMPLETE)
 
     def test_dashboard_in_progress(self):
-        self.profile.is_onboarding_exam_attempted = True
-        self.profile.save()
         self.factory.create_purchase(self.profile, self.data1["level"])
         LevelProgress.objects.create(
             student=self.profile,

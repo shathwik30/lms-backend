@@ -428,7 +428,6 @@ GET /api/v1/progress/dashboard/
   ],
   "next_action": "complete_courses",
   "message": "Complete all courses to unlock the final exam",
-  "is_onboarding_exam_attempted": true,
   "exam_id": null
 }
 ```
@@ -1108,7 +1107,6 @@ GET /api/v1/auth/me/
     "highest_cleared_level_name": "Foundation",
     "gender": "male",
     "is_onboarding_completed": true,
-    "is_onboarding_exam_attempted": true,
     "created_at": "2024-01-10T08:00:00Z"
   }
 }

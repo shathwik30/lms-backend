@@ -77,7 +77,6 @@ class StudentProfile(TimeStampedModel):
         blank=True,
     )
     is_onboarding_completed = models.BooleanField(default=False)
-    is_onboarding_exam_attempted = models.BooleanField(default=False)
 
     class Meta:
         db_table = "student_profiles"

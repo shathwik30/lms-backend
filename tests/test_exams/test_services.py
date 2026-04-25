@@ -49,8 +49,12 @@ class StartExamOnboardingAlreadyAttemptedTests(TestCase):
         self.factory.create_question(self.exam)
 
     def test_onboarding_already_attempted_raises(self):
-        self.profile.is_onboarding_exam_attempted = True
-        self.profile.save(update_fields=["is_onboarding_exam_attempted"])
+        ExamAttempt.objects.create(
+            student=self.profile,
+            exam=self.exam,
+            status=ExamAttempt.Status.SUBMITTED,
+            total_marks=self.exam.total_marks,
+        )
 
         with self.assertRaises(OnboardingAlreadyAttempted):
             ExamService.start_exam(self.profile, self.exam)
@@ -268,7 +272,6 @@ class ProcessOnboardingResultTests(TestCase):
         ExamService._process_onboarding_result(self.user, attempt)
 
         self.profile.refresh_from_db()
-        self.assertFalse(self.profile.is_onboarding_exam_attempted)
         self.assertEqual(self.profile.highest_cleared_level, self.level1)
         self.assertEqual(self.profile.current_level, self.level2)
         self.assertTrue(
@@ -293,7 +296,6 @@ class ProcessOnboardingResultTests(TestCase):
         ExamService._process_onboarding_result(self.user, attempt)
 
         self.profile.refresh_from_db()
-        self.assertTrue(self.profile.is_onboarding_exam_attempted)
         self.assertEqual(self.profile.highest_cleared_level, self.level1)
         self.assertEqual(self.profile.current_level, self.level2)
 
@@ -308,7 +310,6 @@ class ProcessOnboardingResultTests(TestCase):
         ExamService._process_onboarding_result(self.user, attempt)
 
         self.profile.refresh_from_db()
-        self.assertTrue(self.profile.is_onboarding_exam_attempted)
         self.assertEqual(self.profile.highest_cleared_level, self.level3)
         self.assertEqual(self.profile.current_level, self.level3)
 
@@ -1007,7 +1008,6 @@ class SubmitTimedOutOnboardingOutcomeTests(TestCase):
         self.assertTrue(attempt.is_passed)
 
         self.profile.refresh_from_db()
-        self.assertFalse(self.profile.is_onboarding_exam_attempted)
         self.assertEqual(self.profile.highest_cleared_level, self.level1)
         self.assertEqual(self.profile.current_level, self.level2)
 

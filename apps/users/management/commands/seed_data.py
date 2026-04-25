@@ -666,7 +666,6 @@ class Command(BaseCommand):
             profile = user.student_profile
             profile.gender = gender
             profile.is_onboarding_completed = True
-            profile.is_onboarding_exam_attempted = True
             profile.save()
             UserPreference.objects.get_or_create(user=user)
             profiles.append(profile)
@@ -681,7 +680,6 @@ class Command(BaseCommand):
         fresh_profile = fresh_user.student_profile
         fresh_profile.gender = "male"
         fresh_profile.is_onboarding_completed = False
-        fresh_profile.is_onboarding_exam_attempted = False
         fresh_profile.save()
         UserPreference.objects.get_or_create(user=fresh_user)
 

@@ -164,7 +164,6 @@ class AutoSubmitTimedOutExamsTests(TestCase):
         self.assertTrue(attempt.is_passed)
 
         self.profile.refresh_from_db()
-        self.assertFalse(self.profile.is_onboarding_exam_attempted)
         self.assertEqual(self.profile.highest_cleared_level, self.data["level"])
         self.assertEqual(self.profile.current_level, level2)
 
