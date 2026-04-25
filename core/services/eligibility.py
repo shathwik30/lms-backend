@@ -220,6 +220,7 @@ class EligibilityService:
         onboarding_level = cls.get_onboarding_target_level(student)
         onboarding_exam = cls.get_onboarding_exam(onboarding_level)
         if onboarding_exam and not cls.has_completed_onboarding_attempt(student, onboarding_exam):
+            assert onboarding_level is not None
             return {
                 "action": NextAction.TAKE_ONBOARDING_EXAM,
                 "level": {
